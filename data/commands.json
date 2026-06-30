@@ -1,0 +1,775 @@
+[
+  {
+    "name": "register",
+    "description": "Initialize your digital identity.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "non_bot_user"
+      ],
+      "server": [
+        "non_bot_user"
+      ]
+    },
+    "category": "Account",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "active role",
+    "description": "Show current active role.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Profile",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "switch role",
+    "description": "Switch active identity.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Profile",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "help",
+    "description": "List available commands.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer",
+        "server_admin",
+        "non_bot_user"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin",
+        "non_bot_user"
+      ]
+    },
+    "category": "General",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "show userid",
+    "description": "Display registered role IDs.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Profile",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "username",
+        "description": "Discord username to query.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "user profile",
+    "description": "Display user profile.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Profile",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's role id to query.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "user stats",
+    "description": "Display user stats.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Profile",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's client id or freelancer id to query.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "view portfolio",
+    "description": "Display freelancer's portfolio.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ],
+      "server": [
+        "client",
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Profile",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's freelancer id to query.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "posted jobs",
+    "description": "Display client's posted jobs.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client"
+      ],
+      "server": [
+        "client",
+        "server_admin"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's client id to query.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "applied jobs",
+    "description": "Display freelancer's applied jobs.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer"
+      ],
+      "server": [
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's freelancer id to query.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "job details",
+    "description": "Display job details.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ],
+      "server": [
+        "freelancer",
+        "server_admin",
+        "client"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "job_id",
+        "description": "Bot's job id to query.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "apply job",
+    "description": "Apply to a job.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer"
+      ],
+      "server": [
+        "freelancer"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "job_id",
+        "description": "Bot's job id to query.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "post job",
+    "description": "Post a job.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client"
+      ],
+      "server": [
+        "client"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "command channel",
+    "description": "Set command execution channel.",
+    "context": [
+      "server"
+    ],
+    "roles": {
+      "server": [
+        "server_admin"
+      ]
+    },
+    "category": "Management",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "channel_id",
+        "description": "Channel id to set as command channel.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "members list",
+    "description": "List profiles that exists on server.",
+    "context": [
+      "server"
+    ],
+    "roles": {
+      "server": [
+        "server_admin"
+      ]
+    },
+    "category": "Management",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "client",
+        "description": "View only client profiles.",
+        "mandatory": false
+      },
+      {
+        "name": "freelancer",
+        "description": "View only freelancer profiles.",
+        "mandatory": false
+      },
+      {
+        "name": "server_admin",
+        "description": "View only server admin profiles.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "block execution",
+    "description": "Blocks command execution for a profile.",
+    "context": [
+      "server"
+    ],
+    "roles": {
+      "server": [
+        "server_admin"
+      ]
+    },
+    "category": "Management",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's role id to block.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "allow execution",
+    "description": "Allows command execution for a profile.",
+    "context": [
+      "server"
+    ],
+    "roles": {
+      "server": [
+        "server_admin"
+      ]
+    },
+    "category": "Management",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's role id to allow.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "job applications",
+    "description": "Display job applications.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client"
+      ],
+      "server": [
+        "client",
+        "server_admin"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "job_id",
+        "description": "Bot's job id to query.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "application details",
+    "description": "Display application details.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client"
+      ],
+      "server": [
+        "client",
+        "server_admin"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "application_id",
+        "description": "Bot's application id to query.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "jobs list",
+    "description": "List of open jobs.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer"
+      ],
+      "server": [
+        "freelancer",
+        "server_admin"
+      ]
+    },
+    "category": "Jobs",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "featured",
+        "description": "Display featured jobs only.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "create room",
+    "description": "Create a room to interview an application or complete a job.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client"
+      ],
+      "server": [
+        "client"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "active rooms",
+    "description": "Display active rooms.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ],
+      "server": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "selected room",
+    "description": "Display selected room for chat.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ],
+      "server": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "switch room",
+    "description": "Switch selected room for chat.",
+    "context": [
+      "dm",
+      "server"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ],
+      "server": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "interview message",
+    "description": "Send a message in interview chat.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "interview budget",
+    "description": "Select the final budget for this job.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "client"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": [
+      {
+        "name": "budget",
+        "description": "Final amount to be paid for the job.",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "interview complain",
+    "description": "Submit a complaint in the selected interview room.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": [
+      {
+        "name": "message_id",
+        "description": "Link this complaint to a previous message ID",
+        "mandatory": false
+      },
+      {
+        "name": "complain_id",
+        "description": "Link this complaint to a previous complaint ID",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "interview delivery",
+    "description": "Retry any failed system message deliveries in room.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "interview milestone",
+    "description": "Add milestone to the job.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "interview review",
+    "description": "Review the agreement of job.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "interview agreement",
+    "description": "Sign the agreement of job.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "interview leave",
+    "description": "Leave the interview room.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "interview transcript",
+    "description": "Generate a transcript of the interview chat.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": false,
+    "requiresInterviewChat": true,
+    "parameters": []
+  }
+]

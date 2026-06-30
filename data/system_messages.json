@@ -1,0 +1,222 @@
+[
+  {
+    "name": "security_bypass_attempt",
+    "description": "Notify user of a security bypass attempt detected on their account.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the target user",
+        "mandatory": true
+      },
+      {
+        "name": "event_type",
+        "description": "Category of the bypass (e.g. sql_injection_attempt)",
+        "mandatory": true
+      },
+      {
+        "name": "total_attempts",
+        "description": "Cumulative bypass count for the user",
+        "mandatory": true
+      },
+      {
+        "name": "auto_ban_at",
+        "description": "Threshold at which auto-ban triggers",
+        "mandatory": false
+      },
+      {
+        "name": "ip",
+        "description": "Origin IP of the attempt",
+        "mandatory": false
+      },
+      {
+        "name": "path",
+        "description": "API path that was targeted",
+        "mandatory": false
+      },
+      {
+        "name": "detail",
+        "description": "Human-readable detail about the event",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "room_greet_client",
+    "description": "Notify the client that an interview room has been created.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the client",
+        "mandatory": true
+      },
+      {
+        "name": "freelancer_name",
+        "description": "Name of the freelancer",
+        "mandatory": true
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "room_greet_freelancer",
+    "description": "Notify the freelancer that they have been invited to an interview room.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the freelancer",
+        "mandatory": true
+      },
+      {
+        "name": "client_name",
+        "description": "Name of the client",
+        "mandatory": true
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "room_interview_message",
+    "description": "Notify the receiver of a new interview room message or command notification.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the receiver",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID",
+        "mandatory": true
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job linked to this room",
+        "mandatory": true
+      },
+      {
+        "name": "sender_role",
+        "description": "Either 'client' or 'freelancer' (optional; only for regular messages)",
+        "mandatory": false
+      },
+      {
+        "name": "sender_name",
+        "description": "Profile display name of the sender (optional; only for regular messages)",
+        "mandatory": false
+      },
+      {
+        "name": "msg_text",
+        "description": "The message content (optional; only for regular messages)",
+        "mandatory": false
+      },
+      {
+        "name": "attachments",
+        "description": "Comma-separated list of filenames (optional)",
+        "mandatory": false
+      },
+      {
+        "name": "command_name",
+        "description": "Command that was run (e.g. interview_budget); present = command notification mode",
+        "mandatory": false
+      },
+      {
+        "name": "executor_name",
+        "description": "Display name of the person who ran the command (optional)",
+        "mandatory": false
+      },
+      {
+        "name": "msg_data",
+        "description": "Execution details text (optional; for command notifications)",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "room_rules",
+    "description": "Send interview room rules to both parties.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the receiver",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID",
+        "mandatory": true
+      }
+    ]
+  },
+  {
+    "name": "room_job_details",
+    "description": "Send job details to both parties in the interview room.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the receiver",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID",
+        "mandatory": true
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job",
+        "mandatory": true
+      },
+      {
+        "name": "job_description",
+        "description": "Description of the job",
+        "mandatory": true
+      },
+      {
+        "name": "budget_min",
+        "description": "Minimum budget",
+        "mandatory": true
+      },
+      {
+        "name": "budget_max",
+        "description": "Maximum budget",
+        "mandatory": true
+      },
+      {
+        "name": "deadline",
+        "description": "Job deadline date (optional)",
+        "mandatory": false
+      }
+    ]
+  }
+]
