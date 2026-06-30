@@ -92,6 +92,12 @@ class _SigningSessionWrapper:
     headers when the URL path matches :data:`_BOT_PATH_PREFIXES`.
 
     Non-bot endpoints pass through unchanged.
+
+    **Important:** The HTTP methods (``get``, ``post``, etc.) are
+    *synchronous* — they return a ``ClientResponse`` directly (not a
+    coroutine), because ``aiohttp.ClientSession`` methods are themselves
+    synchronous.  This allows callers to use ``async with session.get(...)``
+    as normal.
     """
 
     def __init__(self, session: aiohttp.ClientSession) -> None:
@@ -110,38 +116,38 @@ class _SigningSessionWrapper:
         """Close the underlying session."""
         await self._session.close()
 
-    # ── HTTP methods ─────────────────────────────────────────────────
+    # ── HTTP methods (SYNCHRONOUS — return ClientResponse, not coroutine) ─
 
-    async def get(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    def get(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         path = _extract_path(url)
         kwargs["headers"] = _merge_signing_headers(
             kwargs.pop("headers", None), "GET", path,
         )
-        return await self._session.get(url, **kwargs)
+        return self._session.get(url, **kwargs)
 
-    async def post(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    def post(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         path = _extract_path(url)
         body = _resolve_body(kwargs)
         kwargs["headers"] = _merge_signing_headers(
             kwargs.pop("headers", None), "POST", path, body,
         )
-        return await self._session.post(url, **kwargs)
+        return self._session.post(url, **kwargs)
 
-    async def patch(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    def patch(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         path = _extract_path(url)
         body = _resolve_body(kwargs)
         kwargs["headers"] = _merge_signing_headers(
             kwargs.pop("headers", None), "PATCH", path, body,
         )
-        return await self._session.patch(url, **kwargs)
+        return self._session.patch(url, **kwargs)
 
-    async def delete(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    def delete(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         path = _extract_path(url)
         body = _resolve_body(kwargs)
         kwargs["headers"] = _merge_signing_headers(
             kwargs.pop("headers", None), "DELETE", path, body,
         )
-        return await self._session.delete(url, **kwargs)
+        return self._session.delete(url, **kwargs)
 
     # ── passthrough for any other attributes ─────────────────────────
 
