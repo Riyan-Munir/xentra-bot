@@ -167,12 +167,12 @@ def _resolve_body(kwargs: dict) -> bytes:
         return body
     if isinstance(body, str):
         return body.encode("utf-8")
-    # aiohttp serialises ``json`` to bytes internally using json.dumps().
-    # We must sign the EXACT same bytes that aiohttp will send on the wire,
-    # otherwise the backend's RequestSigningMiddleware will compute a
-    # different body_hash and reject with "Signature mismatch".
-    # Using json.dumps() here ensures byte-for-byte identity.
-    return _json.dumps(body, separators=(",", ":"), ensure_ascii=True, default=str).encode("utf-8")
+    # aiohttp serialises ``json`` to bytes internally using json.dumps()
+    # with default separators (``(", ", ": ")``).  We must sign the EXACT
+    # same bytes that aiohttp will send on the wire, otherwise the
+    # backend's RequestSigningMiddleware will compute a different
+    # body_hash and reject with "Signature mismatch".
+    return _json.dumps(body, ensure_ascii=True, default=str).encode("utf-8")
 
 
 # ── Public API ────────────────────────────────────────────────────────
