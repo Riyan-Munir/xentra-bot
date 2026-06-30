@@ -4,12 +4,20 @@ Shared aiohttp.ClientSession singleton for all bot HTTP requests.
 Replaces the per-request pattern of creating ~48 separate TCP connections
 with a single persistent connection pool managed at the application level.
 
-Provides automatic HMAC request signing for bot→backend communication.
+Provides **automatic** HMAC request signing for bot→backend communication
+via a transparent wrapper around ``aiohttp.ClientSession``.  Every caller
+that uses ``session.get(url, ...)`` automatically gets ``X-Signature``,
+``X-Timestamp``, and ``X-Nonce`` headers injected for bot-prefixed paths
+without any import changes.
+
+Explicit ``signed_get()`` / ``signed_post()`` / ``signed_patch()`` /
+``signed_delete()`` helpers are also available for callers that want to
+opt in explicitly.
 """
 
 import aiohttp
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 from utils.request_signing import sign_request, _get_signing_secret
 
@@ -17,45 +25,15 @@ logger = logging.getLogger('bot.http')
 
 _http_session: aiohttp.ClientSession | None = None
 
-
-def init_http_session(session: aiohttp.ClientSession) -> None:
-    """Register the shared session (called once from main.py)."""
-    global _http_session
-    _http_session = session
-    logger.debug("Shared aiohttp session registered.")
-
-
-def get_http_session() -> aiohttp.ClientSession:
-    """Return the shared aiohttp.ClientSession.
-
-    Raises RuntimeError if init_http_session() has not been called.
-    """
-    global _http_session
-    if _http_session is None:
-        raise RuntimeError(
-            "Shared HTTP session not initialised. "
-            "Call init_http_session() from main.py before using get_http_session()."
-        )
-    return _http_session
-
-
-async def close_http_session() -> None:
-    """Close the shared session during application shutdown."""
-    global _http_session
-    if _http_session is not None and not _http_session.closed:
-        await _http_session.close()
-        logger.debug("Shared aiohttp session closed.")
-    _http_session = None
-
-
-# ── Auto-signing helpers ──────────────────────────────────────────────
-
+# ── Bot path prefixes that require HMAC signing ───────────────────────
 _BOT_PATH_PREFIXES = (
     "/api/v1/rooms/bot/",
     "/api/v1/jobs/bot/",
     "/api/v1/users/bot/",
 )
 
+
+# ── Signing logic (shared between the wrapper and explicit helpers) ──
 
 def _extract_path(url: str) -> str:
     """Extract the path component from a full or partial URL.
@@ -69,7 +47,7 @@ def _extract_path(url: str) -> str:
 
 
 def _should_sign(path: str) -> bool:
-    """Return ``True`` if the path is a bot-specific endpoint that needs signing."""
+    """Return ``True`` if *path* is a bot-specific endpoint that needs signing."""
     return path.startswith(_BOT_PATH_PREFIXES)
 
 
@@ -79,11 +57,11 @@ def _merge_signing_headers(
     path: str,
     body: bytes = b"",
 ) -> dict:
-    """Merge HMAC signing headers into the request headers.
+    """Merge HMAC signing headers into *headers*.
 
     Only adds signing if:
     1. The path matches a bot endpoint prefix.
-    2. REQUEST_SIGNING_SECRET is configured.
+    2. ``REQUEST_SIGNING_SECRET`` is configured.
 
     Returns the (possibly updated) headers dict.
     """
@@ -92,7 +70,6 @@ def _merge_signing_headers(
         return headers or {}
 
     if _get_signing_secret() is None:
-        # Secret not configured — log a warning and continue unsigned.
         logger.warning(
             "Request to %s requires signing, but REQUEST_SIGNING_SECRET is not set.",
             resolved_path,
@@ -105,44 +82,166 @@ def _merge_signing_headers(
     return result
 
 
+# ── Transparent signing wrapper ──────────────────────────────────────
+
+class _SigningSessionWrapper:
+    """Wraps an ``aiohttp.ClientSession`` to auto-sign bot-prefixed requests.
+
+    Every call to ``.get()``, ``.post()``, ``.patch()`` or ``.delete()``
+    transparently injects ``X-Signature`` / ``X-Timestamp`` / ``X-Nonce``
+    headers when the URL path matches :data:`_BOT_PATH_PREFIXES`.
+
+    Non-bot endpoints pass through unchanged.
+    """
+
+    def __init__(self, session: aiohttp.ClientSession) -> None:
+        self._session = session
+
+    # ── properties ──────────────────────────────────────────────────
+
+    @property
+    def closed(self) -> bool:
+        """Delegate to the underlying session."""
+        return self._session.closed
+
+    # ── lifecycle ───────────────────────────────────────────────────
+
+    async def close(self) -> None:
+        """Close the underlying session."""
+        await self._session.close()
+
+    # ── HTTP methods ─────────────────────────────────────────────────
+
+    async def get(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+        path = _extract_path(url)
+        kwargs["headers"] = _merge_signing_headers(
+            kwargs.pop("headers", None), "GET", path,
+        )
+        return await self._session.get(url, **kwargs)
+
+    async def post(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+        path = _extract_path(url)
+        body = _resolve_body(kwargs)
+        kwargs["headers"] = _merge_signing_headers(
+            kwargs.pop("headers", None), "POST", path, body,
+        )
+        return await self._session.post(url, **kwargs)
+
+    async def patch(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+        path = _extract_path(url)
+        body = _resolve_body(kwargs)
+        kwargs["headers"] = _merge_signing_headers(
+            kwargs.pop("headers", None), "PATCH", path, body,
+        )
+        return await self._session.patch(url, **kwargs)
+
+    async def delete(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
+        path = _extract_path(url)
+        body = _resolve_body(kwargs)
+        kwargs["headers"] = _merge_signing_headers(
+            kwargs.pop("headers", None), "DELETE", path, body,
+        )
+        return await self._session.delete(url, **kwargs)
+
+    # ── passthrough for any other attributes ─────────────────────────
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._session, name)
+
+
+def _resolve_body(kwargs: dict) -> bytes:
+    """Extract the request body bytes from keyword arguments.
+
+    Handles ``data``, ``json`` and returns ``b""`` for body-less methods.
+    """
+    body = kwargs.get("data") or kwargs.get("json") or b""
+    if isinstance(body, bytes):
+        return body
+    if isinstance(body, str):
+        return body.encode("utf-8")
+    # aiohttp serialises ``json`` to bytes internally; for signing we
+    # approximate by using the string representation.  The backend
+    # middleware uses ``request.body`` which will be the raw serialised
+    # form, so in practice this may differ for complex JSON payloads.
+    # For the most accurate signature, pass pre-serialised ``data`` bytes.
+    return str(body).encode("utf-8") if body else b""
+
+
+# ── Public API ────────────────────────────────────────────────────────
+
+def init_http_session(session: aiohttp.ClientSession) -> None:
+    """Register the shared session (called once from ``main.py``)."""
+    global _http_session
+    _http_session = session
+    logger.debug("Shared aiohttp session registered.")
+
+
+def get_http_session() -> _SigningSessionWrapper:
+    """Return a signing wrapper around the shared :class:`aiohttp.ClientSession`.
+
+    Raises :class:`RuntimeError` if :func:`init_http_session` has not been called.
+    """
+    global _http_session
+    if _http_session is None:
+        raise RuntimeError(
+            "Shared HTTP session not initialised. "
+            "Call init_http_session() from main.py before using get_http_session()."
+        )
+    return _SigningSessionWrapper(_http_session)
+
+
+async def close_http_session() -> None:
+    """Close the shared session during application shutdown."""
+    global _http_session
+    if _http_session is not None and not _http_session.closed:
+        await _http_session.close()
+        logger.debug("Shared aiohttp session closed.")
+    _http_session = None
+
+
+# ── Explicit opt-in helpers ──────────────────────────────────────────
+
 async def signed_get(url: str, **kwargs) -> aiohttp.ClientResponse:
-    """Perform a GET request with automatic HMAC signing for bot endpoints.
+    """Perform a GET request with explicit HMAC signing for bot endpoints.
 
     All keyword arguments are forwarded to ``session.get()``.
     """
-    session = get_http_session()
+    session = _http_session
+    if session is None:
+        raise RuntimeError("HTTP session not initialised.")
     path = _extract_path(url)
     merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "GET", path)
     return await session.get(url, headers=merged_headers, **kwargs)
 
 
 async def signed_post(url: str, **kwargs) -> aiohttp.ClientResponse:
-    """Perform a POST request with automatic HMAC signing for bot endpoints.
-
-    All keyword arguments are forwarded to ``session.post()``.
-    """
-    session = get_http_session()
+    """Perform a POST request with explicit HMAC signing for bot endpoints."""
+    session = _http_session
+    if session is None:
+        raise RuntimeError("HTTP session not initialised.")
     path = _extract_path(url)
-    body = kwargs.get("data") or kwargs.get("json") or b""
-    if not isinstance(body, bytes):
-        body = str(body).encode("utf-8") if not isinstance(body, (str, bytes)) else body
-    merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "POST", path, body if isinstance(body, bytes) else b"")
+    body = _resolve_body(kwargs)
+    merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "POST", path, body)
     return await session.post(url, headers=merged_headers, **kwargs)
 
 
 async def signed_patch(url: str, **kwargs) -> aiohttp.ClientResponse:
-    """Perform a PATCH request with automatic HMAC signing for bot endpoints."""
-    session = get_http_session()
+    """Perform a PATCH request with explicit HMAC signing for bot endpoints."""
+    session = _http_session
+    if session is None:
+        raise RuntimeError("HTTP session not initialised.")
     path = _extract_path(url)
-    body = kwargs.get("data") or kwargs.get("json") or b""
-    merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "PATCH", path, body if isinstance(body, bytes) else b"")
+    body = _resolve_body(kwargs)
+    merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "PATCH", path, body)
     return await session.patch(url, headers=merged_headers, **kwargs)
 
 
 async def signed_delete(url: str, **kwargs) -> aiohttp.ClientResponse:
-    """Perform a DELETE request with automatic HMAC signing for bot endpoints."""
-    session = get_http_session()
+    """Perform a DELETE request with explicit HMAC signing for bot endpoints."""
+    session = _http_session
+    if session is None:
+        raise RuntimeError("HTTP session not initialised.")
     path = _extract_path(url)
-    body = kwargs.get("data") or b""
-    merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "DELETE", path, body if isinstance(body, bytes) else b"")
+    body = _resolve_body(kwargs)
+    merged_headers = _merge_signing_headers(kwargs.pop("headers", None), "DELETE", path, body)
     return await session.delete(url, headers=merged_headers, **kwargs)
