@@ -160,17 +160,19 @@ def _resolve_body(kwargs: dict) -> bytes:
 
     Handles ``data``, ``json`` and returns ``b""`` for body-less methods.
     """
+    import json as _json
+
     body = kwargs.get("data") or kwargs.get("json") or b""
     if isinstance(body, bytes):
         return body
     if isinstance(body, str):
         return body.encode("utf-8")
-    # aiohttp serialises ``json`` to bytes internally; for signing we
-    # approximate by using the string representation.  The backend
-    # middleware uses ``request.body`` which will be the raw serialised
-    # form, so in practice this may differ for complex JSON payloads.
-    # For the most accurate signature, pass pre-serialised ``data`` bytes.
-    return str(body).encode("utf-8") if body else b""
+    # aiohttp serialises ``json`` to bytes internally using json.dumps().
+    # We must sign the EXACT same bytes that aiohttp will send on the wire,
+    # otherwise the backend's RequestSigningMiddleware will compute a
+    # different body_hash and reject with "Signature mismatch".
+    # Using json.dumps() here ensures byte-for-byte identity.
+    return _json.dumps(body, separators=(",", ":"), ensure_ascii=True, default=str).encode("utf-8")
 
 
 # ── Public API ────────────────────────────────────────────────────────

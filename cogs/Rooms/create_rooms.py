@@ -37,7 +37,6 @@ from utils.embeds import (
     error_embed,
     success_embed,
     info_embed,
-    loading_embed,
     dm_blocked_embed,
 )
 from utils.http import get_http_session
@@ -137,10 +136,7 @@ class CreateRoomSetupView(discord.ui.View):
         # Disable controls so the user can't re-submit
         for child in self.children:
             child.disabled = True
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Processing your selection..."),
-            view=self,
-        )
+        await interaction.edit_original_response(view=self)
 
         if self.room_type == "job":
             await interaction.edit_original_response(
@@ -737,10 +733,6 @@ class CreateRooms(commands.Cog):
             return  # cancelled
 
         # ── Step 6 — DM validation ────────────────────────────────
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Sending invitations..."),
-            view=None,
-        )
 
         # Try freelancer DM first — if it fails the client gets no
         # premature notification.
@@ -787,9 +779,6 @@ class CreateRooms(commands.Cog):
             return
 
         # ── Step 7 — Create room (backend) ────────────────────────
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Creating interview room..."),
-        )
 
         result = await self._create_room(
             interaction,
