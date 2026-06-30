@@ -2,14 +2,14 @@
 ``/interview message`` — Send a message in the interview chat.
 
 Flow:
-  1. Command handler opens the message Modal directly — no intermediate
-     "Write Message" button block.
-  2. Modal collects text; on submit it fetches user + room data from the
-     backend and shows a confirmation embed with buttons.
-  3. Confirmation is **not** ephemeral in DMs.
-  4. On Send, the *same* embed is edited to show success/error and all
+  1. ``validate_and_respond`` validates the user, role, and room context.
+  2. Shows a "Write Message" button after room verification passes.
+  3. Button opens the message Modal.
+  4. Modal collects text; on submit it shows a confirmation embed with buttons.
+  5. Confirmation is **not** ephemeral in DMs.
+  6. On Send, the *same* embed is edited to show success/error and all
      buttons are removed (instead of sending a new followup message).
-  5. **➕** button to add files, per-attachment **✖** buttons to remove before sending.
+  7. **➕** button to add files, per-attachment **✖** buttons to remove before sending.
 """
 
 import asyncio
@@ -21,14 +21,18 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import sync_cog_commands
+from utils.command_handler import (
+    sync_cog_commands,
+    validate_and_respond,
+    is_author,
+    fetch_selected_room,
+)
 from utils.embeds import (
     BrandColor,
     create_embed,
     error_embed,
     success_embed,
     info_embed,
-    loading_embed,
     dm_blocked_embed,
 )
 from utils.http import get_http_session
@@ -83,12 +87,44 @@ def _build_confirm_embed(
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Modal — message text input (opens directly on command)
+# Start View — opens the modal after room verification
+# ──────────────────────────────────────────────────────────────────────
+
+
+class MessageStartView(discord.ui.View):
+    """View shown after room verification — user clicks to open the message modal."""
+
+    def __init__(
+        self,
+        user_data: dict,
+        room_data: dict,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.user_data = user_data
+        self.room_data = room_data
+
+    @discord.ui.button(label='Write Message', style=discord.ButtonStyle.primary)
+    async def write_message(
+        self, interaction: discord.Interaction, _button: discord.ui.Button,
+    ) -> None:
+        if not is_author(interaction, self):
+            return
+
+        modal = InterviewMessageModal(
+            user_data=self.user_data,
+            room_data=self.room_data,
+        )
+        await interaction.response.send_modal(modal)
+        self.stop()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Modal — message text input (opens after room verification)
 # ──────────────────────────────────────────────────────────────────────
 
 
 class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
-    """Modal that collects message text.  Opens immediately on /interview message."""
+    """Modal that collects message text.  Room already verified before opening."""
 
     msg = discord.ui.TextInput(
         label='Message',
@@ -98,8 +134,14 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         max_length=4000,
     )
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        user_data: dict,
+        room_data: dict,
+    ) -> None:
         super().__init__(timeout=300)
+        self.user_data = user_data
+        self.room_data = room_data
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         msg_text = self.msg.value.strip()
@@ -115,112 +157,12 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
             return
 
         is_dm = interaction.guild is None
-        session = get_http_session()
-        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
-        # 1 Fetch user data
-        try:
-            async with session.get(
-                f'{BACKEND_URL}users/bot/{interaction.user.id}/',
-                headers=headers,
-            ) as resp:
-                if resp.status != 200:
-                    await interaction.response.send_message(
-                        embed=error_embed(message='Authentication failed. Please try again.'),
-                        ephemeral=not is_dm,
-                    )
-                    return
-                user_data = await resp.json()
-        except Exception:
-            logger.exception('Failed to fetch user data')
-            await interaction.response.send_message(
-                embed=error_embed(message='System error. Please try again later.'),
-                ephemeral=not is_dm,
-            )
-            return
-
-        # 2 Security checks (mirrors validate_and_respond logic)
-        if user_data.get('has_pending_hacking'):
-            from config import FRONTEND_URL
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message=(
-                        f'A security notification requires your attention on the Xentra '
-                        f'Dashboard.\n'
-                        f'Visit **{FRONTEND_URL}** and acknowledge the alert '
-                        f'to restore access to all bot commands.'
-                    ),
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        if not user_data.get('is_allowed_executor', True):
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message='You are not permitted to execute commands in this server. '
-                    'Contact moderators for more information.'
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        active_role = user_data.get('active_role', '')
-        if not active_role or active_role == 'non_bot_user':
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message='You need a registered client or freelancer profile to send '
-                    'interview messages. Visit the Xentra Dashboard to set up your account.'
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        # 3 Channel restriction check (server only)
-        if not is_dm:
-            assigned_channel_id = user_data.get('assigned_channel_id')
-            if assigned_channel_id and str(interaction.channel_id) != str(assigned_channel_id):
-                target = interaction.guild.get_channel(int(assigned_channel_id))
-                ch_name = target.mention if target else f'ID {assigned_channel_id}'
-                await interaction.response.send_message(
-                    embed=error_embed(
-                        message=f'Commands are restricted to {ch_name}.'
-                    ),
-                    ephemeral=not is_dm,
-                )
-                return
-
-        # 4 Fetch selected room via shared resolver
-        from utils.command_handler import fetch_selected_room
-
-        room_data = await fetch_selected_room(
-            discord_id=interaction.user.id,
-            role=active_role,
-            room_type='interview',
-            headers=headers,
-        )
-
-        if room_data is None:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        # Merge profile display name into user_data
-        if active_role == 'client':
-            user_data['client_name'] = room_data.get('client_name', 'Client')
-        else:
-            user_data['freelancer_name'] = room_data.get('freelancer_name', 'Freelancer')
-
-        # 5 Show confirmation view
+        # Show confirmation view
         view = InterviewMessageConfirmView(
             interaction,
-            user_data,
-            room_data,
+            self.user_data,
+            self.room_data,
             msg_text,
             word_count,
         )
@@ -667,8 +609,49 @@ class InterviewMessage(commands.Cog):
     @app_commands.checks.cooldown(1, 15, key=lambda i: i.user.id)
     async def interview_message(self, interaction: discord.Interaction) -> None:
         """Send a message to the other party in the selected interview room."""
-        modal = InterviewMessageModal()
-        await interaction.response.send_modal(modal)
+
+        async def callback(user_data: dict):
+            active_role = user_data.get('active_role')
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+
+            # ── 1. Fetch selected room ──────────────────────────────────
+            room_data = await fetch_selected_room(
+                discord_id=interaction.user.id,
+                role=active_role,
+                room_type='interview',
+                headers=headers,
+            )
+            if room_data is None:
+                return error_embed(
+                    message='No selected interview room found. '
+                    'Use `/switch room` to select one.',
+                )
+
+            # Merge profile display name into user_data
+            if active_role == 'client':
+                user_data['client_name'] = room_data.get('client_name', 'Client')
+            else:
+                user_data['freelancer_name'] = room_data.get('freelancer_name', 'Freelancer')
+
+            # ── 2. Show start view with Write Message button ────────────
+            embed = create_embed(
+                title='Interview Message',
+                description=(
+                    'You are about to send a message in the interview chat.\n\n'
+                    f'**Room:** `{room_data.get("room_id", "")}`\n'
+                    f'**Job:** {room_data.get("job_title", "")}\n\n'
+                    'Click **Write Message** to compose your message.'
+                ),
+                color=BrandColor.PRIMARY,
+                footer='Xentra • Room System',
+            )
+
+            view = MessageStartView(user_data, room_data)
+            view.author_id = interaction.user.id
+
+            return embed, view
+
+        await validate_and_respond(interaction, callback)
 
 
 # ── setup ──────────────────────────────────────────────────────────────

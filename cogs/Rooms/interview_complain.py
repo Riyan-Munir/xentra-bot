@@ -2,12 +2,12 @@
 ``/interview complain`` — Submit a complaint in the selected interview room.
 
 Flow:
-  1. Command handler validates mutual exclusivity of message_id / complain_id.
-  2. Opens the complaint Modal directly (same pattern as interview_message).
-  3. Modal collects complaint text; on submit it fetches user + room data from
-     the backend, verifies any provided reference IDs, saves the complaint, and
-     notifies the other party.
-  4. If the other party has DMs disabled, logs a failed delivery record with
+  1. Mutual exclusivity of ``message_id`` / ``complain_id`` is validated upfront.
+  2. ``validate_and_respond`` validates the user, role, and room context.
+  3. Shows a "Write Complaint" button after room verification passes.
+  4. Button opens the complaint Modal.
+  5. Modal collects text; on submit it saves the complaint and notifies the other party.
+  6. If the other party has DMs disabled, logs a failed delivery record with
      message_type='notification' and complain_id set so it can be retried.
 """
 
@@ -18,8 +18,19 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import sync_cog_commands, fetch_selected_room
-from utils.embeds import error_embed, success_embed, dm_blocked_embed
+from utils.command_handler import (
+    sync_cog_commands,
+    validate_and_respond,
+    is_author,
+    fetch_selected_room,
+)
+from utils.embeds import (
+    BrandColor,
+    create_embed,
+    error_embed,
+    success_embed,
+    dm_blocked_embed,
+)
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
@@ -27,8 +38,51 @@ from utils.failed_delivery import log_failed_delivery
 logger = logging.getLogger('bot.rooms.interview_complain')
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Start View — opens the modal after room verification
+# ──────────────────────────────────────────────────────────────────────
+
+
+class ComplainStartView(discord.ui.View):
+    """View shown after room verification — user clicks to open the complaint modal."""
+
+    def __init__(
+        self,
+        user_data: dict,
+        room_data: dict,
+        message_id: str = '',
+        complain_id: str = '',
+    ) -> None:
+        super().__init__(timeout=120)
+        self.user_data = user_data
+        self.room_data = room_data
+        self.message_id = message_id
+        self.complain_id = complain_id
+
+    @discord.ui.button(label='Write Complaint', style=discord.ButtonStyle.danger)
+    async def write_complaint(
+        self, interaction: discord.Interaction, _button: discord.ui.Button,
+    ) -> None:
+        if not is_author(interaction, self):
+            return
+
+        modal = InterviewComplainModal(
+            user_data=self.user_data,
+            room_data=self.room_data,
+            message_id=self.message_id,
+            complain_id=self.complain_id,
+        )
+        await interaction.response.send_modal(modal)
+        self.stop()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Modal — complaint text input (opens after room verification)
+# ──────────────────────────────────────────────────────────────────────
+
+
 class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
-    """Modal that collects complaint text. Opens immediately on /interview complain."""
+    """Modal that collects complaint text.  Room already verified before opening."""
 
     complaint = discord.ui.TextInput(
         label='Complaint',
@@ -40,10 +94,14 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
 
     def __init__(
         self,
+        user_data: dict,
+        room_data: dict,
         message_id: str = '',
         complain_id: str = '',
     ) -> None:
         super().__init__(timeout=300)
+        self.user_data = user_data
+        self.room_data = room_data
         self.message_id = message_id
         self.complain_id = complain_id
 
@@ -59,98 +117,10 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         is_dm = interaction.guild is None
         session = get_http_session()
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+        active_role = self.user_data.get('active_role', '')
+        room_data = self.room_data
 
-        # 1. Fetch user data
-        try:
-            async with session.get(
-                f'{BACKEND_URL}users/bot/{interaction.user.id}/',
-                headers=headers,
-            ) as resp:
-                if resp.status != 200:
-                    await interaction.response.send_message(
-                        embed=error_embed(message='Authentication failed. Please try again.'),
-                        ephemeral=not is_dm,
-                    )
-                    return
-                user_data = await resp.json()
-        except Exception:
-            logger.exception('Failed to fetch user data')
-            await interaction.response.send_message(
-                embed=error_embed(message='System error. Please try again later.'),
-                ephemeral=not is_dm,
-            )
-            return
-
-        # 2. Security checks
-        if user_data.get('has_pending_hacking'):
-            from config import FRONTEND_URL
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message=(
-                        f'A security notification requires your attention on the Xentra '
-                        f'Dashboard.\n'
-                        f'Visit **{FRONTEND_URL}** and acknowledge the alert '
-                        f'to restore access to all bot commands.'
-                    ),
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        if not user_data.get('is_allowed_executor', True):
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message='You are not permitted to execute commands in this server. '
-                    'Contact moderators for more information.'
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        active_role = user_data.get('active_role', '')
-        if not active_role or active_role == 'non_bot_user':
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message='You need a registered client or freelancer profile to submit '
-                    'complaints. Visit the Xentra Dashboard to set up your account.'
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        # 3. Channel restriction check (server only)
-        if not is_dm:
-            assigned_channel_id = user_data.get('assigned_channel_id')
-            if assigned_channel_id and str(interaction.channel_id) != str(assigned_channel_id):
-                target = interaction.guild.get_channel(int(assigned_channel_id))
-                ch_name = target.mention if target else f'ID {assigned_channel_id}'
-                await interaction.response.send_message(
-                    embed=error_embed(
-                        message=f'Commands are restricted to {ch_name}.'
-                    ),
-                    ephemeral=not is_dm,
-                )
-                return
-
-        # 4. Fetch selected room via shared resolver
-        room_data = await fetch_selected_room(
-            discord_id=interaction.user.id,
-            role=active_role,
-            room_type='interview',
-            headers=headers,
-        )
-
-        if room_data is None:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
-                ),
-                ephemeral=not is_dm,
-            )
-            return
-
-        # 5. If parameters provided, verify they exist in the room
+        # 1. If parameters provided, verify they exist in the room
         if self.message_id or self.complain_id:
             verify_payload = {'room_id': room_data.get('room_id', '')}
             if self.message_id:
@@ -182,7 +152,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 )
                 return
 
-        # 6. Save complaint via backend
+        # 2. Save complaint via backend
         save_payload = {
             'discord_id': str(interaction.user.id),
             'role': active_role,
@@ -222,14 +192,14 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
             )
             return
 
-        # 7. Determine sender display name
+        # 3. Determine sender display name
         sender_name = (
             room_data.get('client_name')
             if active_role == 'client'
             else room_data.get('freelancer_name', 'Freelancer')
         )
 
-        # 8. Send notification to other party
+        # 4. Send notification to other party
         if other_discord_id:
             notify_data = {
                 'discord_id': other_discord_id,
@@ -276,7 +246,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 )
                 return
 
-        # 9. Success
+        # 5. Success
         success_msg = f'Complaint submitted in room `{room_data.get("room_id", "")}`.'
         if complaint_id:
             success_msg += f' (ID: `{complaint_id}`)'
@@ -331,12 +301,47 @@ class InterviewComplain(commands.Cog):
             )
             return
 
-        # Open the modal with the provided parameters
-        modal = InterviewComplainModal(
-            message_id=message_id or '',
-            complain_id=complain_id or '',
-        )
-        await interaction.response.send_modal(modal)
+        async def callback(user_data: dict):
+            active_role = user_data.get('active_role')
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+
+            # ── 1. Fetch selected room ──────────────────────────────────
+            room_data = await fetch_selected_room(
+                discord_id=interaction.user.id,
+                role=active_role,
+                room_type='interview',
+                headers=headers,
+            )
+            if room_data is None:
+                return error_embed(
+                    message='No selected interview room found. '
+                    'Use `/switch room` to select one.',
+                )
+
+            # ── 2. Show start view with Write Complaint button ──────────
+            embed = create_embed(
+                title='Interview Complaint',
+                description=(
+                    'You are about to submit a complaint in the interview chat.\n\n'
+                    f'**Room:** `{room_data.get("room_id", "")}`\n'
+                    f'**Job:** {room_data.get("job_title", "")}\n\n'
+                    'Click **Write Complaint** to compose your complaint.'
+                ),
+                color=BrandColor.PRIMARY,
+                footer='Xentra • Room System',
+            )
+
+            view = ComplainStartView(
+                user_data,
+                room_data,
+                message_id=message_id or '',
+                complain_id=complain_id or '',
+            )
+            view.author_id = interaction.user.id
+
+            return embed, view
+
+        await validate_and_respond(interaction, callback)
 
 
 # ── setup ────────────────────────────────────────────────────────────
