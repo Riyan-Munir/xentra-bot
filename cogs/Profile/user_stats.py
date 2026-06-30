@@ -78,7 +78,7 @@ class UserStats(commands.Cog):
 
                 active_role = user_data.get('active_role')
                 if active_role == 'server_admin':
-                    return error_embed(message="This command is not available for your role. Run \`/help\` for details.")
+                    return error_embed(message="This command is not available for your role. Run `/help` for details.")
 
                 url = f"{BACKEND_URL}profiles/bot-detail/"
                 params = {'discord_id': interaction.user.id}

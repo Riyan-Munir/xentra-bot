@@ -106,7 +106,7 @@ class MembersList(commands.Cog):
 
             # Respect backend-provided executor allowance if present
             if user_data.get('is_allowed_executor') is False:
-                return error_embed(message="This command is not available for your role. Run \`/help\` for details.")
+                return error_embed(message="This command is not available for your role. Run `/help` for details.")
 
             # Check if all parameters are explicitly false
             if client is False and freelancer is False and server_admin is False:

@@ -434,7 +434,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                 # Channel is not set
                 msg = "Command Channel is not set for this Server."
                 if active_role == 'server_admin' and user_data.get('is_guild_admin'):
-                    msg += " Run \`/command channel\` to set a Channel for Command execution."
+                    msg += " Run `/command channel` to set a Channel for Command execution."
                 
                 err = error_embed(msg)
                 await send_response(err)
@@ -465,13 +465,13 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         and not user_data.get('is_guild_admin')
         and 'server_admin' not in required_roles
     ):
-        err = error_embed("This command is not available for your role. Run \`/help\` for details.")
+        err = error_embed("This command is not available for your role. Run `/help` for details.")
         await send_response(err)
         return
 
     if not role_match:
         err = error_embed(
-            "This command is not available for your role. Run \`/help\` for details."
+            "This command is not available for your role. Run `/help` for details."
         )
         await send_response(err)
         return

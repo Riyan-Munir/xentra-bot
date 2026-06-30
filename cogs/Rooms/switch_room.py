@@ -123,7 +123,7 @@ class SwitchRoomSetupView(discord.ui.View):
                         await interaction.edit_original_response(
                             embed=error_embed(
                                 message="No active interview rooms found. "
-                                "Use \`/create room\` to create one first."
+                                "Use `/create room` to create one first."
                             ),
                             view=None,
                         )
