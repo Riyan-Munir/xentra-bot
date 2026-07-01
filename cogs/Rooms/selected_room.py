@@ -159,7 +159,7 @@ class SelectedRoomSetupView(discord.ui.View):
             await interaction.edit_original_response(
                 embed=error_embed(
                     message="No selected interview room found. "
-                    "Use `\\switch_room` to select one.",
+                    "Use `/switch_room` to select one.",
                 ),
                 view=None,
             )

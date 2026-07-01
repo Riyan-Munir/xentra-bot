@@ -26,7 +26,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import validate_and_respond, sync_cog_commands, fetch_selected_room
+from utils.command_handler import validate_and_respond, sync_cog_commands
 from utils.embeds import info_embed, error_embed
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
@@ -127,18 +127,7 @@ class InterviewTranscript(commands.Cog):
                     'transcript when the interview room is closed.',
                 )
 
-            # ── 2. Fetch selected interview room ──────────────────────────
-            room_data = await fetch_selected_room(
-                discord_id=interaction.user.id,
-                role=active_role,
-                room_type='interview',
-                headers=headers,
-            )
-            if room_data is None:
-                return error_embed(
-                    'No selected interview room found. '
-                    'Use `\\switch_room` to select one.',
-                )
+            room_data = user_data['_selected_room']
 
             room_id = room_data.get('room_id', '')
             job_title = room_data.get('job_title', '')

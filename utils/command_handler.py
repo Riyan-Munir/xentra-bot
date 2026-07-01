@@ -504,7 +504,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                 # Channel is not set
                 msg = "Command Channel is not set for this Server."
                 if active_role == 'server_admin' and user_data.get('is_guild_admin'):
-                    msg += " Run `\\command_channel` to set a Channel for Command execution."
+                    msg += " Run `/command_channel` to set a Channel for Command execution."
                 
                 err = error_embed(msg)
                 await send_response(err)
@@ -521,6 +521,36 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                     await send_response(err)
                     return
  
+    # ── 3.5 Auto-fetch selected room if required ─────────────────────────
+    if requires_interview_chat:
+        _selected = await fetch_selected_room(
+            discord_id=str(user_id),
+            role=active_role,
+            room_type='interview',
+            headers={'X-Webhook-Token': WEBHOOK_SECRET},
+        )
+        if _selected is None:
+            await interaction.followup.send(
+                embed=error_embed('No selected interview room found. Use `/switch_room` to select one.'),
+                ephemeral=not is_dm,
+            )
+            return
+        user_data['_selected_room'] = _selected
+    elif requires_job_chat:
+        _selected = await fetch_selected_room(
+            discord_id=str(user_id),
+            role=active_role,
+            room_type='job',
+            headers={'X-Webhook-Token': WEBHOOK_SECRET},
+        )
+        if _selected is None:
+            await interaction.followup.send(
+                embed=error_embed('No selected job room found. Use `/switch_room` to select one.'),
+                ephemeral=not is_dm,
+            )
+            return
+        user_data['_selected_room'] = _selected
+
     # 3. Role Validation
     role_match = active_role in required_roles
     
@@ -535,13 +565,13 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         and not user_data.get('is_guild_admin')
         and 'server_admin' not in required_roles
     ):
-        err = error_embed("This command is not available for your role. Run `\\help` for details.")
+        err = error_embed("This command is not available for your role. Run `/help` for details.")
         await send_response(err)
         return
 
     if not role_match:
         err = error_embed(
-            "This command is not available for your role. Run `\\help` for details."
+            "This command is not available for your role. Run `/help` for details."
         )
         await send_response(err)
         return

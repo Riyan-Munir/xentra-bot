@@ -27,7 +27,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import validate_and_respond, sync_cog_commands, fetch_selected_room, is_author
+from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import success_embed, error_embed, info_embed, create_embed, BrandColor
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
@@ -402,18 +402,7 @@ class InterviewAgreement(commands.Cog):
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             is_freelancer = active_role == 'freelancer'
 
-            # ── 1. Fetch selected room ──────────────────────────────────
-            room_data = await fetch_selected_room(
-                discord_id=interaction.user.id,
-                role=active_role,
-                room_type='interview',
-                headers=headers,
-            )
-            if room_data is None:
-                return error_embed(
-                    message='No selected interview room found. '
-                    'Use `\\switch_room` to select one.',
-                )
+            room_data = user_data['_selected_room']
 
             room_id = room_data.get('room_id', '')
             job_title = room_data.get('job_title', '')
@@ -460,12 +449,12 @@ class InterviewAgreement(commands.Cog):
                     elif not executor_ok and other_ok:
                         return error_embed(
                             message='**You** need to review the agreement first via '
-                            '`\\interview_review` before signing.',
+                            '`/interview_review` before signing.',
                         )
                     else:
                         return error_embed(
                             message=f'**You** and **{other_name}** need to review the agreement first '
-                            f'via `\\interview_review` before signing.',
+                            f'via `/interview_review` before signing.',
                         )
 
                 # Fallback for unknown error codes

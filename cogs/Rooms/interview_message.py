@@ -25,7 +25,6 @@ from utils.command_handler import (
     sync_cog_commands,
     validate_and_respond,
     is_author,
-    fetch_selected_room,
 )
 from utils.embeds import (
     BrandColor,
@@ -607,18 +606,7 @@ class InterviewMessage(commands.Cog):
             active_role = user_data.get('active_role')
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
-            # ── 1. Fetch selected room ──────────────────────────────────
-            room_data = await fetch_selected_room(
-                discord_id=interaction.user.id,
-                role=active_role,
-                room_type='interview',
-                headers=headers,
-            )
-            if room_data is None:
-                return error_embed(
-                    message='No selected interview room found. '
-                    'Use `\\switch_room` to select one.',
-                )
+            room_data = user_data['_selected_room']
 
             # Merge profile display name into user_data
             if active_role == 'client':

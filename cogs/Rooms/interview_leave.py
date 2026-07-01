@@ -19,7 +19,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import sync_cog_commands, fetch_selected_room, validate_and_respond, is_author
+from utils.command_handler import sync_cog_commands, validate_and_respond, is_author
 from utils.embeds import (
     error_embed,
     success_embed,
@@ -321,18 +321,7 @@ class InterviewLeave(commands.Cog):
             active_role = user_data.get('active_role')
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
-            # ── 1. Fetch selected room ──────────────────────────────────
-            room_data = await fetch_selected_room(
-                discord_id=interaction.user.id,
-                role=active_role,
-                room_type='interview',
-                headers=headers,
-            )
-            if room_data is None:
-                return error_embed(
-                    message='No selected interview room found. '
-                    'Use `\\switch_room` to select one.',
-                )
+            room_data = user_data['_selected_room']
 
             room_id = room_data.get('room_id', '')
             job_title = room_data.get('job_title', '')
