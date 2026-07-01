@@ -161,6 +161,14 @@ class AnalyticsCollector:
             event_type: One of "job_posted", "job_application", etc.
             **context: May include profile_id, actor_role, display_name, display_id, role_display_name.
         """
+        guild_id = interaction.guild_id if interaction and interaction.guild_id else None
+        if not guild_id:
+            logger.warning(
+                'Cannot log %s — no guild context (event dropped)',
+                event_type,
+            )
+            return
+
         profile_id = context.pop('profile_id', None)
         actor_role = context.pop('actor_role', None)
         role_display_name = context.pop('role_display_name', None)
@@ -168,7 +176,7 @@ class AnalyticsCollector:
         event = {
             'event_type': event_type,
             'target_type': 'guild',
-            'target_id': str(interaction.guild_id) if interaction and interaction.guild_id else '',
+            'target_id': str(guild_id),
             'actor': {
                 'discord_id': str(interaction.user.id),
                 'display_name': interaction.user.name,
@@ -217,11 +225,19 @@ class AnalyticsCollector:
             admin_profile_id: The premium display ID of the admin.
             **context: Additional context fields (may include role_display_name).
         """
+        guild_id = interaction.guild_id if interaction and interaction.guild_id else None
+        if not guild_id:
+            logger.warning(
+                'Cannot log %s — no guild context (event dropped)',
+                event_type,
+            )
+            return
+
         role_display_name = context.pop('role_display_name', None)
         event = {
             'event_type': event_type,
             'target_type': 'guild',
-            'target_id': str(interaction.guild_id),
+            'target_id': str(guild_id),
             'actor': {
                 'discord_id': str(interaction.user.id),
                 'display_name': interaction.user.name,
