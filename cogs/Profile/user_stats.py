@@ -154,7 +154,7 @@ class UserStats(commands.Cog):
             f"> **Completed Jobs**: `{jobs_finished}` finished"
         )
         embed.add_field(name="Performance Parameters", value=details, inline=False)
-        embed.set_footer(text='Xentra •')
+        embed.set_footer(text='Xentra • User Statistics')
 
         return embed
 

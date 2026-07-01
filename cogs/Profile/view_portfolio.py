@@ -124,7 +124,7 @@ class PortfolioPaginationView(PaginationView):
         else:
             embed.add_field(name="Projects Showcase", value="> No projects showcased yet.", inline=False)
         
-        embed.set_footer(text='Xentra •')
+        embed.set_footer(text='Xentra • Portfolio Showcase')
         return embed
 
 class ViewPortfolio(commands.Cog):

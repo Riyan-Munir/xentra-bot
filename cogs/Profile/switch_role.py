@@ -37,7 +37,7 @@ class SwitchRole(commands.Cog):
             current_display = f"**{current.replace('_', ' ').title()}**"
             
             embed.add_field(name="Active Perspective", value=current_display, inline=False)
-            embed.set_footer(text='Xentra •')
+            embed.set_footer(text='Xentra • Role Switcher')
             
             view = SwitchRoleView(interaction.user.id, roles, current)
             view.author_id = interaction.user.id

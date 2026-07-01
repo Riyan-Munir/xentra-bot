@@ -36,7 +36,7 @@ class ShowUserID(commands.Cog):
                 description=f"Registered roles for **{target_user}**:",
                 color=BrandColor.PRIMARY
             )
-            embed.set_footer(text='Xentra •')
+            embed.set_footer(text='Xentra • Identity Registry')
             
             role_map = {
                 'freelancer': 'Freelancer ID',

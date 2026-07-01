@@ -36,7 +36,7 @@ class ActiveRole(commands.Cog):
                 inline=True
             )
             
-            embed.set_footer(text='Xentra •')
+            embed.set_footer(text='Xentra • Active Role')
             return embed
         
         await validate_and_respond(interaction, build_active_embed)

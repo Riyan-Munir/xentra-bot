@@ -168,7 +168,7 @@ class UserProfile(commands.Cog):
             details = f"> **Tier**: `{premium_status}`"
         
         embed.add_field(name="Profile Parameters", value=details, inline=False)
-        embed.set_footer(text='Xentra •')
+        embed.set_footer(text='Xentra • User Profile')
         return embed
 
 async def setup(bot):
