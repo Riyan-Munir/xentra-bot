@@ -18,6 +18,7 @@ Usage:
     generate_transcript(data, output_path)
 """
 
+import base64
 import io
 import logging
 import math
@@ -193,6 +194,30 @@ def draw_watermark(c):
     c.restoreState()
 
 
+def draw_watermark_from_b64(c, watermark_b64):
+    """Draw a watermark image from base64. Falls back to text watermark."""
+    if not watermark_b64:
+        draw_watermark(c)
+        return
+
+    try:
+        from PIL import Image as PILImage
+        wm_bytes = base64.b64decode(watermark_b64)
+        buf = io.BytesIO(wm_bytes)
+        pil_img = PILImage.open(buf)
+        img_reader = pdfcanvas.ImageReader(pil_img)
+        c.saveState()
+        c.setFillAlpha(0.08)
+        wm_w = PAGE_W * 0.50
+        wm_h = PAGE_H * 0.50
+        c.drawImage(img_reader, (PAGE_W - wm_w) / 2, (PAGE_H - wm_h) / 2,
+                    width=wm_w, height=wm_h,
+                    preserveAspectRatio=True, mask='auto')
+        c.restoreState()
+    except Exception:
+        draw_watermark(c)
+
+
 def draw_page_bg(c):
     c.saveState()
     c.setFillColor(PAGE_BG)
@@ -204,6 +229,7 @@ def draw_page_bg(c):
 class PageCtx:
     room_id       = ""
     transcript_id = ""
+    watermark_b64 = ""
 
 
 def draw_header_footer(c, doc):
@@ -238,7 +264,7 @@ def draw_header_footer(c, doc):
 
 def on_inner_page(c, doc):
     draw_page_bg(c)
-    draw_watermark(c)
+    draw_watermark_from_b64(c, PageCtx.watermark_b64)
     draw_border(c)
     draw_header_footer(c, doc)
 
@@ -874,6 +900,7 @@ def build_transcript_pdf(data, output_path):
 
     PageCtx.room_id       = data.get("room_id", "")
     PageCtx.transcript_id = data.get("transcript_id", "")
+    PageCtx.watermark_b64 = data.get("watermark_b64", "")
 
     doc = XTranscriptDoc(
         output_path,

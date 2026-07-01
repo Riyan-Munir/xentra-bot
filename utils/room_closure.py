@@ -153,6 +153,7 @@ async def send_room_closure_and_transcript(
         'viewer_role': 'freelancer',
         'generated_on': now_str,
         'messages': base_messages,
+        'watermark_b64': transcript_data.get('watermark_b64', ''),
     }
 
     # Client view — client msgs on right
@@ -166,6 +167,7 @@ async def send_room_closure_and_transcript(
         'viewer_role': 'client',
         'generated_on': now_str,
         'messages': base_messages,
+        'watermark_b64': transcript_data.get('watermark_b64', ''),
     }
 
     transcript_paths = {}
