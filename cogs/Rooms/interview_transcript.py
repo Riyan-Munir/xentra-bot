@@ -7,14 +7,20 @@ Flow:
   3. Fetches the selected interview room via the shared resolver.
   4. Calls the backend ``BotRoomTranscriptView`` to log the command execution
      and persist the ``InterviewRoomMsg`` record.
-  5. Sends a DM notification to the other party via ``handle_system_message``
-     with ``command_name='interview_transcript'`` and the specified msg_data.
-  6. Returns a success message to the executor immediately. The PDF generation
-     happens asynchronously and is delivered via DM.
+  5. Fetches the full transcript data from the backend via
+     ``fetch-transcript-data/``.
+  6. Generates the PDF file (requester-view) and sends it as a DM.
+  7. Sends a DM notification to the other party via ``handle_system_message``.
 """
 
+import asyncio
+from datetime import datetime
+import io
 import logging
+import os
+import tempfile
 
+import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -25,6 +31,8 @@ from utils.embeds import info_embed, error_embed
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
+from utils.transcript_generator import generate_transcript
+from utils.pdf_compressor import compress_pdf
 
 logger = logging.getLogger('bot.rooms.interview_transcript')
 
@@ -173,7 +181,116 @@ class InterviewTranscript(commands.Cog):
                     'Please try again later.',
                 )
 
-            # ── 4. Notify the other party ─────────────────────────────────
+            # ── 4. Fetch transcript data from backend ────────────────────
+            transcript_data = await _fetch_transcript_data(room_id, headers, session)
+            if not transcript_data:
+                logger.error(
+                    'On-demand transcript: no transcript data for room %s',
+                    room_id,
+                )
+                return error_embed(
+                    'Failed to generate the transcript. '
+                    'Please try again later.',
+                )
+
+            # ── 5. Generate transcript PDF (requester-view) ──────────────
+            client_avatar_url = transcript_data.get('client_avatar_url')
+            freelancer_avatar_url = transcript_data.get('freelancer_avatar_url')
+            now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M') + ' UTC'
+
+            viewer_role = 'freelancer' if is_freelancer else 'client'
+            viewer_name = freelancer_name if is_freelancer else client_name
+
+            pdf_data = {
+                'transcript_id': transcript_data.get(
+                    'transcript_id', f'XEN-TRX-{room_id}',
+                ),
+                'room_id': room_id,
+                'client_name': client_name,
+                'freelancer_name': freelancer_name,
+                'client_avatar_url': client_avatar_url,
+                'freelancer_avatar_url': freelancer_avatar_url,
+                'viewer_role': viewer_role,
+                'generated_on': now_str,
+                'messages': transcript_data.get('freelancer_messages', []),
+            }
+
+            pdf_path = None
+            loop = asyncio.get_event_loop()
+            try:
+                with tempfile.NamedTemporaryFile(
+                    suffix='.pdf', delete=False,
+                ) as tmp:
+                    pdf_path = tmp.name
+                await loop.run_in_executor(
+                    None, generate_transcript, pdf_data, pdf_path,
+                )
+            except Exception:
+                logger.exception(
+                    'On-demand transcript generation failed for room %s',
+                    room_id,
+                )
+                if pdf_path:
+                    try:
+                        os.unlink(pdf_path)
+                    except Exception:
+                        pass
+                return error_embed(
+                    'Failed to generate the transcript PDF. '
+                    'Please try again later.',
+                )
+
+            # ── 6. Send PDF via DM to the requester ──────────────────────
+            try:
+                with open(pdf_path, 'rb') as f:
+                    pdf_bytes = f.read()
+                pdf_bytes = compress_pdf(pdf_bytes)
+
+                transcript_msg = (
+                    'Here is the transcript you requested for '
+                    f'Interview Room **{room_id}**.'
+                )
+                transcript_embed = info_embed(message=transcript_msg)
+
+                user = interaction.client.get_user(interaction.user.id)
+                if not user:
+                    user = await interaction.client.fetch_user(interaction.user.id)
+                await user.send(
+                    embed=transcript_embed,
+                    file=discord.File(
+                        io.BytesIO(pdf_bytes),
+                        filename='Room-Transcript.pdf',
+                    ),
+                )
+                logger.info(
+                    'On-demand transcript sent to %s (%s) for room %s',
+                    viewer_name, interaction.user.id, room_id,
+                )
+            except discord.Forbidden:
+                logger.warning(
+                    'Cannot DM %s (%s) — DMs may be disabled.',
+                    viewer_name, interaction.user.id,
+                )
+                await log_failed_delivery(
+                    room_id=room_id,
+                    message_type='transcript',
+                    target_discord_id=str(interaction.user.id),
+                    session=session,
+                    headers=headers,
+                )
+            except Exception:
+                logger.exception(
+                    'Failed to send on-demand transcript to %s (%s)',
+                    viewer_name, interaction.user.id,
+                )
+            finally:
+                if pdf_path:
+                    try:
+                        os.unlink(pdf_path)
+                    except Exception:
+                        pass
+
+            # ── 7. Notify the other party ─────────────────────────────────
             executor_name = client_name if active_role == 'client' else freelancer_name
             other_discord_id = (
                 freelancer_discord_id if active_role == 'client'
@@ -191,18 +308,42 @@ class InterviewTranscript(commands.Cog):
                 headers=headers,
             )
 
-            # ── 5. Return success message immediately ─────────────────────
+            # ── 8. Return success message ─────────────────────────────────
             logger.info(
-                'Transcript request submitted for room %s by %s',
+                'On-demand transcript generated and sent for room %s by %s',
                 room_id, interaction.user.id,
             )
 
             return info_embed(
-                'Your transcript request has been received and will be processed shortly. '
-                'You will receive the PDF document via DM once it is ready.',
+                'Your transcript has been generated and sent to you via DM.',
             )
 
         await validate_and_respond(interaction, callback)
+
+
+async def _fetch_transcript_data(
+    room_id: str,
+    headers: dict,
+    session: aiohttp.ClientSession,
+) -> dict | None:
+    """Fetch transcript data from the backend ``fetch-transcript-data/`` endpoint."""
+    url = f'{BACKEND_URL}rooms/bot/fetch-transcript-data/'
+    try:
+        async with session.get(
+            url,
+            params={'room_id': room_id},
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            logger.warning(
+                'Fetch transcript data returned %s for room %s',
+                resp.status, room_id,
+            )
+    except Exception:
+        logger.exception('Failed to fetch transcript data for room %s', room_id)
+    return None
 
 
 async def setup(bot: commands.Bot) -> None:
