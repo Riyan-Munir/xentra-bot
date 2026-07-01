@@ -2,11 +2,59 @@ import discord
 import logging
 import json
 import os
+import time
+import asyncio
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.embeds import BrandColor, error_embed
 from utils.http import get_http_session
 
 logger = logging.getLogger('bot.handler')
+
+# ---------------------------------------------------------------------------
+# Global rate-limit mitigations
+# ---------------------------------------------------------------------------
+
+# Semaphore that limits the number of *concurrent* backend lookups in
+# validate_and_respond.  When the backend is slow (e.g. cold-start behind
+# Cloudflare), a burst of parallel commands would otherwise open many TCP
+# connections, keep them alive waiting, and quickly exhaust Discord's
+# per-route / global rate-limit budget before the first response arrives.
+#
+# Value chosen to stay well under Discord's 50 req/s global limit while
+# allowing reasonable throughput.
+_COMMAND_SEMAPHORE = asyncio.Semaphore(5)
+
+# Simple TTL cache for ``/users/bot/{id}/`` responses.
+# The cache stores a tuple (timestamp, user_data_dict) keyed by user_id.
+# TTL is intentionally short so that role/permission changes propagate quickly.
+_USER_CACHE_TTL = 10  # seconds
+_user_cache: dict[int, tuple[float, dict]] = {}
+
+
+def _get_cached_user(user_id: int) -> dict | None:
+    """Return cached user data, or None if not cached / expired."""
+    entry = _user_cache.get(user_id)
+    if entry is None:
+        return None
+    ts, data = entry
+    if time.monotonic() - ts > _USER_CACHE_TTL:
+        del _user_cache[user_id]
+        return None
+    return data
+
+
+def _set_cached_user(user_id: int, data: dict) -> None:
+    """Store user data in the short-lived cache."""
+    _user_cache[user_id] = (time.monotonic(), data)
+
+
+def _bust_user_cache(user_id: int) -> None:
+    """Force-expire the cache entry for *user_id* (call after a mutation)."""
+    _user_cache.pop(user_id, None)
+
+
+# ---------------------------------------------------------------------------
+
 
 def add_admin_post_button(view, embed, user_data):
     """
@@ -44,6 +92,7 @@ def add_admin_post_button(view, embed, user_data):
     button.callback = post_callback
     view.add_item(button)
 
+
 class PublicPostView(discord.ui.View):
     """
     Common view for the 'Post to Channel' button.
@@ -56,6 +105,7 @@ class PublicPostView(discord.ui.View):
     def __init__(self, embed, user_data):
         super().__init__(timeout=60)
         add_admin_post_button(self, embed, user_data)
+
 
 async def fetch_selected_room(
     discord_id: int | str,
@@ -133,6 +183,7 @@ def check_command_roles(command_name: str, active_role: str, is_dm: bool = True)
         return all_roles.get(context_key, [])
     return all_roles  # fallback — bare list
 
+
 def _collect_all_commands(cmds):
     """
     Recursively walks an app_commands list, yielding every leaf Command
@@ -145,6 +196,7 @@ def _collect_all_commands(cmds):
             yield from _collect_all_commands(cmd.commands)
         else:
             yield cmd
+
 
 def sync_cog_commands(cog):
     """
@@ -238,6 +290,7 @@ def sync_cog_commands(cog):
         except (ImportError, AttributeError, TypeError) as e:
             logger.warning(f"[sync]      AppCommandContext not available, skipping: {e}")
 
+
 async def validate_and_respond(interaction, embed_builder_callback, required_roles=None, additional_params=None):
     """
     Centralized logic for all bot commands.
@@ -288,83 +341,100 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         )
         return
 
-    # 1. Fetch User Data from Backend
-    url = f"{BACKEND_URL}users/bot/{user_id}/"
-    params = {'guild_id': guild_id} if guild_id else {}
-    
-    # Rule: Trigger automatic guild sync for any interaction within a server
-    if guild_id:
-        params['should_sync'] = 'true'
-        if interaction.guild:
-            # Check permissions for server admin role tracking
-            member = interaction.guild.get_member(user_id)
-            if member:
-                params['is_owner'] = 'true' if member.id == interaction.guild.owner_id else 'false'
-                params['is_mod'] = 'true' if (member.guild_permissions.manage_guild or member.guild_permissions.administrator) else 'false'
-        
-    if additional_params:
-        params.update(additional_params)
-    headers = {'X-Webhook-Token': WEBHOOK_SECRET}
-    
-    try:
-        session = get_http_session()
-        async with session.get(url, params=params, headers=headers) as resp:
-                if resp.status == 200:
-                    user_data = await resp.json()
-                elif resp.status == 429:
-                    # Handle Throttling
-                    err_data = await resp.json()
-                    from utils.embeds import throttled_embed
-                    wait_time = err_data.get('retry_after', 10)
-                    await interaction.followup.send(embed=throttled_embed(wait_time), ephemeral=True)
-                    return
-                elif resp.status == 403:
-                    # Distinguish between account ban and pending hacking alert
-                    from config import FRONTEND_URL
-                    try:
-                        err_data = await resp.json()
-                    except Exception:
-                        err_data = {}
+    # ── 1. Fetch User Data from Backend (with TTL cache) ─────────────
+    # Check the in-memory cache first.  This avoids hitting the backend
+    # (through Cloudflare) on every single command, reducing latency and
+    # the risk of the 3-second interaction window expiring.
+    user_data = _get_cached_user(user_id)
 
-                    if err_data.get('require_dismiss'):
-                        err = error_embed(
-                            "**Security Alert Active**\n\n"
-                            "A security notification is waiting for you on the Xentra Dashboard. "
-                            f"Please visit [{FRONTEND_URL}]({FRONTEND_URL}) and acknowledge it "
-                            "before using any bot commands."
-                        )
-                    else:
-                        err = error_embed(
-                            "**Account Suspended**\n\n"
-                            "Your account has been **automatically suspended** due to "
-                            "repeated security violations detected by our systems.\n\n"
-                            f"Contact a server administrator or visit "
-                            f"[Xentra Dashboard]({FRONTEND_URL}) to appeal the suspension."
-                        )
-                    await interaction.followup.send(embed=err, ephemeral=True)
-                    return
-                else:
-                    err_text = await resp.text()
-                    logger.warning(f"Backend returned {resp.status} for user lookup: {err_text[:200]}")
-                    await interaction.followup.send(
-                        embed=error_embed(
-                            "The backend service returned an error. "
-                            "Please try again later or contact support."
-                        ),
-                        ephemeral=True,
-                    )
-                    return
-    except Exception as e:
-        logger.error(f"Backend error: {e}")
-        await interaction.followup.send(
-            embed=error_embed(
-                "Unable to reach the backend service right now. "
-                "Please try again later."
-            ),
-            ephemeral=True,
-        )
-        return
+    if user_data is None:
+        # ── Concurrency gate ───────────────────────────────────────
+        # Acquire the semaphore BEFORE making the HTTP call to prevent
+        # a burst of commands from opening N parallel connections to the
+        # backend when it is slow (cold-start behind Cloudflare).
+        #
+        # Each concurrent backend call = 1 outstanding HTTP request that
+        # adds latency and potential error cascades.  The semaphore keeps
+        # the in-flight count low.
+        async with _COMMAND_SEMAPHORE:
+            url = f"{BACKEND_URL}users/bot/{user_id}/"
+            params = {'guild_id': guild_id} if guild_id else {}
+            
+            # Rule: Trigger automatic guild sync for any interaction within a server
+            if guild_id:
+                params['should_sync'] = 'true'
+                if interaction.guild:
+                    # Check permissions for server admin role tracking
+                    member = interaction.guild.get_member(user_id)
+                    if member:
+                        params['is_owner'] = 'true' if member.id == interaction.guild.owner_id else 'false'
+                        params['is_mod'] = 'true' if (member.guild_permissions.manage_guild or member.guild_permissions.administrator) else 'false'
+                
+            if additional_params:
+                params.update(additional_params)
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+            
+            try:
+                session = get_http_session()
+                async with session.get(url, params=params, headers=headers) as resp:
+                        if resp.status == 200:
+                            user_data = await resp.json()
+                            _set_cached_user(user_id, user_data)
+                        elif resp.status == 429:
+                            # Handle Throttling
+                            err_data = await resp.json()
+                            from utils.embeds import throttled_embed
+                            wait_time = err_data.get('retry_after', 10)
+                            await interaction.followup.send(embed=throttled_embed(wait_time), ephemeral=True)
+                            return
+                        elif resp.status == 403:
+                            # Distinguish between account ban and pending hacking alert
+                            from config import FRONTEND_URL
+                            try:
+                                err_data = await resp.json()
+                            except Exception:
+                                err_data = {}
 
+                            if err_data.get('require_dismiss'):
+                                err = error_embed(
+                                    "**Security Alert Active**\n\n"
+                                    "A security notification is waiting for you on the Xentra Dashboard. "
+                                    f"Please visit [{FRONTEND_URL}]({FRONTEND_URL}) and acknowledge it "
+                                    "before using any bot commands."
+                                )
+                            else:
+                                err = error_embed(
+                                    "**Account Suspended**\n\n"
+                                    "Your account has been **automatically suspended** due to "
+                                    "repeated security violations detected by our systems.\n\n"
+                                    f"Contact a server administrator or visit "
+                                    f"[Xentra Dashboard]({FRONTEND_URL}) to appeal the suspension."
+                                )
+                            await interaction.followup.send(embed=err, ephemeral=True)
+                            return
+                        else:
+                            err_text = await resp.text()
+                            logger.warning(f"Backend returned {resp.status} for user lookup: {err_text[:200]}")
+                            await interaction.followup.send(
+                                embed=error_embed(
+                                    "The backend service returned an error. "
+                                    "Please try again later or contact support."
+                                ),
+                                ephemeral=True,
+                            )
+                            return
+            except Exception as e:
+                logger.error(f"Backend error: {e}")
+                await interaction.followup.send(
+                    embed=error_embed(
+                        "Unable to reach the backend service right now. "
+                        "Please try again later."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+    # At this point user_data must be valid
     active_role = user_data.get('active_role', 'non_bot_user')
     assigned_channel_id = user_data.get('assigned_channel_id')
     has_active_job_chat = user_data.get('has_active_job_chat', False)

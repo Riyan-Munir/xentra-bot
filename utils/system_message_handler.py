@@ -16,6 +16,7 @@ Usage
     await handle_system_message("security_bypass_attempt", payload, bot)
 """
 
+import asyncio
 import logging
 import json
 import os
@@ -36,38 +37,34 @@ _SYSTEM_MESSAGES_DATA = None
 def _load_system_messages_data() -> list:
     global _SYSTEM_MESSAGES_DATA
     if _SYSTEM_MESSAGES_DATA is None:
-        path = os.path.join(
-            os.path.dirname(__file__), "..", "data", "system_messages.json"
-        )
-        with open(path, "r") as f:
+        path = os.path.join(os.path.dirname(__file__), '..', 'data', 'system_messages.json')
+        with open(path, 'r') as f:
             _SYSTEM_MESSAGES_DATA = json.load(f)
     return _SYSTEM_MESSAGES_DATA
 
 
 # ---------------------------------------------------------------------------
-# Handler module cache (build_embed functions)
+# Handler cache (lazy-loaded embed builders)
 # ---------------------------------------------------------------------------
 
-_HANDLER_CACHE: dict = {}
+_handler_cache: dict[str, Optional[Callable]] = {}
 
 
 def _load_handler(message_type: str) -> Optional[Callable]:
     """Lazy-load and cache ``build_embed`` from ``system_messages/<type>.py``."""
-    if message_type in _HANDLER_CACHE:
-        return _HANDLER_CACHE[message_type]
+    if message_type in _handler_cache:
+        return _handler_cache[message_type]
 
     try:
-        mod = importlib.import_module(f"system_messages.{message_type}")
-        builder = getattr(mod, "build_embed", None)
+        module = importlib.import_module(f'system_messages.{message_type}')
+        builder = getattr(module, 'build_embed', None)
         if builder is None:
-            logger.error(
-                "system_messages.%s has no build_embed() function", message_type
-            )
-            return None
-        _HANDLER_CACHE[message_type] = builder
+            logger.warning("system_messages.%s has no build_embed function", message_type)
+        _handler_cache[message_type] = builder
         return builder
     except ModuleNotFoundError:
-        logger.error("No handler module for system message '%s'", message_type)
+        logger.warning("No embed builder for system message type '%s'", message_type)
+        _handler_cache[message_type] = None
         return None
 
 
@@ -162,16 +159,61 @@ async def handle_system_message(
         logger.warning("No user resolved for %s — cannot send DM", message_type)
         return False
 
-    try:
-        kwargs = {"embed": embed}
-        if files:
-            kwargs["files"] = files
-        await user.send(**kwargs)
-        logger.info("Sent %s DM to user %s", message_type, user.id)
-        return True
-    except discord.Forbidden:
-        logger.warning("Cannot DM user %s — DMs disabled or blocked", user.id)
-        return False
-    except Exception:
-        logger.exception("Failed to send %s DM to user %s", message_type, user.id)
-        return False
+    kwargs = {"embed": embed}
+    if files:
+        kwargs["files"] = files
+
+    # Retry up to 3 times with exponential backoff when Discord returns a
+    # 429 (rate limited) or a transient 5xx.  This is critical in production
+    # where the bot shares a global rate-limit budget across all routes.
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            await user.send(**kwargs)
+            logger.info("Sent %s DM to user %s", message_type, user.id)
+            return True
+
+        except discord.Forbidden:
+            logger.warning("Cannot DM user %s — DMs disabled or blocked", user.id)
+            return False
+
+        except discord.HTTPException as e:
+            if e.status == 429:
+                # Respect Discord's retry_after header if present
+                retry_after = getattr(e, 'retry_after', 2 ** attempt)
+                logger.warning(
+                    "Rate limited sending %s DM to user %s (attempt %d/%d). "
+                    "Retrying in %.1fs...",
+                    message_type, user.id, attempt, max_retries, retry_after,
+                )
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_after)
+                    continue
+                logger.error(
+                    "Gave up sending %s DM to user %s after %d attempts (429).",
+                    message_type, user.id, max_retries,
+                )
+                return False
+
+            # Non-429 HTTP error — re-raise to fall into the generic handler
+            raise
+
+        except (discord.NotFound, discord.InvalidData):
+            logger.warning(
+                "Channel/user vanished while sending %s DM to user %s — "
+                "not retrying.",
+                message_type, user.id,
+            )
+            return False
+
+        except Exception:
+            logger.exception(
+                "Failed to send %s DM to user %s (attempt %d/%d)",
+                message_type, user.id, attempt, max_retries,
+            )
+            if attempt < max_retries:
+                await asyncio.sleep(2 ** attempt)  # exponential backoff
+                continue
+            return False
+
+    return False  # should not be reached

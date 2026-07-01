@@ -61,6 +61,10 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
 
         # ── Intercept tree-level errors to handle cooldown gracefully ──
         self._patch_tree_error_handler()
+
+        # ── Track last known guild count for throttled presence updates ──
+        self._last_heartbeat_guild_count = 0
+
     def _patch_tree_error_handler(self):
         """
         Replace tree.on_error to intercept CommandOnCooldown before it reaches
@@ -152,9 +156,14 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
             )
         logger.info("------")
 
-    @tasks.loop(seconds=60)
+    @tasks.loop(seconds=300)  # 5 minutes — presence rarely changes
     async def heartbeat_task(self):
-        """Pings the backend to verify connectivity and updates bot status."""
+        """Pings the backend to verify connectivity and updates bot status.
+
+        Throttled to 5-minute intervals. ``change_presence()`` is called
+        **only** when the guild count actually changes, avoiding unnecessary
+        Discord API calls that eat into global rate-limit budget.
+        """
         health_url = f"{BACKEND_URL}health/"
         session = get_http_session()
         try:
@@ -162,15 +171,21 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
                 # Fully consume response to avoid unclosed connections
                 await resp.read()
                 if resp.status == 200:
-                    # Update bot status with guild count
-                    guild_count = len(self.guilds)
-                    activity = discord.Game(name=f"/help | {guild_count} servers")
-                    await self.change_presence(activity=activity, status=discord.Status.online)
-                else:
-                    await self.change_presence(status=discord.Status.idle)
+                    # Determine the current guild count
+                    current_guild_count = len(self.guilds)
+                    # Was there a *real* change?  Also covers the very first run
+                    # (when _last_heartbeat_guild_count = 0).
+                    if current_guild_count != self._last_heartbeat_guild_count:
+                        self._last_heartbeat_guild_count = current_guild_count
+                        activity = discord.Game(name=f"/help | {current_guild_count} servers")
+                        await self.change_presence(activity=activity, status=discord.Status.online)
+                # else: backend returned non-200 — silently skip presence update.
+                # No need to call change_presence(idle) because the presence
+                # change itself is a Discord API call.
         except Exception as e:
             logger.warning(f"Backend health check failed: {e}")
-            await self.change_presence(status=discord.Status.dnd)
+            # Don't call change_presence(dnd) on failure — that's another API
+            # call we don't need to waste on a transient backend issue.
 
     @heartbeat_task.before_loop
     async def before_heartbeat(self):
