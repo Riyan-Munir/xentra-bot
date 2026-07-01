@@ -77,7 +77,7 @@ class UserProfile(commands.Cog):
             if not user_id:
                 # Self-lookup (using Discord ID for reliability)
                 if not user_data.get('registered'):
-                    return error_embed(message="You must be registered to view your own profile.")
+                    return error_embed(message="**You** must be registered to view your own profile.")
                 
                 url = f"{BACKEND_URL}profiles/bot-detail/"
                 params = {'discord_id': interaction.user.id}

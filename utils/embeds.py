@@ -181,7 +181,7 @@ def dm_blocked_embed(attempted_action: str, receiver_name: str) -> discord.Embed
             f"Xentra could not deliver {attempted_action} to **{receiver_name}**.\n\n"
             f"They may have DMs disabled or have blocked the bot. "
             f"Please ask **{receiver_name}** to enable DMs from Xentra "
-            f"and use command `/interview delivery`.\n"
+            f"and use command `\\interview_delivery`.\n"
             f"\n"
             f"*Attachments will not be sent automatically* "
         ),

@@ -172,7 +172,7 @@ class ViewPortfolio(commands.Cog):
             if not user_id:
                 # Self-lookup
                 if not user_data.get('registered'):
-                    return error_embed(message="You must be registered to view your own portfolio.")
+                    return error_embed(message="**You** must be registered to view your own portfolio.")
                 
                 # Use current user's freelancer profile
                 url = f"{BACKEND_URL}profiles/bot-detail/"

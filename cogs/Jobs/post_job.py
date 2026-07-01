@@ -407,7 +407,7 @@ class PostJob(commands.Cog):
                         view.author_id = interaction.user.id
                         return embed, view
                     else:
-                        return error_embed(message=res_data.get('error', "You are not eligible to post jobs."))
+                        return error_embed(message=res_data.get('error', "**You** are not eligible to post jobs."))
 
         await validate_and_respond(interaction, post_job_callback)
 

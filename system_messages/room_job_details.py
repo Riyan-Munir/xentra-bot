@@ -41,7 +41,7 @@ def build_embed(data: dict) -> discord.Embed:
         description_parts.append(f"**Deadline:** {deadline}")
 
     return create_embed(
-        title="💼 Job Details",
+        title="Job Details",
         description="\n".join(description_parts),
         color=BrandColor.PRIMARY,
         footer="Xentra • Room system",

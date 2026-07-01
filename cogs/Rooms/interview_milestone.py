@@ -24,7 +24,13 @@ from discord.ext import commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import sync_cog_commands, fetch_selected_room, validate_and_respond, is_author
-from utils.embeds import error_embed, success_embed, info_embed
+from utils.embeds import (
+    BrandColor,
+    create_embed,
+    error_embed,
+    success_embed,
+    info_embed,
+)
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
@@ -736,14 +742,14 @@ class InterviewMilestoneSelectView(discord.ui.View):
             await interaction.response.send_modal(modal)
         else:
             # Delete — show confirmation
-            embed = discord.Embed(
+            embed = create_embed(
                 title='Confirm Delete',
                 description=(
                     f'Are you sure you want to delete milestone '
                     f'`{milestone_id}` (**{milestone_data.get("title", "?")}**)?\n\n'
                     f'Remaining milestones will be re-ordered automatically.'
                 ),
-                color=discord.Color.red(),
+                color=BrandColor.ERROR,
             )
             view = InterviewMilestoneDeleteView(
                 room_data=self.room_data,
@@ -894,7 +900,7 @@ class InterviewMilestone(commands.Cog):
             if room_data is None:
                 return error_embed(
                     message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
+                    'Use `\\switch_room` to select one.',
                 )
 
             room_id = room_data.get('room_id', '')
@@ -942,10 +948,10 @@ class InterviewMilestone(commands.Cog):
                         f'• `{m["milestone_id"]}` — {m["title"]} (${m["budget"]})'
                     )
 
-                embed = discord.Embed(
+                embed = create_embed(
                     title='Milestone Management',
                     description='\n'.join(embed_desc),
-                    color=discord.Color.blue(),
+                    color=BrandColor.PRIMARY,
                 )
 
                 view = InterviewMilestoneActionView(room_data, milestones)

@@ -64,7 +64,7 @@ class ApplicationDetailsCommand(commands.Cog):
                         if data.get('freelancer_name'):
                             embed.add_field(
                                 name="Freelancer",
-                                value=f"> `{data['freelancer_name']}`",
+                                value=f"> **{data['freelancer_name']}**",
                                 inline=True,
                             )
 

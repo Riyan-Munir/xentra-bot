@@ -127,7 +127,7 @@ async def send_room_closure_and_transcript(
         f'\n\nThank you for using Xentra to facilitate your agreement. '
         f'The signed Job Agreement has been delivered to both parties.'
         f'\n\nPlease submit your feedback about the interview process '
-        f'using `/interview feedback` (coming soon).'
+        f'using `\\interview_feedback` (coming soon).'
     )
 
     closure_embed = info_embed(message=closure_desc)

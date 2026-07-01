@@ -229,7 +229,7 @@ class ApplyJob(commands.Cog):
                         view.author_id = interaction.user.id
                         return embed, view
                     else:
-                        return error_embed(message=res_data.get('error', "You are not eligible for this job."))
+                        return error_embed(message=res_data.get('error', "**You** are not eligible for this job."))
 
         await validate_and_respond(interaction, apply_callback)
 

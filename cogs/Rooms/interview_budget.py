@@ -60,7 +60,7 @@ class InterviewBudget(commands.Cog):
             )
             if room_data is None:
                 return error_embed(
-                    'No selected interview room found. Use `/switch room` to select one.'
+                    'No selected interview room found. Use `\\switch_room` to select one.'
                 )
 
             # 2. Call backend to set the budget

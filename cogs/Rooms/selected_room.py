@@ -94,8 +94,8 @@ class SelectedRoomSetupView(discord.ui.View):
 
         if self.room_type == "job":
             embed = info_embed(
-                title="Job Rooms — Coming Soon",
-                message="Job rooms are not implemented yet. "
+                message="**Job Rooms — Coming Soon**\n\n"
+                "Job rooms are not implemented yet. "
                 "This feature will be available in a future update."
             )
             await interaction.edit_original_response(embed=embed, view=None)
@@ -159,7 +159,7 @@ class SelectedRoomSetupView(discord.ui.View):
             await interaction.edit_original_response(
                 embed=error_embed(
                     message="No selected interview room found. "
-                    "Use `/switch room` to select one.",
+                    "Use `\\switch_room` to select one.",
                 ),
                 view=None,
             )

@@ -212,8 +212,6 @@ class InterviewMessageConfirmView(discord.ui.View):
         self.attachments: list[discord.Attachment] = []
         self._original_interaction = modal_interaction  # for editing the confirm embed
         self._done = False
-        # Track the visible instruction message so we can delete it after
-        self._instruction_msg: discord.Message | None = None
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -243,14 +241,6 @@ class InterviewMessageConfirmView(discord.ui.View):
         except Exception:
             pass
 
-    async def _cleanup_instruction(self) -> None:
-        """Delete the visible instruction message if it exists."""
-        if self._instruction_msg is not None:
-            try:
-                await self._instruction_msg.delete()
-            except Exception:
-                pass
-            self._instruction_msg = None
 
     # ── buttons ──────────────────────────────────────────────────────
 
@@ -262,18 +252,22 @@ class InterviewMessageConfirmView(discord.ui.View):
             return
 
         # ── 1. Disable button & show "Wait..." state ───────────────
-        await self._toggle_add_files_button(disabled=True, label='⏳')
+        await self._toggle_add_files_button(disabled=True, label='Wait...')
 
-        # ── 2. Post a visible (non-ephemeral) instruction embed ──────
-        self._instruction_msg = await interaction.channel.send(
-            embed=info_embed(
-                title='File Upload',
-                message='Drag & drop your files here or use the Discord attachment button.\n\n'
-                f'Allowed: **{", ".join(sorted(ALLOWED_EXTENSIONS))}**\n'
-                f'Max **{MAX_ATTACHMENTS}** files · Under **{MAX_TOTAL_SIZE_MB} MB** total\n\n'
-                '*(This message will auto-delete after capture)*',
-            ),
+        # ── 2. Edit the original confirmation embed to show upload instructions ──
+        upload_info = (
+            f'Drag & drop your files here or use the Discord attachment button.\n\n'
+            f'Allowed: **{", ".join(sorted(ALLOWED_EXTENSIONS))}**\n'
+            f'Max **{MAX_ATTACHMENTS}** files · Under **{MAX_TOTAL_SIZE_MB} MB** total\n\n'
+            '*(Waiting for files...)*'
         )
+        instruction_embed = info_embed(message=upload_info)
+        try:
+            await self._original_interaction.edit_original_response(
+                embed=instruction_embed, view=self,
+            )
+        except Exception:
+            pass
 
         # Acknowledge the button press (no ephemeral followup needed)
         await interaction.response.defer()
@@ -291,8 +285,8 @@ class InterviewMessageConfirmView(discord.ui.View):
                 'message', timeout=120.0, check=check,
             )
         except asyncio.TimeoutError:
-            await self._cleanup_instruction()
             await self._toggle_add_files_button(disabled=False, label='Attach')
+            await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
                     message='File upload timed out. Press **Attach** again to retry.'
@@ -304,8 +298,8 @@ class InterviewMessageConfirmView(discord.ui.View):
         # ── 4. Validate count ────────────────────────────────────────
         combined = self.attachments + file_msg.attachments
         if len(combined) > MAX_ATTACHMENTS:
-            await self._cleanup_instruction()
             await self._toggle_add_files_button(disabled=False, label='Attach')
+            await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
                     message=f'Too many files (max {MAX_ATTACHMENTS}). '
@@ -319,8 +313,8 @@ class InterviewMessageConfirmView(discord.ui.View):
         # ── 5. Validate total size ───────────────────────────────────
         total_size = sum(a.size for a in combined)
         if total_size > MAX_TOTAL_SIZE_BYTES:
-            await self._cleanup_instruction()
             await self._toggle_add_files_button(disabled=False, label='Attach')
+            await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
                     message=f'Combined file size exceeds {MAX_TOTAL_SIZE_MB} MB '
@@ -334,12 +328,11 @@ class InterviewMessageConfirmView(discord.ui.View):
         # ── 6. Accept files ──────────────────────────────────────────
         self.attachments.extend(file_msg.attachments)
 
-        # Delete the user's file message + the instruction embed
+        # Delete the user's file message
         try:
             await file_msg.delete()
         except Exception:
             pass
-        await self._cleanup_instruction()
 
         # Re-enable the ➕ button locally (will be sent with _refresh_embed)
         for child in self.children:
@@ -624,7 +617,7 @@ class InterviewMessage(commands.Cog):
             if room_data is None:
                 return error_embed(
                     message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
+                    'Use `\\switch_room` to select one.',
                 )
 
             # Merge profile display name into user_data

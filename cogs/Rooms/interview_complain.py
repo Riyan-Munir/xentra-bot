@@ -58,6 +58,7 @@ class ComplainStartView(discord.ui.View):
         self.room_data = room_data
         self.message_id = message_id
         self.complain_id = complain_id
+        self._original_interaction: discord.Interaction | None = None
 
     @discord.ui.button(label='Write Complaint', style=discord.ButtonStyle.danger)
     async def write_complaint(
@@ -72,6 +73,7 @@ class ComplainStartView(discord.ui.View):
             message_id=self.message_id,
             complain_id=self.complain_id,
         )
+        modal._original_interaction = self._original_interaction
         await interaction.response.send_modal(modal)
         self.stop()
 
@@ -104,17 +106,21 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         self.room_data = room_data
         self.message_id = message_id
         self.complain_id = complain_id
+        self._original_interaction: discord.Interaction | None = None
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         complaint_text = self.complaint.value.strip()
         if not complaint_text:
-            await interaction.response.send_message(
+            await interaction.response.defer()
+            await self._original_interaction.edit_original_response(
                 embed=error_embed(message='Complaint text cannot be empty.'),
-                ephemeral=True,
+                view=None,
             )
             return
 
-        is_dm = interaction.guild is None
+        # Defer so we can edit the original response later
+        await interaction.response.defer()
+
         session = get_http_session()
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         active_role = self.user_data.get('active_role', '')
@@ -137,18 +143,18 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                     if resp.status != 200:
                         err_data = await resp.json()
                         err_msg = err_data.get('error', 'Reference verification failed.')
-                        await interaction.response.send_message(
+                        await self._original_interaction.edit_original_response(
                             embed=error_embed(message=err_msg),
-                            ephemeral=not is_dm,
+                            view=None,
                         )
                         return
             except Exception:
                 logger.exception('Failed to verify room reference')
-                await interaction.response.send_message(
+                await self._original_interaction.edit_original_response(
                     embed=error_embed(
                         message='Unable to verify the reference ID. Please try again later.'
                     ),
-                    ephemeral=not is_dm,
+                    view=None,
                 )
                 return
 
@@ -173,9 +179,9 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 if resp.status != 200:
                     err_data = await resp.json()
                     err_msg = err_data.get('error', 'Failed to save complaint.')
-                    await interaction.response.send_message(
+                    await self._original_interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
-                        ephemeral=not is_dm,
+                        view=None,
                     )
                     return
                 save_data = await resp.json()
@@ -183,12 +189,12 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 other_discord_id = save_data.get('other_discord_id', '')
         except Exception:
             logger.exception('Failed to save complaint to backend')
-            await interaction.response.send_message(
+            await self._original_interaction.edit_original_response(
                 embed=error_embed(
                     message='Could not save the complaint due to a system error. '
                     'Please try again later.',
                 ),
-                ephemeral=not is_dm,
+                view=None,
             )
             return
 
@@ -237,12 +243,12 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 else:
                     receiver_name = room_data.get('client_name', 'Client')
 
-                await interaction.response.send_message(
+                await self._original_interaction.edit_original_response(
                     embed=dm_blocked_embed(
                         attempted_action='your complaint notification',
                         receiver_name=receiver_name,
                     ),
-                    ephemeral=not is_dm,
+                    view=None,
                 )
                 return
 
@@ -251,9 +257,9 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         if complaint_id:
             success_msg += f' (ID: `{complaint_id}`)'
 
-        await interaction.response.send_message(
+        await self._original_interaction.edit_original_response(
             embed=success_embed(message=success_msg),
-            ephemeral=not is_dm,
+            view=None,
         )
 
 
@@ -293,7 +299,7 @@ class InterviewComplain(commands.Cog):
         if message_id and complain_id:
             await interaction.response.send_message(
                 embed=error_embed(
-                    message='You can link a complaint to either a **message** or a '
+                    message='**You** can link a complaint to either a **message** or a '
                     'previous **complaint**, but not both. Please use only one of the '
                     '`message_id` or `complain_id` parameters.'
                 ),
@@ -315,7 +321,7 @@ class InterviewComplain(commands.Cog):
             if room_data is None:
                 return error_embed(
                     message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
+                    'Use `\\switch_room` to select one.',
                 )
 
             # ── 2. Show start view with Write Complaint button ──────────
@@ -338,6 +344,7 @@ class InterviewComplain(commands.Cog):
                 complain_id=complain_id or '',
             )
             view.author_id = interaction.user.id
+            view._original_interaction = interaction
 
             return embed, view
 

@@ -260,14 +260,14 @@ class AgreementConfirmView(discord.ui.View):
                 other_user = interaction.client.get_user(int(other_id))
                 if not other_user:
                     other_user = await interaction.client.fetch_user(int(other_id))
-                blocked_embed = discord.Embed(
+                blocked_embed = create_embed(
                     title='Sender: Xentra',
                     description=(
                         f'{failed_name} didn\'t receive the document due to a DM block. '
                         f'You are required to share this document for awareness '
                         f'as Xentra is closing this room.'
                     ),
-                    color=0xE74C3C,
+                    color=BrandColor.ERROR,
                 )
                 await other_user.send(embed=blocked_embed)
             except Exception:
@@ -412,7 +412,7 @@ class InterviewAgreement(commands.Cog):
             if room_data is None:
                 return error_embed(
                     message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
+                    'Use `\\switch_room` to select one.',
                 )
 
             room_id = room_data.get('room_id', '')
@@ -459,13 +459,13 @@ class InterviewAgreement(commands.Cog):
                         )
                     elif not executor_ok and other_ok:
                         return error_embed(
-                            message='You need to review the agreement first via '
-                            '`/interview review` before signing.',
+                            message='**You** need to review the agreement first via '
+                            '`\\interview_review` before signing.',
                         )
                     else:
                         return error_embed(
-                            message=f'You and **{other_name}** need to review the agreement first '
-                            f'via `/interview review` before signing.',
+                            message=f'**You** and **{other_name}** need to review the agreement first '
+                            f'via `\\interview_review` before signing.',
                         )
 
                 # Fallback for unknown error codes
@@ -565,14 +565,14 @@ class InterviewAgreement(commands.Cog):
                                 other_user = interaction.client.get_user(int(other_id))
                                 if not other_user:
                                     other_user = await interaction.client.fetch_user(int(other_id))
-                                blocked_embed = discord.Embed(
+                                blocked_embed = create_embed(
                                     title='Sender: Xentra',
                                     description=(
                                         f'{failed_name} didn\'t receive the document due to a DM block. '
                                         f'You are required to share this document for awareness '
                                         f'as Xentra is closing this room.'
                                     ),
-                                    color=0xE74C3C,
+                                    color=BrandColor.ERROR,
                                 )
                                 await other_user.send(embed=blocked_embed)
                             except Exception:
@@ -606,7 +606,7 @@ class InterviewAgreement(commands.Cog):
                 else:
                     # Already signed but other party hasn't — just notify
                     return error_embed(
-                        message='You have already signed the agreement for this job. '
+                        message='**You** have already signed the agreement for this job. '
                         f'A notification has been sent to **{other_name}** '
                         f'requesting their signature.',
                     )

@@ -129,7 +129,7 @@ class InterviewReview(commands.Cog):
             if room_data is None:
                 return error_embed(
                     message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
+                    'Use `\\switch_room` to select one.',
                 )
 
             room_id = room_data.get('room_id', '')
@@ -182,7 +182,7 @@ class InterviewReview(commands.Cog):
                     else:
                         return error_embed(
                             message='The final budget has not been set yet. '
-                            'Use `/interview budget` to set it, then re-run this command.',
+                            'Use `\\interview_budget` to set it, then re-run this command.',
                         )
 
                 # NO_MILESTONES — freelancer must create them
@@ -197,7 +197,7 @@ class InterviewReview(commands.Cog):
                     if is_freelancer:
                         return error_embed(
                             message='No milestones have been configured yet. '
-                            'Use `/interview milestone` to create them and re-run this command.',
+                            'Use `\\interview_milestone` to create them and re-run this command.',
                         )
                     else:
                         return error_embed(
@@ -220,7 +220,7 @@ class InterviewReview(commands.Cog):
                         return error_embed(
                             message=f'Total milestone budget (${total}) does not match the '
                             f'final budget (${final_budget}). '
-                            f'Use `/interview milestone` to adjust milestone budgets.',
+                            f'Use `\\interview_milestone` to adjust milestone budgets.',
                         )
                     else:
                         return error_embed(
@@ -258,7 +258,7 @@ class InterviewReview(commands.Cog):
                         return error_embed(
                             message=f'The last milestone deadline ({last_milestone_dl}) is after '
                             f'the job deadline ({job_deadline}). '
-                            f'Use `/interview milestone` to adjust milestone deadlines.',
+                            f'Use `\\interview_milestone` to adjust milestone deadlines.',
                         )
                     else:
                         return error_embed(

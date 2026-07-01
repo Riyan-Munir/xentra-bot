@@ -57,7 +57,7 @@ def build_embed(data: dict) -> discord.Embed:
             description_parts = [
                 f"**Interview Room:** `{room_id}`",
                 f"**Job Title:** {job_title}",
-                f"**Executor:** {executor_name}",
+                f"**Executor:** **{executor_name}**",
                 f"**Complaint ID:** `{complaint_id}`",
             ]
 
@@ -92,7 +92,7 @@ def build_embed(data: dict) -> discord.Embed:
             description_parts = [
                 f"**Interview Room:** `{room_id}`",
                 f"**Job Title:** {job_title}",
-                f"**Executor:** {executor_name}",
+                f"**Executor:** **{executor_name}**",
                 f"**Leave ID:** `{leave_id}`",
                 "",
                 "**Reason:**",
@@ -113,7 +113,7 @@ def build_embed(data: dict) -> discord.Embed:
         description_parts = [
             f"**Interview Room:** `{room_id}`",
             f"**Job Title:** {job_title}",
-            f"**Executor:** {executor_name}",
+            f"**Executor:** **{executor_name}**",
             f"**Command:** `{command_name}`",
             "",
             "**Execution details:**",
@@ -140,7 +140,7 @@ def build_embed(data: dict) -> discord.Embed:
     description_parts = [
         f"**Interview Room:** `{room_id}`",
         f"**Job Title:** {job_title}",
-        f"**From {role_label}:** {sender_name}",
+        f"**From {role_label}:** **{sender_name}**",
         f"**Message Id:** `{msg_id}`",
         "",
         "**Message:**",
@@ -166,7 +166,7 @@ def build_embed(data: dict) -> discord.Embed:
         description_parts.append(f"**Attachments:** {attachments}")
 
     return create_embed(
-        title="✉️ New Interview Message",
+        title="New Interview Message",
         description="\n".join(description_parts),
         color=BrandColor.PRIMARY,
         footer="Xentra • Room system",

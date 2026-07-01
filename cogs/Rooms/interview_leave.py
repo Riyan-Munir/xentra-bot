@@ -331,7 +331,7 @@ class InterviewLeave(commands.Cog):
             if room_data is None:
                 return error_embed(
                     message='No selected interview room found. '
-                    'Use `/switch room` to select one.',
+                    'Use `\\switch_room` to select one.',
                 )
 
             room_id = room_data.get('room_id', '')
