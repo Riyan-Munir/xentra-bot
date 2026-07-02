@@ -595,19 +595,6 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
             return
         user_data['_selected_room'] = _selected
 
-    # ── Unregistered user detection ────────────────────────────────────────
-    # If the user doesn't have a registered account, redirect them to the
-    # Dashboard instead of showing a generic "not available for your role".
-    if not user_data.get('registered', True) and active_role == 'non_bot_user':
-        from config import FRONTEND_URL
-        err = error_embed(
-            "**Account Required**\n\n"
-            "You need to register an account before using this command.\n"
-            f"Visit [Xentra Dashboard]({FRONTEND_URL}) to get started."
-        )
-        await interaction.followup.send(embed=err, ephemeral=True)
-        return
-
     # 3. Role Validation
     role_match = active_role in required_roles
     
@@ -627,9 +614,17 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         return
 
     if not role_match:
-        err = error_embed(
-            "This command is not available for your role. Run `/help` for details."
-        )
+        if active_role == 'non_bot_user' and not user_data.get('registered', True):
+            from config import FRONTEND_URL
+            err = error_embed(
+                "**Account Required**\n\n"
+                "You need to register an account before using this command.\n"
+                f"Visit [Xentra Dashboard]({FRONTEND_URL}) to get started."
+            )
+        else:
+            err = error_embed(
+                "This command is not available for your role. Run `/help` for details."
+            )
         await send_response(err)
         return
 
