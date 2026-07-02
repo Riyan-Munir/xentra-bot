@@ -5,11 +5,11 @@ Flow:
   1. ``validate_and_respond`` validates the user, role, and room context.
   2. Shows a "Write Message" button after room verification passes.
   3. Button opens the message Modal.
-  4. Modal collects text; on submit it shows a confirmation embed with buttons.
-  5. Confirmation is **not** ephemeral in DMs.
-  6. On Send, the *same* embed is edited to show success/error and all
+  4. Modal collects text; on submit it edits the original message to show
+     a confirmation embed with buttons.
+  5. On Send, the *same* embed is edited to show success/error and all
      buttons are removed (instead of sending a new followup message).
-  7. **➕** button to add files, per-attachment **✖** buttons to remove before sending.
+  6. Attach button to add files, per-attachment Remove buttons before sending.
 """
 
 import asyncio
@@ -86,38 +86,6 @@ def _build_confirm_embed(
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Start View — opens the modal after room verification
-# ──────────────────────────────────────────────────────────────────────
-
-
-class MessageStartView(discord.ui.View):
-    """View shown after room verification — user clicks to open the message modal."""
-
-    def __init__(
-        self,
-        user_data: dict,
-        room_data: dict,
-    ) -> None:
-        super().__init__(timeout=120)
-        self.user_data = user_data
-        self.room_data = room_data
-
-    @discord.ui.button(label='Write Message', style=discord.ButtonStyle.primary)
-    async def write_message(
-        self, interaction: discord.Interaction, _button: discord.ui.Button,
-    ) -> None:
-        if not is_author(interaction, self):
-            return
-
-        modal = InterviewMessageModal(
-            user_data=self.user_data,
-            room_data=self.room_data,
-        )
-        await interaction.response.send_modal(modal)
-        self.stop()
-
-
-# ──────────────────────────────────────────────────────────────────────
 # Modal — message text input (opens after room verification)
 # ──────────────────────────────────────────────────────────────────────
 
@@ -137,10 +105,12 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         self,
         user_data: dict,
         room_data: dict,
+        original_interaction: discord.Interaction,
     ) -> None:
         super().__init__(timeout=300)
         self.user_data = user_data
         self.room_data = room_data
+        self.original_interaction = original_interaction
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         msg_text = self.msg.value.strip()
@@ -155,25 +125,31 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
             )
             return
 
-        is_dm = interaction.guild is None
+        # Defer the modal interaction first
+        await interaction.response.defer()
 
-        # Show confirmation view
+        # Build confirmation view — it will edit the original interaction message
         view = InterviewMessageConfirmView(
-            interaction,
-            self.user_data,
-            self.room_data,
-            msg_text,
-            word_count,
+            original_interaction=self.original_interaction,
+            author_id=interaction.user.id,
+            is_dm=interaction.guild is None,
+            user_data=self.user_data,
+            room_data=self.room_data,
+            msg_text=msg_text,
+            word_count=word_count,
         )
 
         embed = _build_confirm_embed(msg_text, view.attachments, word_count)
 
-        # In DMs: visible (not ephemeral).  In servers: ephemeral to avoid clutter.
-        await interaction.response.send_message(
-            embed=embed,
-            view=view,
-            ephemeral=not is_dm,
-        )
+        # Edit the original message (the one with "Write Message" button)
+        # to show the confirmation embed instead.
+        try:
+            await self.original_interaction.edit_original_response(
+                embed=embed,
+                view=view,
+            )
+        except Exception:
+            pass
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -195,21 +171,23 @@ class InterviewMessageConfirmView(discord.ui.View):
 
     def __init__(
         self,
-        modal_interaction: discord.Interaction,
+        original_interaction: discord.Interaction,
+        author_id: int,
+        is_dm: bool,
         user_data: dict,
         room_data: dict,
         msg_text: str,
         word_count: int,
     ) -> None:
         super().__init__(timeout=300)
-        self.author_id = modal_interaction.user.id
-        self.is_dm = modal_interaction.guild is None
+        self.author_id = author_id
+        self.is_dm = is_dm
         self.user_data = user_data
         self.room_data = room_data
         self.msg_text = msg_text
         self.word_count = word_count
         self.attachments: list[discord.Attachment] = []
-        self._original_interaction = modal_interaction  # for editing the confirm embed
+        self.original_interaction = original_interaction  # for editing the original embed
         self._done = False
 
     async def on_timeout(self) -> None:
@@ -222,12 +200,12 @@ class InterviewMessageConfirmView(discord.ui.View):
         self._rebuild_remove_buttons()
         embed = _build_confirm_embed(self.msg_text, self.attachments, self.word_count)
         try:
-            await self._original_interaction.edit_original_response(embed=embed, view=self)
+            await self.original_interaction.edit_original_response(embed=embed, view=self)
         except Exception:
             pass
 
     async def _toggle_add_files_button(self, disabled: bool, label: str) -> None:
-        """Enable/disable the ➕ button and update its label in-place."""
+        """Enable/disable the Attach button and update its label in-place."""
         for child in self.children:
             if isinstance(child, discord.ui.Button) and child.label in (
                 'Attach', 'Wait...',
@@ -236,7 +214,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 child.label = label
                 break
         try:
-            await self._original_interaction.edit_original_response(view=self)
+            await self.original_interaction.edit_original_response(view=self)
         except Exception:
             pass
 
@@ -247,7 +225,7 @@ class InterviewMessageConfirmView(discord.ui.View):
     async def add_files(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
-        if interaction.user.id != self.author_id:
+        if not is_author(interaction, self):
             return
 
         # ── 1. Disable button & show "Wait..." state ───────────────
@@ -262,13 +240,13 @@ class InterviewMessageConfirmView(discord.ui.View):
         )
         instruction_embed = info_embed(message=upload_info)
         try:
-            await self._original_interaction.edit_original_response(
+            await self.original_interaction.edit_original_response(
                 embed=instruction_embed, view=self,
             )
         except Exception:
             pass
 
-        # Acknowledge the button press (no ephemeral followup needed)
+        # Acknowledge the button press
         await interaction.response.defer()
 
         # ── 3. Wait for the user's file message ──────────────────────
@@ -333,7 +311,7 @@ class InterviewMessageConfirmView(discord.ui.View):
         except Exception:
             pass
 
-        # Re-enable the ➕ button locally (will be sent with _refresh_embed)
+        # Re-enable the Attach button locally (will be sent with _refresh_embed)
         for child in self.children:
             if isinstance(child, discord.ui.Button) and child.label == 'Wait...':
                 child.disabled = False
@@ -375,7 +353,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             )
 
             async def _remove_callback(interaction: discord.Interaction, i=idx, attach=a) -> None:
-                if interaction.user.id != self.author_id:
+                if not is_author(interaction, self):
                     return
                 self.attachments.pop(i)
                 await self._refresh_embed()
@@ -393,7 +371,7 @@ class InterviewMessageConfirmView(discord.ui.View):
     async def send_msg(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
-        if interaction.user.id != self.author_id:
+        if not is_author(interaction, self):
             return
         if self._done:
             return
@@ -406,7 +384,7 @@ class InterviewMessageConfirmView(discord.ui.View):
     async def cancel(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
-        if interaction.user.id != self.author_id:
+        if not is_author(interaction, self):
             return
         self._done = True
         await _edit_msg_done(self, info_embed(message='Message cancelled.'))
@@ -573,7 +551,7 @@ async def _edit_msg_done(
         view.remove_item(child)
     view.stop()
     try:
-        await view._original_interaction.edit_original_response(
+        await view.original_interaction.edit_original_response(
             embed=embed, view=view,
         )
     except Exception:
@@ -606,6 +584,7 @@ class InterviewMessage(commands.Cog):
             active_role = user_data.get('active_role')
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
+            # ── 1. Use auto-fetched selected room ─────────────────────────
             room_data = user_data['_selected_room']
 
             # Merge profile display name into user_data
@@ -614,7 +593,7 @@ class InterviewMessage(commands.Cog):
             else:
                 user_data['freelancer_name'] = room_data.get('freelancer_name', 'Freelancer')
 
-            # ── 2. Show start view with Write Message button ────────────
+            # ── 2. Show embed with Write Message + Cancel buttons ────────
             embed = create_embed(
                 title='Interview Message',
                 description=(
@@ -627,12 +606,65 @@ class InterviewMessage(commands.Cog):
                 footer='Xentra • Room System',
             )
 
-            view = MessageStartView(user_data, room_data)
+            view = MessageStartView(
+                user_data=user_data,
+                room_data=room_data,
+                original_interaction=interaction,
+            )
             view.author_id = interaction.user.id
 
             return embed, view
 
         await validate_and_respond(interaction, callback)
+
+
+# ── Start View — opens the modal after room verification ────────────
+
+
+class MessageStartView(discord.ui.View):
+    """View shown after room verification — user clicks to open the message modal."""
+
+    def __init__(
+        self,
+        user_data: dict,
+        room_data: dict,
+        original_interaction: discord.Interaction,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.author_id: int | None = None
+        self.user_data = user_data
+        self.room_data = room_data
+        self.original_interaction = original_interaction
+
+    async def on_timeout(self) -> None:
+        self.stop()
+
+    @discord.ui.button(label='Write Message', style=discord.ButtonStyle.primary)
+    async def write_message(
+        self, interaction: discord.Interaction, _button: discord.ui.Button,
+    ) -> None:
+        if not is_author(interaction, self):
+            return
+
+        modal = InterviewMessageModal(
+            user_data=self.user_data,
+            room_data=self.room_data,
+            original_interaction=self.original_interaction,
+        )
+        await interaction.response.send_modal(modal)
+        self.stop()
+
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    async def cancel(
+        self, interaction: discord.Interaction, _button: discord.ui.Button,
+    ) -> None:
+        if not is_author(interaction, self):
+            return
+        self.stop()
+        await interaction.response.edit_message(
+            embed=info_embed(message='Message cancelled.'),
+            view=None,
+        )
 
 
 # ── setup ──────────────────────────────────────────────────────────────

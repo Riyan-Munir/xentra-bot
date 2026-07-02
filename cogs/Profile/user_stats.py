@@ -84,7 +84,7 @@ class UserStats(commands.Cog):
                 async with session.get(url, params=params, headers=headers) as resp:
                         if resp.status == 200:
                             data = await resp.json()
-                            resp_role = data.get('active_role', active_role)
+                            resp_role = data.get('active_role', user_data.get('active_role'))
                             return self.build_stats_embed(data, resp_role)
                         else:
                             err = await resp.json()
