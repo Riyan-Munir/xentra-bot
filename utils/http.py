@@ -23,6 +23,15 @@ from utils.request_signing import sign_request, _get_signing_secret
 
 logger = logging.getLogger('bot.http')
 
+
+def _get_bot_origin() -> str:
+    """Return the bot's own origin URL (configured via BOT_ORIGIN env)."""
+    try:
+        from config import BOT_ORIGIN
+        return BOT_ORIGIN.rstrip('/')
+    except (ImportError, AttributeError):
+        return ''
+
 _http_session: aiohttp.ClientSession | None = None
 
 # ── Bot path prefixes that require HMAC signing ───────────────────────
@@ -58,11 +67,14 @@ def _merge_signing_headers(
     path: str,
     body: bytes = b"",
 ) -> dict:
-    """Merge HMAC signing headers into *headers*.
+    """Merge HMAC signing headers and X-Bot-Origin identity header.
 
     Only adds signing if:
     1. The path matches a bot endpoint prefix.
     2. ``REQUEST_SIGNING_SECRET`` is configured.
+
+    Injects ``X-Bot-Origin`` so the backend can verify the calling bot's
+    identity against ``settings.BOT_ORIGIN``.
 
     Returns the (possibly updated) headers dict.
     """
@@ -79,6 +91,13 @@ def _merge_signing_headers(
 
     sig_headers = sign_request(method, resolved_path, body)
     result = dict(headers or {})
+
+    # Inject the bot's own origin identity so the backend can verify
+    # that this is the authorised bot instance.
+    bot_origin = _get_bot_origin()
+    if bot_origin:
+        result["X-Bot-Origin"] = bot_origin
+
     result.update(sig_headers)
     return result
 

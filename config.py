@@ -10,6 +10,21 @@ BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000/api/v1/')
 # REQUEST_SIGNING_SECRET is REQUIRED for bot→backend signed requests.
 # Must match the backend's REQUEST_SIGNING_SECRET exactly.
 REQUEST_SIGNING_SECRET = os.getenv('REQUEST_SIGNING_SECRET', '')
+# BOT_ORIGIN is REQUIRED — the bot's own public URL that the backend
+# expects in the BOT_ORIGIN setting.  The backend verifies the
+# X-Bot-Origin header against this value to prevent unauthorized
+# bot instances from using the shared secrets.
+BOT_ORIGIN = os.getenv('BOT_ORIGIN')
+if not BOT_ORIGIN:
+    import logging
+    logging.getLogger('bot.config').critical(
+        "BOT_ORIGIN is not set in environment! "
+        "Set BOT_ORIGIN in .env or export it before starting the bot."
+    )
+    raise SystemExit(
+        "FATAL: BOT_ORIGIN environment variable is required. "
+        "Set it in bot/.env or the system environment."
+    )
 # FRONTEND_URL is REQUIRED in production.  Fails closed if missing.
 FRONTEND_URL = os.getenv('FRONTEND_URL')
 if not FRONTEND_URL:
