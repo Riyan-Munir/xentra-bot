@@ -402,37 +402,57 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                             if error_code == 'access_denied':
                                 err = error_embed(
                                     "**Access Denied**\n\n"
-                                    "The backend rejected this request due to an invalid or "
-                                    "missing origin header. This may occur if the bot's origin "
-                                    "configuration does not match the backend's `BOT_ORIGIN` setting."
+                                    "Your request could not be processed. Please try again "
+                                    f"or [contact support]({FRONTEND_URL}/support) if the issue persists."
                                 )
                             elif error_code == 'account_suspended':
                                 err = error_embed(
                                     "**Account Suspended**\n\n"
-                                    "Your account has been **automatically suspended** due to "
-                                    "repeated security violations detected by our systems.\n\n"
-                                    f"Contact a server administrator or visit "
-                                    f"[Xentra Dashboard]({FRONTEND_URL}) to appeal the suspension."
+                                    "Your account has been suspended. If you believe this "
+                                    f"is a mistake, please [contact support]({FRONTEND_URL}/support) "
+                                    f"or visit [Xentra Dashboard]({FRONTEND_URL}) for help."
                                 )
                             elif error_code == 'profile_suspended':
                                 err = error_embed(
                                     "**Profile Suspended**\n\n"
-                                    "This profile has been **temporarily suspended**.\n\n"
-                                    f"Please visit [Xentra Dashboard]({FRONTEND_URL}) for more information."
+                                    "This profile is currently unavailable.\n\n"
+                                    f"Visit [Xentra Dashboard]({FRONTEND_URL}) "
+                                    f"or [contact support]({FRONTEND_URL}/support) for more details."
                                 )
                             elif err_data.get('require_dismiss'):
                                 err = error_embed(
-                                    "**Security Alert Active**\n\n"
-                                    "A security notification is waiting for you on the Xentra Dashboard. "
-                                    f"Please visit [{FRONTEND_URL}]({FRONTEND_URL}) and acknowledge it "
-                                    "before using any bot commands."
+                                    "**Alert Active**\n\n"
+                                    "You have an unread notification on the Xentra Dashboard. "
+                                    f"Please visit [{FRONTEND_URL}]({FRONTEND_URL}) to review it "
+                                    "before using bot commands."
                                 )
                             else:
-                                # Fallback: show generic forbidden error
                                 err = error_embed(
                                     "**Request Forbidden**\n\n"
-                                    "The backend rejected your request. "
-                                    f"If you believe this is an error, please contact support."
+                                    "This request could not be completed. "
+                                    f"If you believe this is an error, please [contact support]({FRONTEND_URL}/support)."
+                                )
+                            await interaction.followup.send(embed=err, ephemeral=True)
+                            return
+                        elif resp.status == 404:
+                            # User not found in backend — redirect to registration
+                            from config import FRONTEND_URL
+                            try:
+                                err_data = await resp.json()
+                            except Exception:
+                                err_data = {}
+                            if err_data.get('error') == 'User not found':
+                                err = error_embed(
+                                    "**Account Required**\n\n"
+                                    "You don't have an account yet. "
+                                    f"Register on [Xentra Dashboard]({FRONTEND_URL}) to get started."
+                                )
+                            else:
+                                err_text = await resp.text()
+                                logger.warning(f"Backend returned 404 for user lookup: {err_text[:200]}")
+                                err = error_embed(
+                                    "The requested resource was not found. "
+                                    "Please try again or contact support."
                                 )
                             await interaction.followup.send(embed=err, ephemeral=True)
                             return
@@ -574,6 +594,19 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
             )
             return
         user_data['_selected_room'] = _selected
+
+    # ── Unregistered user detection ────────────────────────────────────────
+    # If the user doesn't have a registered account, redirect them to the
+    # Dashboard instead of showing a generic "not available for your role".
+    if not user_data.get('registered', True) and active_role == 'non_bot_user':
+        from config import FRONTEND_URL
+        err = error_embed(
+            "**Account Required**\n\n"
+            "You need to register an account before using this command.\n"
+            f"Visit [Xentra Dashboard]({FRONTEND_URL}) to get started."
+        )
+        await interaction.followup.send(embed=err, ephemeral=True)
+        return
 
     # 3. Role Validation
     role_match = active_role in required_roles
