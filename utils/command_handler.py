@@ -388,14 +388,39 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                             await interaction.followup.send(embed=throttled_embed(wait_time), ephemeral=True)
                             return
                         elif resp.status == 403:
-                            # Distinguish between account ban and pending hacking alert
+                            # Distinguish between access-denied, account suspension,
+                            # profile suspension, and pending hacking alert using
+                            # the machine-readable error_code from the backend.
                             from config import FRONTEND_URL
                             try:
                                 err_data = await resp.json()
                             except Exception:
                                 err_data = {}
 
-                            if err_data.get('require_dismiss'):
+                            error_code = err_data.get('error_code')
+
+                            if error_code == 'access_denied':
+                                err = error_embed(
+                                    "**Access Denied**\n\n"
+                                    "The backend rejected this request due to an invalid or "
+                                    "missing origin header. This may occur if the bot's origin "
+                                    "configuration does not match the backend's `BOT_ORIGIN` setting."
+                                )
+                            elif error_code == 'account_suspended':
+                                err = error_embed(
+                                    "**Account Suspended**\n\n"
+                                    "Your account has been **automatically suspended** due to "
+                                    "repeated security violations detected by our systems.\n\n"
+                                    f"Contact a server administrator or visit "
+                                    f"[Xentra Dashboard]({FRONTEND_URL}) to appeal the suspension."
+                                )
+                            elif error_code == 'profile_suspended':
+                                err = error_embed(
+                                    "**Profile Suspended**\n\n"
+                                    "This profile has been **temporarily suspended**.\n\n"
+                                    f"Please visit [Xentra Dashboard]({FRONTEND_URL}) for more information."
+                                )
+                            elif err_data.get('require_dismiss'):
                                 err = error_embed(
                                     "**Security Alert Active**\n\n"
                                     "A security notification is waiting for you on the Xentra Dashboard. "
@@ -403,12 +428,11 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                                     "before using any bot commands."
                                 )
                             else:
+                                # Fallback: show generic forbidden error
                                 err = error_embed(
-                                    "**Account Suspended**\n\n"
-                                    "Your account has been **automatically suspended** due to "
-                                    "repeated security violations detected by our systems.\n\n"
-                                    f"Contact a server administrator or visit "
-                                    f"[Xentra Dashboard]({FRONTEND_URL}) to appeal the suspension."
+                                    "**Request Forbidden**\n\n"
+                                    "The backend rejected your request. "
+                                    f"If you believe this is an error, please contact support."
                                 )
                             await interaction.followup.send(embed=err, ephemeral=True)
                             return
