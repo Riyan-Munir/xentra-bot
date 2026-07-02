@@ -103,9 +103,9 @@ async def send_room_closure_and_transcript(
     sys_msg_type = 'leave' if closure_type == 'leave' else 'closure'
     await CreateRooms._log_system_message(room_id, sys_msg_type, {})
 
-    # ── 1b. Log "Sent Room Transcript" BEFORE fetching data ─────────
+    # ── 1b. Log "Room Transcript" BEFORE fetching data ──────────────
     # Ensures this message appears in the session JSON used for PDF generation
-    await CreateRooms._log_system_message(room_id, 'Sent Room Transcript', {})
+    await CreateRooms._log_system_message(room_id, 'Room Transcript', {})
 
     # ── 2. Fetch transcript data from backend ────────────────────────
     transcript_data = await _fetch_transcript_data(room_id, headers, session)

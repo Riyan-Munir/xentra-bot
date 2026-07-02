@@ -170,11 +170,11 @@ class InterviewTranscript(commands.Cog):
                     'Please try again later.',
                 )
 
-            # ── 4. Log "Sent Room Transcript" BEFORE fetching data ────────
+            # ── 4. Log "Room Transcript" BEFORE fetching data ─────────────
             # (Requirement C: ensures this message appears in the retrieved
             #  session JSON and generated PDF)
             from .create_rooms import CreateRooms
-            await CreateRooms._log_system_message(room_id, 'Sent Room Transcript', {})
+            await CreateRooms._log_system_message(room_id, 'Room Transcript', {})
 
             # ── 5. Background task: fetch data → generate PDF → send DM ──
             async def _run_transcript_task():

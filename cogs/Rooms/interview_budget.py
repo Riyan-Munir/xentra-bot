@@ -99,7 +99,8 @@ class InterviewBudget(commands.Cog):
                                 )
 
                         return success_embed(
-                            f'Final budget set to **${budget:,.2f}**.'
+                            f'Final budget set to **${budget:,.2f}** for job '
+                            f'**{room_data.get("job_title", "")}**.'
                         )
                     return error_embed(
                         body.get('error', 'Failed to set budget.')

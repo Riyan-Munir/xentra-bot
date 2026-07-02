@@ -159,7 +159,8 @@ class InterviewReview(commands.Cog):
                     # Notify the client (always — they're the one who can act)
                     await self._notify_other_party(
                         body, room_id, job_title,
-                        'A final budget is required for the job agreement review.',
+                        f'Requested review of Job Agreement. Requires {client_name} '
+                        f'to set the final budget via `/interview_budget`.',
                         interaction.client,
                         session, headers,
                     )
