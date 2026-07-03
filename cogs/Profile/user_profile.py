@@ -153,10 +153,9 @@ class UserProfile(commands.Cog):
                 f"> **Availability**: `{data.get('availability', 'Available')}`"
             )
         elif role == 'client':
-            budget = data.get('min_project_budget', 0)
             details = (
                 f"> **Tier**: `{premium_status}`\n"
-                f"> **Min. Project Budget**: `${budget}`"
+                f"> **Availability**: `{data.get('availability', 'Available')}`"
             )
         elif role == 'server_admin':
             count = data.get('managed_servers_count', 0)
