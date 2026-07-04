@@ -102,7 +102,7 @@ class JobsListFilterView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="The job search configuration has been aborted."),
+            embed=info_embed(message="Job search cancelled."),
             view=None,
         )
     

@@ -57,7 +57,7 @@ class BlockExecutionView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        err = info_embed(message="The block execution process was dismissed.")
+        err = info_embed(message="Block execution cancelled.")
         await interaction.response.edit_message(content=None, embed=err, view=None)
 
 

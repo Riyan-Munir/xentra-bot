@@ -237,7 +237,7 @@ class InterviewReview(commands.Cog):
                     else:
                         return error_embed(
                             message=f'Milestone deadlines contain ordering conflicts. '
-                            f'A notification has been sent to **{freelancer_name}**.',
+                            f'**{freelancer_name}** has been notified.',
                         )
 
                 # JOB_DEADLINE_EXCEEDED — last milestone past job deadline
@@ -246,15 +246,15 @@ class InterviewReview(commands.Cog):
                     last_milestone_dl = body.get('last_milestone_deadline', '?')
                     if is_freelancer:
                         return error_embed(
-                            message=f'The last milestone deadline ({last_milestone_dl}) is after '
-                            f'the job deadline ({job_deadline}). '
+                            message=f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
+                            f'job deadline (`{job_deadline}`). '
                             f'Use `/interview_milestone` to adjust milestone deadlines.',
                         )
                     else:
                         return error_embed(
-                            message=f'The last milestone deadline ({last_milestone_dl}) is after '
-                            f'the job deadline ({job_deadline}). '
-                            f'A notification has been sent to **{body.get("freelancer_name", "Freelancer")}**.',
+                            message=f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
+                            f'job deadline (`{job_deadline}`). '
+                            f'**{body.get("freelancer_name", "Freelancer")}** has been notified.',
                         )
 
                 # Fallback for unknown error codes
@@ -265,7 +265,7 @@ class InterviewReview(commands.Cog):
             # ── 4. Success — notify other party, return simple success ──
             if body.get('status') != 'ok':
                 return error_embed(
-                    message='Unexpected response from the server. Please try again.',
+                    message='Unexpected server response. Please try again.',
                 )
 
             msg_id = body.get('msg_id', '')

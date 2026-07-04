@@ -536,7 +536,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         has_items = len(view.children) > 0
             
         if has_items:
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=not is_dm)
         else:
             await interaction.followup.send(embed=embed, ephemeral=not is_dm)
     
@@ -649,7 +649,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     
     # 6. Send Response
     if final_view:
-        await interaction.followup.send(embed=result_embed, view=final_view, ephemeral=True)
+        await interaction.followup.send(embed=result_embed, view=final_view, ephemeral=not is_dm)
     else:
         await interaction.followup.send(embed=result_embed, ephemeral=not is_dm)
 

@@ -24,6 +24,12 @@ class AppliedJobsCommand(commands.Cog):
     async def applied_jobs(self, interaction: discord.Interaction, user_id: str = None):
         
         async def apps_callback(user_data):
+            active_role = user_data.get('active_role')
+            if active_role == 'server_admin' and not user_id:
+                return error_embed(
+                    message='As a Server Admin, please provide a **Freelancer User ID** via `user_id` to view their applied jobs.'
+                )
+
             url = f"{BACKEND_URL}jobs/bot/applied/"
             params = {
                 'discord_id': interaction.user.id
@@ -33,9 +39,23 @@ class AppliedJobsCommand(commands.Cog):
             normalized_user_id = None
             if user_id:
                 result = resolve_user_id(user_id)
-                normalized_user_id = result.normalized
+                # Use backend resolution for all ID types (handles premium/custom IDs)
+                resolve_url = f"{BACKEND_URL}users/resolve-id/"
+                packet = BotPacketFactory.create_packet(
+                    packet_type="user_resolve_id",
+                    data={'raw_id': result.normalized},
+                    provider="bot"
+                )
+                resolve_headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+                session = get_http_session()
+                async with session.post(resolve_url, json=packet.to_dict(), headers=resolve_headers) as resp:
+                        if resp.status == 200:
+                            res = await resp.json()
+                            normalized_user_id = res['canonical_id']
+                        else:
+                            err = await resp.json()
+                            return error_embed(message=err.get('error', 'Could not resolve user ID.'))
                 params['user_id'] = normalized_user_id
-                
 
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()

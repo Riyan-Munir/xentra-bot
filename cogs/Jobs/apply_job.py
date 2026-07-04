@@ -181,7 +181,7 @@ class ApplyJobPreflightView(discord.ui.View):
             return
         self.stop()
         embed = info_embed(
-            message="Application process cancelled."
+            message="Application cancelled."
         )
         await interaction.response.edit_message(embed=embed, view=None)
 

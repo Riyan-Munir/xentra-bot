@@ -306,7 +306,7 @@ class AgreementConfirmView(discord.ui.View):
         await self._disable_all()
         self.stop()
         await interaction.edit_original_response(
-            embed=info_embed(message='Agreement signing has been cancelled.'),
+            embed=info_embed(message='Agreement signing cancelled.'),
             view=None,
         )
 

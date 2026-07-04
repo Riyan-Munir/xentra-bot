@@ -140,8 +140,8 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
 
         self.title_inp = discord.ui.TextInput(
             label='Title',
-            placeholder='Max 32 characters',
-            max_length=32,
+            placeholder='Max 64 characters',
+            max_length=64,
             required=True,
             default=prefill.get('title', '') if prefill else '',
         )
@@ -371,7 +371,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
 
         self.title_inp = discord.ui.TextInput(
             label='Title',
-            max_length=32,
+            max_length=64,
             required=True,
             default=existing_data.get('title', ''),
         )

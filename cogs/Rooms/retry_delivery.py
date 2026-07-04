@@ -74,8 +74,8 @@ class InterviewDelivery(commands.Cog):
             pending = data.get('pending', [])
 
             if not pending:
-                return info_embed(
-                    message='All system messages have been delivered successfully. No pending deliveries found.',
+                return success_embed(
+                    message='All system messages delivered successfully.',
                 )
 
             # ── 2. Re-attempt each delivery ─────────────────────────────

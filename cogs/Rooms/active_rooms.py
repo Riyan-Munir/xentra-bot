@@ -96,10 +96,12 @@ class ActiveRoomsSetupView(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
         if self.room_type == "job":
-            embed = info_embed(
-                message="**Job Rooms — Coming Soon**\n\n"
-                "Job rooms are not implemented yet. "
-                "This feature will be available in a future update."
+            embed = create_embed(
+                title="Job Rooms — Coming Soon",
+                description="Job rooms are not implemented yet. "
+                "This feature will be available in a future update.",
+                color=BrandColor.PRIMARY,
+                footer="Xentra • Information",
             )
             await interaction.edit_original_response(embed=embed, view=None)
             return

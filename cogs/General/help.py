@@ -61,7 +61,8 @@ class HelpCommand(commands.Cog):
             embed = create_embed(
                 title="Xentra Help Center",
                 description=f"Authorized slash commands for your active perspective: **{active_role.replace('_', ' ').title()}**",
-                color=BrandColor.ACCENT
+                color=BrandColor.PRIMARY,
+                footer="Xentra • Help Center"
             )
             
             for category, cmds in filtered_commands.items():

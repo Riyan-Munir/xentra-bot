@@ -25,7 +25,7 @@ class RegisterCommand(commands.Cog):
                     f"**Link**: [**Initialize Xentra Account**]({FRONTEND_URL})"
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Identity gateway"
+                footer="Xentra • Identity Gateway"
             )
             return embed
 

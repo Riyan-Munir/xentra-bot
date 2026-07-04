@@ -112,10 +112,10 @@ class JobPostDeadlineModal(discord.ui.Modal, title="Enter Job Deadline"):
 
 class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
     job_title = discord.ui.TextInput(
-        label="Job Title (Max 32 chars)",
+        label="Job Title (Max 64 chars)",
         placeholder="e.g. Fullstack Developer",
         required=True,
-        max_length=32
+        max_length=64
     )
     job_description = discord.ui.TextInput(
         label="Job Description (50-800 words)",
@@ -171,7 +171,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
         # --- Validate BEFORE deferring so we can respond with modal defaults on retry ---
 
         # Validate title character count
-        if title_char_count > 32:
+        if title_char_count > 64:
             if self.setup_view:
                 self.setup_view.last_title = title_text
                 self.setup_view.last_description = description_text
@@ -179,7 +179,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                 self.setup_view.last_budget_min = self.budget_min.value
                 self.setup_view.last_budget_max = self.budget_max.value
             await interaction.response.send_message(
-                embed=error_embed(message=f"Title exceeds maximum length ({title_char_count} > 32 characters)."),
+                embed=error_embed(message=f"Title exceeds maximum length ({title_char_count} > 64 characters)."),
                 ephemeral=True
             )
             return
@@ -343,7 +343,7 @@ class JobPostSetupView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="Job posting cancelled. No job was posted."),
+            embed=info_embed(message="Job posting cancelled."),
             view=None,
         )
 

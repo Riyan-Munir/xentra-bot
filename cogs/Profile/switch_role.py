@@ -31,7 +31,7 @@ class SwitchRole(commands.Cog):
             embed = create_embed(
                 title="Identity Switcher",
                 description="Select a role to update your dashboard permissions.",
-                color=BrandColor.ACCENT
+                color=BrandColor.PRIMARY
             )
             
             current_display = f"**{current.replace('_', ' ').title()}**"

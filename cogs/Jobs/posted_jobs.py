@@ -24,6 +24,12 @@ class PostedJobsCommand(commands.Cog):
     async def posted_jobs(self, interaction: discord.Interaction, user_id: str = None):
         
         async def jobs_callback(user_data):
+            active_role = user_data.get('active_role')
+            if active_role == 'server_admin' and not user_id:
+                return error_embed(
+                    message='As a Server Admin, please provide a **Client User ID** via `user_id` to view their posted jobs.'
+                )
+
             url = f"{BACKEND_URL}jobs/bot/posted/"
             params = {
                 'discord_id': interaction.user.id
