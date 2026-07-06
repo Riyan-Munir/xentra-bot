@@ -1,5 +1,5 @@
 """
-Analytics Collector — bot-side utility for sending structured analytics events to the backend.
+Analytics Collector, bot-side utility for sending structured analytics events to the backend.
 
 Provides a fire-and-forget interface for bot cogs and events to log actions
 without manually constructing packets or importing HTTP clients.
@@ -83,13 +83,13 @@ class AnalyticsCollector:
         try:
             asyncio.ensure_future(cls._post(packet.to_dict(), headers))
         except RuntimeError:
-            logger.warning("No running event loop — analytics event dropped")
+            logger.warning("No running event loop, analytics event dropped")
 
     @classmethod
     async def _post(cls, payload: dict, headers: dict) -> None:
         """
         Async HTTP POST to the analytics endpoint.
-        Silently swallows all exceptions — logging must NEVER break the main flow.
+        Silently swallows all exceptions, logging must NEVER break the main flow.
         """
         try:
             from utils.http import get_http_session
@@ -164,7 +164,7 @@ class AnalyticsCollector:
         guild_id = interaction.guild_id if interaction and interaction.guild_id else None
         if not guild_id:
             logger.warning(
-                'Cannot log %s — no guild context (event dropped)',
+                'Cannot log %s, no guild context (event dropped)',
                 event_type,
             )
             return
@@ -228,7 +228,7 @@ class AnalyticsCollector:
         guild_id = interaction.guild_id if interaction and interaction.guild_id else None
         if not guild_id:
             logger.warning(
-                'Cannot log %s — no guild context (event dropped)',
+                'Cannot log %s, no guild context (event dropped)',
                 event_type,
             )
             return

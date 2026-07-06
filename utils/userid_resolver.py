@@ -50,8 +50,8 @@ class UserIDResult:
             original: The raw user input (preserved for display).
             normalized: The ID in the form expected by the backend.
                         UPPERCASE for system IDs, lowercase for premium IDs.
-            prefix: The prefix (CLI, FRL, SER) — only set if is_system is True.
-            role: The resolved role string (client, freelancer, server_admin) —
+            prefix: The prefix (CLI, FRL, SER), only set if is_system is True.
+            role: The resolved role string (client, freelancer, server_admin),
                   only set if is_system is True.
         """
         self.is_system = is_system
@@ -62,7 +62,7 @@ class UserIDResult:
 
     @property
     def is_premium(self) -> bool:
-        """Convenience property — True if the ID is NOT a system ID."""
+        """Convenience property, True if the ID is NOT a system ID."""
         return not self.is_system
 
     def __repr__(self) -> str:

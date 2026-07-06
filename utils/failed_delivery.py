@@ -15,8 +15,8 @@ Usage
             message_type='notification',
             target_discord_id=other_discord_id,
             msg_id=msg_id,          # from backend response
-            session=session,        # optional — falls back to shared session
-            headers=headers,        # optional — falls back to webhook-secret
+            session=session,        # optional, falls back to shared session
+            headers=headers,        # optional, falls back to webhook-secret
         )
 """
 
@@ -46,7 +46,7 @@ async def log_failed_delivery(
     | Parameter              | Required when                                |
     +------------------------+----------------------------------------------+
     | ``room_id``            | always                                       |
-    | ``message_type``       | always — one of ``interview_message``,       |
+    | ``message_type``       | always, one of ``interview_message``,       |
     |                       | ``notification``, ``system_message``         |
     | ``target_discord_id``  | always                                       |
     | ``msg_id``             | ``interview_message`` or ``notification``    |

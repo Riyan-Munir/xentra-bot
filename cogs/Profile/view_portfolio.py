@@ -13,7 +13,7 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.profile_mgmt')
 
 class PortfolioPaginationView(PaginationView):
-    """Portfolio uses 0‑based page indexing — overrides prev/next accordingly."""
+    """Portfolio uses 0‑based page indexing, overrides prev/next accordingly."""
     def __init__(self, profile_data, portfolio, is_premium, viewer_data=None):
         items = portfolio.get('items', [])
         total_pages = len(items) if items else 1
@@ -70,7 +70,7 @@ class PortfolioPaginationView(PaginationView):
         embed_color = BrandColor.PREMIUM if self.is_premium else BrandColor.PRIMARY
         
         # ── Profile Header (always visible on every page) ────────────
-        page_info = f" — Project {self.current_page + 1}/{self.total_pages}" if self.items else ""
+        page_info = f", Project {self.current_page + 1}/{self.total_pages}" if self.items else ""
         embed = create_embed(
             title=self.portfolio.get('title', f"{username}'s Portfolio"),
             description=self.portfolio.get('description', "Professional freelancer portfolio.") + page_info,
@@ -215,7 +215,7 @@ class ViewPortfolio(commands.Cog):
                     provider="bot"
                 )
             else:
-                # Premium/Custom ID — force freelancer role perspective
+                # Premium/Custom ID, force freelancer role perspective
                 packet = BotPacketFactory.create_packet(
                     packet_type="user_resolve_id",
                     data={'raw_id': f"freelancer:{result.normalized}"},

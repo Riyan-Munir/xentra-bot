@@ -59,7 +59,7 @@ def create_embed(
 def error_embed(message: str) -> discord.Embed:
     """Standardized error response.
 
-    The message is shown as the embed description.  No title is set —
+    The message is shown as the embed description.  No title is set,
     the red colour and ``Xentra • Error`` footer are sufficient
     to communicate the severity.
     """
@@ -75,7 +75,7 @@ def error_embed(message: str) -> discord.Embed:
 def success_embed(message: str) -> discord.Embed:
     """Standardized success response.
 
-    The message is shown as the embed description.  No title is set —
+    The message is shown as the embed description.  No title is set,
     the green colour and ``Xentra • Success`` footer communicate
     the positive outcome.
     """
@@ -91,7 +91,7 @@ def success_embed(message: str) -> discord.Embed:
 def info_embed(message: str) -> discord.Embed:
     """Standardized information response.
 
-    The message is shown as the embed description.  No title is set —
+    The message is shown as the embed description.  No title is set,
     the indigo colour and ``Xentra • Information`` footer communicate
     the informational nature.
     """
@@ -163,7 +163,7 @@ def premium_embed(message: str, title: str = "Premium Feature") -> discord.Embed
 
 
 def dm_blocked_embed(attempted_action: str, receiver_name: str) -> discord.Embed:
-    """Standardized embed when a DM cannot be delivered — receiver has DMs disabled or blocked the bot.
+    """Standardized embed when a DM cannot be delivered, receiver has DMs disabled or blocked the bot.
 
     Display this to the command executor (or the other party who *can* receive DMs)
     so they are informed and can ask the blocked user to enable DMs.

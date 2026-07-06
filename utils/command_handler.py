@@ -99,7 +99,7 @@ class PublicPostView(discord.ui.View):
     
     NOTE: This class is imported lazily in user_profile.py and user_stats.py
     (``from utils.command_handler import PublicPostView``) to avoid circular
-    imports — those modules are imported by command_handler.py's own imports.
+    imports, those modules are imported by command_handler.py's own imports.
     The lazy import is intentional and should be preserved.
     """
     def __init__(self, embed, user_data):
@@ -120,7 +120,7 @@ async def fetch_selected_room(
     occurred.  Logs failures internally so callers don't need to duplicate
     logging.
 
-    Shared resolver — use in any command that needs the user's currently
+    Shared resolver, use in any command that needs the user's currently
     selected interview or job room.
     """
     if headers is None:
@@ -181,7 +181,7 @@ def check_command_roles(command_name: str, active_role: str, is_dm: bool = True)
     context_key = 'dm' if is_dm else 'server'
     if isinstance(all_roles, dict):
         return all_roles.get(context_key, [])
-    return all_roles  # fallback — bare list
+    return all_roles  # fallback, bare list
 
 
 def _collect_all_commands(cmds):
@@ -208,7 +208,7 @@ def sync_cog_commands(cog):
 
     # For a regular Cog, get_app_commands() returns all registered commands/groups.
     # For a GroupCog, the cog CLASS itself IS the Group, so get_app_commands() returns
-    # an empty list — the subcommands live on cog.commands instead.
+    # an empty list, the subcommands live on cog.commands instead.
     # We handle both cases by building the source from get_app_commands() and also
     # including the cog itself if it is a Group (GroupCog pattern).
     sources = list(cog.get_app_commands())
@@ -435,7 +435,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                             await interaction.followup.send(embed=err, ephemeral=True)
                             return
                         elif resp.status == 404:
-                            # User not found in backend — redirect to registration
+                            # User not found in backend, redirect to registration
                             from config import FRONTEND_URL
                             try:
                                 err_data = await resp.json()
@@ -490,7 +490,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     if user_data.get('has_pending_hacking'):
         from config import FRONTEND_URL
         err = error_embed(
-            "**Security Alert — Commands Locked**\n\n"
+            "**Security Alert, Commands Locked**\n\n"
             "A security notification requires your attention on the Xentra Dashboard.\n"
             f"Visit **{FRONTEND_URL}** and acknowledge the alert "
             "to restore access to all bot commands."
@@ -601,7 +601,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     # Strict administrative verification (Only enforced within a guild context).
     # Only block server_admins who lack guild admin permissions when the command
     # does NOT explicitly allow `server_admin`.  If the command lists `server_admin`
-    # as an allowed role, skip the strict guild admin check — role_match below
+    # as an allowed role, skip the strict guild admin check, role_match below
     # handles permission verification.
     if (
         active_role == 'server_admin'
@@ -655,7 +655,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
 
 
 # ---------------------------------------------------------------------------
-# Concurrency Helpers — View-level process isolation
+# Concurrency Helpers, View-level process isolation
 # ---------------------------------------------------------------------------
 
 

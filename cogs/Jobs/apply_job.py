@@ -74,7 +74,7 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
             )
             return
 
-        # -- Validation passed — defer and submit ---
+        # -- Validation passed, defer and submit ---
         try:
             await interaction.response.defer(ephemeral=True)
         except discord.errors.NotFound:

@@ -1,13 +1,13 @@
 """
-Xentra — Chat Room Transcript PDF Generator
+Xentra, Chat Room Transcript PDF Generator
 ============================================
 Generates a polished WhatsApp-style PDF transcript of a Xentra interview
 room session, including all message types:
 
-  • simple msg        — plain text from client or freelancer
-  • complain          — complaint (optionally a reply to a prior msg/complain)
-  • command execution — a bot command run by client or freelancer
-  • bot msg           — automated message from Xentra bot
+  • simple msg       , plain text from client or freelancer
+  • complain         , complaint (optionally a reply to a prior msg/complain)
+  • command execution, a bot command run by client or freelancer
+  • bot msg          , automated message from Xentra bot
 
 Right-side bubbles = the perspective of whoever requested the transcript
 (viewer_role: "freelancer" or "client").
@@ -57,33 +57,33 @@ XENTRA_GREY         = HexColor("#5B6472")
 XENTRA_LIGHT_GREY   = HexColor("#DDE1E9")
 XENTRA_WATERMARK    = HexColor("#1A7A4A")
 
-# Chat page background — warm neutral, like a real messaging app
+# Chat page background, warm neutral, like a real messaging app
 PAGE_BG             = HexColor("#EAEDF2")
 
-# ── Bubble fills & borders — refined, muted, professional ────────────────────
+# ── Bubble fills & borders, refined, muted, professional ────────────────────
 
-# "You" (viewer) — clean sage green, like WhatsApp's own green tint
+# "You" (viewer), clean sage green, like WhatsApp's own green tint
 BUBBLE_SELF         = HexColor("#DCF2E4")
 
 BUBBLE_SELF_BORDER  = HexColor("#9ECDB4")
 
-# Other party — crisp white with a cool hint
+# Other party, crisp white with a cool hint
 BUBBLE_OTHER        = HexColor("#FFFFFF")
 BUBBLE_OTHER_BORDER = HexColor("#D1D8E4")
 
-# Complaint — warm amber/sand, noticeable but not aggressive
+# Complaint, warm amber/sand, noticeable but not aggressive
 BUBBLE_COMPLAIN     = HexColor("#FEF3CD")
 BUBBLE_COMPLAIN_BDR = HexColor("#DDB95A")
 
-# Command execution — slate-indigo tint
+# Command execution, slate-indigo tint
 BUBBLE_COMMAND      = HexColor("#EBF0FF")
 BUBBLE_COMMAND_BDR  = HexColor("#8EA8E8")
 
-# Bot message — cool light steel-blue (formerly "system" colour)
+# Bot message, cool light steel-blue (formerly "system" colour)
 BUBBLE_BOT          = HexColor("#F0F4F8")
 BUBBLE_BOT_BDR      = HexColor("#B0C4D8")
 
-# Leave message — soft coral/salmon, reflects a departure event
+# Leave message, soft coral/salmon, reflects a departure event
 BUBBLE_LEAVE        = HexColor("#FDE8E8")
 BUBBLE_LEAVE_BDR    = HexColor("#E8A0A0")
 
@@ -118,8 +118,8 @@ CONTENT_MT       = 28 * mm
 CONTENT_MB       = 24 * mm
 CONTENT_W        = PAGE_W - CONTENT_ML - CONTENT_MR
 
-# ── Avatar — small, WhatsApp proportions ─────────────────────────────────────
-# Avatar radius — set to 70 % of original (5.5 → 3.85 mm)
+# ── Avatar, small, WhatsApp proportions ─────────────────────────────────────
+# Avatar radius, set to 70 % of original (5.5 → 3.85 mm)
 AVATAR_R   = 5.5 * mm * 0.7   # ≈ 3.85 mm radius (≈ 7.7 mm diameter)
 AVATAR_D   = AVATAR_R * 2
 AVATAR_PAD = 2.0 * mm     # gap between avatar edge and bubble edge
@@ -713,7 +713,7 @@ class MessageFlowable(Flowable):
 
     # ------------------------------------------------------------------
     def split(self, avail_w, avail_h):
-        """Cannot split — return [] so ReportLab pushes to the next page."""
+        """Cannot split, return [] so ReportLab pushes to the next page."""
         return []
 
     # ------------------------------------------------------------------
@@ -741,7 +741,7 @@ class MessageFlowable(Flowable):
             av_label     = "C"
             av_img       = msg.get("avatar_url")
         else:
-            # Any unknown / system sender — use "X" with bot purple
+            # Any unknown / system sender, use "X" with bot purple
             av_bg, av_bd = AV_COLOR_BOT
             av_label     = "X"
             av_img       = msg.get("avatar_url")
@@ -894,7 +894,7 @@ def _sanitise_message(msg):
 def build_transcript_pdf(data, output_path):
     viewer_role = data.get("viewer_role", "freelancer")
     raw_messages = data.get("messages") or []
-    # Sanitise every message — None, missing keys, wrong types all handled
+    # Sanitise every message, None, missing keys, wrong types all handled
     messages = [_sanitise_message(m) for m in raw_messages if m is not None]
     data["_msg_count"] = len(messages)
 
@@ -993,7 +993,7 @@ def generate_transcript(data, output_path=None):
 
     If *output_path* is provided, the PDF is written to that file and the
     path is returned.  If *output_path* is ``None`` (the default), the PDF
-    is generated in memory and the raw bytes are returned — suitable for
+    is generated in memory and the raw bytes are returned, suitable for
     ``discord.File(io.BytesIO(...))``.
     """
     try:

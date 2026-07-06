@@ -12,7 +12,7 @@ logger = logging.getLogger('bot.job_mgmt')
 
 
 class ApplicationDetailsCommand(commands.Cog):
-    """``/application details`` — Display application details."""
+    """``/application details``, Display application details."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot

@@ -1,13 +1,13 @@
 """
-``/interview milestone`` — Freelancer manages job milestones in the interview room.
+``/interview milestone``, Freelancer manages job milestones in the interview room.
 
 Flow:
   1. Command handler validates role (freelancer only), fetches selected room.
   2. Calls backend to check agreement has final_budget set.
-  3. CASE A — no milestones exist:
+  3. CASE A, no milestones exist:
        a. Count modal (1-10) → sequential milestone form modals.
        b. After last milestone, batch-save to backend, notify client.
-  4. CASE B — milestones exist:
+  4. CASE B, milestones exist:
        a. Action dropdown: Add / Edit / Delete.
        b. Add  → form modal (inline, checks max 10).
        c. Edit → milestone-select dropdown → pre-filled edit modal.
@@ -230,7 +230,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         self.accumulated.append(milestone_data)
 
         if self.milestone_num < self.total_count:
-            # More milestones to collect — show continue button to open next modal
+            # More milestones to collect, show continue button to open next modal
             # (Discord does not allow send_modal() from within modal.on_submit())
             view = _retry_view(
                 InterviewMilestoneFormModal,
@@ -253,7 +253,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                 view=view,
             )
         else:
-            # All collected — batch-save
+            # All collected, batch-save
             await self._save_all(interaction)
 
     async def _fail(
@@ -662,7 +662,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
         )
 
 
-# ── Action View (CASE B — first dropdown) ───────────────────────────────
+# ── Action View (CASE B, first dropdown) ───────────────────────────────
 
 
 class InterviewMilestoneSelectView(discord.ui.View):
@@ -741,7 +741,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
             )
             await interaction.response.send_modal(modal)
         else:
-            # Delete — show confirmation
+            # Delete, show confirmation
             embed = create_embed(
                 title='Confirm Delete',
                 description=(
@@ -867,7 +867,7 @@ class InterviewMilestoneActionView(discord.ui.View):
 
 
 class InterviewMilestone(commands.Cog):
-    """``/interview milestone`` — Freelancer manages job milestones."""
+    """``/interview milestone``, Freelancer manages job milestones."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -924,7 +924,7 @@ class InterviewMilestone(commands.Cog):
                     message='Unable to reach the backend service. Please try again later.',
                 )
 
-            # ── 3a. CASE B — Milestones exist → show action view ────────────
+            # ── 3a. CASE B, Milestones exist → show action view ────────────
             if milestones:
                 embed_desc = [
                     f'**Room:** `{room_id}`',
@@ -934,7 +934,7 @@ class InterviewMilestone(commands.Cog):
                 ]
                 for m in milestones:
                     embed_desc.append(
-                        f'• `{m["milestone_id"]}` — {m["title"]} (${m["budget"]})'
+                        f'• `{m["milestone_id"]}`, {m["title"]} (${m["budget"]})'
                     )
 
                 embed = create_embed(
@@ -947,7 +947,7 @@ class InterviewMilestone(commands.Cog):
                 view.author_id = interaction.user.id
                 return embed, view
 
-            # ── 3b. CASE A — No milestones → show continue button for count modal ──
+            # ── 3b. CASE A, No milestones → show continue button for count modal ──
             view = _retry_view(
                 InterviewMilestoneCountModal,
                 {

@@ -10,7 +10,7 @@ logger = logging.getLogger('bot.events')
 
 
 class GuildJoinCog(commands.Cog):
-    """Handle guild join events — Cog pattern for proper listener registration."""
+    """Handle guild join events, Cog pattern for proper listener registration."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot

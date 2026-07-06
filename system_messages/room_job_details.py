@@ -6,13 +6,13 @@ job's title, description, budget range, and deadline (if set).
 
 Expected data keys
 ------------------
-- discord_id (str)      — Snowflake of the receiver (used by handler).
-- room_id (str)         — The interview room ID.
-- job_title (str)       — Title of the job.
-- job_description (str) — Description/body of the job.
-- budget_min (str)      — Minimum budget.
-- budget_max (str)      — Maximum budget.
-- deadline (str, opt)   — Job deadline date.
+- discord_id (str)     , Snowflake of the receiver (used by handler).
+- room_id (str)        , The interview room ID.
+- job_title (str)      , Title of the job.
+- job_description (str), Description/body of the job.
+- budget_min (str)     , Minimum budget.
+- budget_max (str)     , Maximum budget.
+- deadline (str, opt)  , Job deadline date.
 """
 
 import discord

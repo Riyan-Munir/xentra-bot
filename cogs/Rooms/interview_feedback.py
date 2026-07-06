@@ -1,5 +1,5 @@
 """
-``/interview feedback`` — Submit feedback about an interview room.
+``/interview feedback``, Submit feedback about an interview room.
 
 Flow:
   1. ``validate_and_respond`` validates the user, role, and room context.
@@ -82,7 +82,7 @@ class FeedbackRoomSelect(discord.ui.Select):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Start View — room dropdown + Write Feedback / Cancel
+# Start View, room dropdown + Write Feedback / Cancel
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -167,7 +167,7 @@ class FeedbackStartView(discord.ui.View):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Modal — feedback text input
+# Modal, feedback text input
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -264,7 +264,7 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Rating Select View — 1–5 dropdown + Submit / Cancel
+# Rating Select View, 1–5 dropdown + Submit / Cancel
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -406,7 +406,7 @@ class RatingSelectView(discord.ui.View):
 
 
 class InterviewFeedback(commands.Cog):
-    """``/interview feedback`` — Submit feedback about interview room."""
+    """``/interview feedback``, Submit feedback about interview room."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot

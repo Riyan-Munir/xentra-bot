@@ -19,11 +19,11 @@ The embed content changes based on ``bypass_tier`` (1-5):
 | 1     | Low concern       | Informational warning                     |
 | 2     | Elevated concern  | Warning with rate-limit notice            |
 | 3     | Serious concern   | Feature restriction notice                |
-| 4     | Critical concern  | Near-ban warning — contact admin          |
+| 4     | Critical concern  | Near-ban warning, contact admin          |
 | 5     | Auto-ban          | Account suspended                         |
 +-------+-------------------+-------------------------------------------+
 
-The ``auto_ban_at`` threshold is **never** revealed to the user — only the
+The ``auto_ban_at`` threshold is **never** revealed to the user, only the
 current attempt count and the tier-appropriate message are shown.
 """
 
@@ -33,18 +33,18 @@ from utils.embeds import create_embed, BrandColor
 
 # ── Tier-specific embed colours ───────────────────────────────────────
 _TIER_COLORS: dict[int, int] = {
-    1: BrandColor.INFO,       # Blue — informational
-    2: BrandColor.WARNING,    # Yellow — caution
-    3: BrandColor.WARNING,    # Yellow — serious
-    4: BrandColor.ERROR,      # Red — critical
-    5: 0x2F3136,              # Dark grey — banned/suspended
+    1: BrandColor.INFO,       # Blue, informational
+    2: BrandColor.WARNING,    # Yellow, caution
+    3: BrandColor.WARNING,    # Yellow, serious
+    4: BrandColor.ERROR,      # Red, critical
+    5: 0x2F3136,              # Dark grey, banned/suspended
 }
 
 # ── Tier-specific titles ──────────────────────────────────────────────
 _TIER_TITLES: dict[int, str] = {
     1: "Security Notice",
     2: "Security Warning",
-    3: "Security Alert — Action Required",
+    3: "Security Alert, Action Required",
     4: "Critical Security Alert",
     5: "Account Suspended",
 }
@@ -62,7 +62,7 @@ def _tier_embed_body(tier: int, data: dict) -> str:
     event_line = f"**Event:** `{event_type}`\n**IP Address:** `{ip}`\n**Path:** `{path}`\n**Detail:** {detail}"
 
     if tier == 5:
-        # Account suspended — no event details, just ban info
+        # Account suspended, no event details, just ban info
         return (
             f"Your account has been **automatically suspended** due to "
             f"repeated security violations.\n\n"

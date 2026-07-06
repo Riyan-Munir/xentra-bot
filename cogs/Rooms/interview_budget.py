@@ -1,5 +1,5 @@
 """
-``/interview budget`` — Set the final budget for the selected interview room.
+``/interview budget``, Set the final budget for the selected interview room.
 
 Only the client can run this in a selected interview room before the proposal
 is signed by both parties.  Saves a system message in records and sends a
@@ -23,7 +23,7 @@ logger = logging.getLogger('bot.rooms.interview_budget')
 
 
 class InterviewBudget(commands.Cog):
-    """``/interview budget`` — Set the final budget in the selected room."""
+    """``/interview budget``, Set the final budget in the selected room."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot

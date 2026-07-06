@@ -17,7 +17,7 @@ from config import (
 from webhook_server import WebhookServer
 from utils.http import init_http_session, get_http_session
 
-# Setup logging — writes to Logs.txt in the bot directory (append mode with rotation)
+# Setup logging, writes to Logs.txt in the bot directory (append mode with rotation)
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s:%(name)s:%(message)s',
@@ -57,7 +57,7 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
         if CLUSTER_ENABLED:
             from cluster_worker import ClusterWorker
             self.cluster_worker = ClusterWorker()
-            logger.info("ClusterWorker instantiated — node_id=%s", self.cluster_worker.node_id)
+            logger.info("ClusterWorker instantiated, node_id=%s", self.cluster_worker.node_id)
 
         # ── Intercept tree-level errors to handle cooldown gracefully ──
         self._patch_tree_error_handler()
@@ -98,7 +98,7 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
                 except discord.errors.InteractionResponded:
                     await interaction.followup.send(embed=embed, ephemeral=True)
                 except (discord.errors.NotFound, discord.errors.Forbidden):
-                    # Interaction window expired — nothing we can do
+                    # Interaction window expired, nothing we can do
                     pass
                 return
 
@@ -150,13 +150,13 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
         logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
         if self.shard_count and self.shard_count > 1:
             logger.info(
-                "Bot is sharded — %d shard(s), shard_ids=%s",
+                "Bot is sharded, %d shard(s), shard_ids=%s",
                 self.shard_count,
                 self.shard_ids,
             )
         logger.info("------")
 
-    @tasks.loop(seconds=300)  # 5 minutes — presence rarely changes
+    @tasks.loop(seconds=300)  # 5 minutes, presence rarely changes
     async def heartbeat_task(self):
         """Pings the backend to verify connectivity and updates bot status.
 
@@ -179,12 +179,12 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
                         self._last_heartbeat_guild_count = current_guild_count
                         activity = discord.Game(name=f"/help | {current_guild_count} servers")
                         await self.change_presence(activity=activity, status=discord.Status.online)
-                # else: backend returned non-200 — silently skip presence update.
+                # else: backend returned non-200, silently skip presence update.
                 # No need to call change_presence(idle) because the presence
                 # change itself is a Discord API call.
         except Exception as e:
             logger.warning(f"Backend health check failed: {e}")
-            # Don't call change_presence(dnd) on failure — that's another API
+            # Don't call change_presence(dnd) on failure, that's another API
             # call we don't need to waste on a transient backend issue.
 
     @heartbeat_task.before_loop

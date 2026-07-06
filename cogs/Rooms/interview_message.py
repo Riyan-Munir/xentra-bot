@@ -1,5 +1,5 @@
 """
-``/interview message`` — Send a message in the interview chat.
+``/interview message``, Send a message in the interview chat.
 
 Flow:
   1. ``validate_and_respond`` validates the user, role, and room context.
@@ -87,7 +87,7 @@ def _build_confirm_embed(
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Modal — message text input (opens after room verification)
+# Modal, message text input (opens after room verification)
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -149,7 +149,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         # Defer the modal interaction first
         await interaction.response.defer()
 
-        # Build confirmation view — it will edit the original interaction message
+        # Build confirmation view, it will edit the original interaction message
         view = InterviewMessageConfirmView(
             original_interaction=self.original_interaction,
             author_id=interaction.user.id,
@@ -183,7 +183,7 @@ class InterviewMessageConfirmView(discord.ui.View):
     """Confirmation view: Attach / per-attachment Remove buttons / Send / Cancel.
 
     Row 0: Attach button to add files.
-    Row 1: Dynamic Remove {filename} buttons — one per attached file.
+    Row 1: Dynamic Remove {filename} buttons, one per attached file.
     Row 2: Send / Cancel.
 
     When no files are attached, no Remove buttons appear.
@@ -539,7 +539,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             receiver_name = room.get('client_name', 'Client')
 
         if not delivery_ok:
-            # Message saved but DM delivery failed — log for retry
+            # Message saved but DM delivery failed, log for retry
             await log_failed_delivery(
                 room_id=room.get('room_id', ''),
                 message_type='interview_message',
@@ -600,7 +600,7 @@ async def _edit_msg_done(
 
 
 class InterviewMessage(commands.Cog):
-    """``/interview message`` — Send a message in the interview chat."""
+    """``/interview message``, Send a message in the interview chat."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -613,7 +613,7 @@ class InterviewMessage(commands.Cog):
         description='...',
     )
     @app_commands.describe(
-        message_id='Optional — link this message to a previous message ID (reply-style).',
+        message_id='Optional, link this message to a previous message ID (reply-style).',
     )
     @app_commands.checks.cooldown(1, 15, key=lambda i: i.user.id)
     async def interview_message(
@@ -624,7 +624,7 @@ class InterviewMessage(commands.Cog):
         """Send a message to the other party in the selected interview room.
 
         Parameters:
-            message_id: Optional — link this message to a previous message ID.
+            message_id: Optional, link this message to a previous message ID.
         """
 
         async def callback(user_data: dict):
@@ -698,11 +698,11 @@ class InterviewMessage(commands.Cog):
         await validate_and_respond(interaction, callback)
 
 
-# ── Start View — opens the modal after room verification ────────────
+# ── Start View, opens the modal after room verification ────────────
 
 
 class MessageStartView(discord.ui.View):
-    """View shown after room verification — user clicks to open the message modal."""
+    """View shown after room verification, user clicks to open the message modal."""
 
     def __init__(
         self,

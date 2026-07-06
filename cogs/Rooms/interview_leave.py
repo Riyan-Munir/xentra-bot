@@ -1,5 +1,5 @@
 """
-``/interview leave`` — Leave the selected interview room.
+``/interview leave``, Leave the selected interview room.
 
 Flow:
   1. Confirmation embed with Cancel / Proceed buttons
@@ -38,7 +38,7 @@ logger = logging.getLogger('bot.rooms.interview_leave')
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Confirmation View — Cancel / Proceed
+# Confirmation View, Cancel / Proceed
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -160,7 +160,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                 pass
             return
 
-        # Defer first — the API calls and PDF generation below can take >3s
+        # Defer first, the API calls and PDF generation below can take >3s
         await interaction.response.defer()
 
         is_dm = interaction.guild is None
@@ -183,7 +183,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                 if resp.status != 200:
                     err_data = await resp.json()
                     err_msg = err_data.get('error', 'Failed to process room leave.')
-                    # interaction already deferred — edit the original message
+                    # interaction already deferred, edit the original message
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -242,7 +242,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                     headers=self.headers,
                 )
 
-        # ── Show executor success — edit the original message ────────
+        # ── Show executor success, edit the original message ────────
         success_msg = (
             f'You have left room `{self.room_id}`.\n'
             f'**Reason:** {reason_text}\n\n'
@@ -294,7 +294,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
 
 
 class InterviewLeave(commands.Cog):
-    """``/interview leave`` — Leave the selected interview room."""
+    """``/interview leave``, Leave the selected interview room."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot

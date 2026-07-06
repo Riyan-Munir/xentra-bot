@@ -109,7 +109,7 @@ class UserStats(commands.Cog):
                             err = await resp.json()
                             return error_embed(message=err.get('error', 'No user found with that ID.'))
             else:
-                # Premium ID — show role selection (client/freelancer only)
+                # Premium ID, show role selection (client/freelancer only)
                 view = ProfileRoleView(result.normalized, premium_stats_callback, user_data)
                 view.author_id = interaction.user.id
                 embed = create_embed(

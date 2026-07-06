@@ -156,7 +156,7 @@ class BlockExecution(commands.Cog):
                             err = await resp.json()
                             return error_embed(message=err.get('error', 'No user found with that ID.'))
             else:
-                # Premium ID — show role selection dropdown
+                # Premium ID, show role selection dropdown
                 view = BlockExecutionView(result.normalized, premium_role_callback, user_data)
                 view.author_id = interaction.user.id
                 embed = create_embed(

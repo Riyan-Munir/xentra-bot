@@ -114,7 +114,7 @@ class _SigningSessionWrapper:
     Non-bot endpoints pass through unchanged.
 
     **Important:** The HTTP methods (``get``, ``post``, etc.) are
-    *synchronous* — they return a ``ClientResponse`` directly (not a
+    *synchronous*, they return a ``ClientResponse`` directly (not a
     coroutine), because ``aiohttp.ClientSession`` methods are themselves
     synchronous.  This allows callers to use ``async with session.get(...)``
     as normal.
@@ -136,7 +136,7 @@ class _SigningSessionWrapper:
         """Close the underlying session."""
         await self._session.close()
 
-    # ── HTTP methods (SYNCHRONOUS — return ClientResponse, not coroutine) ─
+    # ── HTTP methods (SYNCHRONOUS, return ClientResponse, not coroutine) ─
 
     def get(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         path = _extract_path(url)

@@ -212,7 +212,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
             )
             return
 
-        # -- Validation passed — defer and submit ---
+        # -- Validation passed, defer and submit ---
         try:
             await interaction.response.defer(ephemeral=True)
         except discord.errors.NotFound:

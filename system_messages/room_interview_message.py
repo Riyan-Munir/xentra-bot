@@ -3,36 +3,36 @@ Embed builder for ``room_interview_message`` system messages.
 
 This builder handles TWO modes:
 
-1. **Regular interview message** — sent when someone sends a message in an
+1. **Regular interview message**, sent when someone sends a message in an
    interview room (sender → receiver).
-2. **Command notification** — sent when a user runs a room command
-   (e.g. ``/interview budget`` or ``/interview milestone``) — notifies the other party.
+2. **Command notification**, sent when a user runs a room command
+   (e.g. ``/interview budget`` or ``/interview milestone``), notifies the other party.
 
 Expected data keys
 ------------------
 **Both modes**
-- discord_id (str)           — Snowflake of the receiver (used by handler).
-- room_id (str)              — The interview room ID.
-- job_title (str)            — Title of the job linked to this room.
+- discord_id (str)          , Snowflake of the receiver (used by handler).
+- room_id (str)             , The interview room ID.
+- job_title (str)           , Title of the job linked to this room.
 
 **Regular message** (``command_name`` absent)
-- sender_role (str)          — "client" or "freelancer".
-- sender_name (str)          — Profile display name of the sender.
-- msg_id (str)               — Saved message ID.
-- msg_text (str)             — The message content.
-- attachments (str, opt)     — Comma-separated list of filenames.
+- sender_role (str)         , "client" or "freelancer".
+- sender_name (str)         , Profile display name of the sender.
+- msg_id (str)              , Saved message ID.
+- msg_text (str)            , The message content.
+- attachments (str, opt)    , Comma-separated list of filenames.
 
 **Command notification** (``command_name`` present, not ``interview_complain``)
-- command_name (str)         — The command that was run (e.g. "interview_budget").
-- executor_name (str)        — Display name of the person who ran the command.
-- msg_data (str)             — Execution details text (e.g. "3 milestone(s) configured.").
+- command_name (str)        , The command that was run (e.g. "interview_budget").
+- executor_name (str)       , Display name of the person who ran the command.
+- msg_data (str)            , Execution details text (e.g. "3 milestone(s) configured.").
 
 **Complaint notification** (``command_name`` = ``"interview_complain"``)
 - All of the above, plus:
-- complaint_id (str)         — The ID of the filed complaint.
-- complaint_data (str)       — The complaint text content.
-- target_msg_id (str, opt)   — If the complaint targets a specific message ID.
-- target_complain_id (str, opt) — If the complaint targets a specific complaint ID.
+- complaint_id (str)        , The ID of the filed complaint.
+- complaint_data (str)      , The complaint text content.
+- target_msg_id (str, opt)  , If the complaint targets a specific message ID.
+- target_complain_id (str, opt), If the complaint targets a specific complaint ID.
 """
 
 import discord
@@ -84,7 +84,7 @@ def build_embed(data: dict) -> discord.Embed:
             )
 
         if command_name == 'interview_leave':
-            # ── Leave notification mode — uses leave model data ────────────
+            # ── Leave notification mode, uses leave model data ────────────
             executor_name = data.get("executor_name", "Someone")
             leave_id = data.get("leave_id", "N/A")
             reason = data.get("reason", "")

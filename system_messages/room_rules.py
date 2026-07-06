@@ -6,8 +6,8 @@ rules of conduct.
 
 Expected data keys
 ------------------
-- discord_id (str) — Snowflake of the receiver (used by handler).
-- room_id (str)    — The interview room ID.
+- discord_id (str), Snowflake of the receiver (used by handler).
+- room_id (str)   , The interview room ID.
 """
 
 import discord
@@ -19,12 +19,12 @@ def build_embed(data: dict) -> discord.Embed:
     room_id = data.get("room_id", "N/A")
 
     rules = [
-        "1. **Be Respectful** — Treat the other party with professionalism.",
-        "2. **Stay on Topic** — Keep discussions relevant to the job.",
-        "3. **No Harassment** — Zero tolerance for abusive behaviour.",
-        "4. **Confidentiality** — Do not share room content outside Xentra.",
-        "5. **Timely Responses** — Reply within a reasonable timeframe.",
-        "6. **Report Issues** — Use `/interview_complain` if you experience problems.",
+        "1. **Be Respectful**, Treat the other party with professionalism.",
+        "2. **Stay on Topic**, Keep discussions relevant to the job.",
+        "3. **No Harassment**, Zero tolerance for abusive behaviour.",
+        "4. **Confidentiality**, Do not share room content outside Xentra.",
+        "5. **Timely Responses**, Reply within a reasonable timeframe.",
+        "6. **Report Issues**, Use `/interview_complain` if you experience problems.",
     ]
 
     return create_embed(

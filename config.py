@@ -10,7 +10,7 @@ BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000/api/v1/')
 # REQUEST_SIGNING_SECRET is REQUIRED for bot→backend signed requests.
 # Must match the backend's REQUEST_SIGNING_SECRET exactly.
 REQUEST_SIGNING_SECRET = os.getenv('REQUEST_SIGNING_SECRET', '')
-# BOT_ORIGIN is REQUIRED — the bot's own public URL that the backend
+# BOT_ORIGIN is REQUIRED, the bot's own public URL that the backend
 # expects in the BOT_ORIGIN setting.  The backend verifies the
 # X-Bot-Origin header against this value to prevent unauthorized
 # bot instances from using the shared secrets.

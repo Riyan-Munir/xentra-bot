@@ -1,5 +1,5 @@
 """
-``/selected room`` — Display the currently selected room for chat.
+``/selected room``, Display the currently selected room for chat.
 
 Flow:
   1. Dropdown to select Interview Room or Job Room.
@@ -94,7 +94,7 @@ class SelectedRoomSetupView(discord.ui.View):
 
         if self.room_type == "job":
             embed = create_embed(
-                title="Job Rooms — Coming Soon",
+                title="Job Rooms, Coming Soon",
                 description="Job rooms are not implemented yet. "
                 "This feature will be available in a future update.",
                 color=BrandColor.PRIMARY,
@@ -103,7 +103,7 @@ class SelectedRoomSetupView(discord.ui.View):
             await interaction.edit_original_response(embed=embed, view=None)
             return
 
-        # Interview flow — use shared resolver
+        # Interview flow, use shared resolver
         from utils.command_handler import fetch_selected_room
 
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -171,7 +171,7 @@ class SelectedRoomSetupView(discord.ui.View):
 # Cog
 # ──────────────────────────────────────────────────────────────────────
 class SelectedRoom(commands.Cog):
-    """``/selected room`` — View your currently selected room."""
+    """``/selected room``, View your currently selected room."""
 
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -187,8 +187,8 @@ class SelectedRoom(commands.Cog):
                 title="Selected Room",
                 description=(
                     "**Select a room type** to view your selected room.\n"
-                    "• **Interview Room** — Show your selected interview room.\n"
-                    "• **Job Room** — Not yet implemented.\n\n"
+                    "• **Interview Room**, Show your selected interview room.\n"
+                    "• **Job Room**, Not yet implemented.\n\n"
                     "Press **Submit** to continue or **Cancel** to abort."
                 ),
                 color=BrandColor.PRIMARY,

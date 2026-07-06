@@ -14,7 +14,7 @@ Flow
    e. Job selection dropdown.
    f. Fetch pending applications for selected job.
    g. Application selection dropdown.
-   h. DM validation — send greet messages to both parties sequentially.
+   h. DM validation, send greet messages to both parties sequentially.
    i. If both DMs succeed → atomically create room via backend.
    j. If either DM fails → professional error.
 """
@@ -147,7 +147,7 @@ class CreateRoomSetupView(discord.ui.View):
             )
             return
 
-        # Interview Room — hand off to the flow coordinator
+        # Interview Room, hand off to the flow coordinator
         cog: "CreateRooms" = interaction.client.get_cog("CreateRooms")  # type: ignore
         await cog.start_interview_flow(interaction)
 
@@ -318,7 +318,7 @@ class ApplicationSelectView(discord.ui.View):
         options = [
             discord.SelectOption(
                 label=(
-                    f"{app['freelancer_name'][:50]} — "
+                    f"{app['freelancer_name'][:50]}, "
                     f"${app['bid_amount']}"
                 ),
                 value=app["application_id"],
@@ -503,7 +503,7 @@ class ApplicationSelectView(discord.ui.View):
         options = [
             discord.SelectOption(
                 label=(
-                    f"{app['freelancer_name'][:50]} — "
+                    f"{app['freelancer_name'][:50]}, "
                     f"${app['bid_amount']}"
                 ),
                 value=app["application_id"],
@@ -582,7 +582,7 @@ class ApplicationSelectView(discord.ui.View):
 
 
 class CreateRooms(commands.Cog):
-    """``/create room`` — create interview & job rooms."""
+    """``/create room``, create interview & job rooms."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -602,9 +602,9 @@ class CreateRooms(commands.Cog):
             embed = create_embed(
                 title="Create a Room",
                 description=(
-                    "> **Interview Room** — Interview a freelancer for a job "
+                    "> **Interview Room**, Interview a freelancer for a job "
                     "application.\n"
-                    "> **Job Room** — Complete a job with an assigned freelancer."
+                    "> **Job Room**, Complete a job with an assigned freelancer."
                 ),
                 color=BrandColor.PRIMARY,
             )
@@ -624,7 +624,7 @@ class CreateRooms(commands.Cog):
     ) -> None:
         """Run the multi-step interview room creation flow."""
 
-        # ── Step 1 — Quota check ──────────────────────────────────
+        # ── Step 1, Quota check ──────────────────────────────────
 
         quota = await self._check_quota(interaction)
         if isinstance(quota, discord.Embed):
@@ -636,7 +636,7 @@ class CreateRooms(commands.Cog):
         extra_count: int = quota.get("extra_available", 0)
         use_extra = False
 
-        # ── Step 1b — Extra-room confirmation ─────────────────────
+        # ── Step 1b, Extra-room confirmation ─────────────────────
         if can_use_system:
             use_extra = False
         elif can_use_extra:
@@ -669,7 +669,7 @@ class CreateRooms(commands.Cog):
             )
             return
 
-        # ── Step 2 — Fetch client jobs ────────────────────────────
+        # ── Step 2, Fetch client jobs ────────────────────────────
 
         jobs = await self._fetch_client_jobs(interaction)
         if isinstance(jobs, discord.Embed):
@@ -685,7 +685,7 @@ class CreateRooms(commands.Cog):
             )
             return
 
-        # ── Step 3 — Job selection ────────────────────────────────
+        # ── Step 3, Job selection ────────────────────────────────
         job_embed = create_embed(
             title="Select a Job",
             description="Choose a job to create an interview room for.",
@@ -699,7 +699,7 @@ class CreateRooms(commands.Cog):
         if not job_view.selected_job_id:
             return  # cancelled
 
-        # ── Step 4 — Fetch applications ───────────────────────────
+        # ── Step 4, Fetch applications ───────────────────────────
 
         applications = await self._fetch_applications(
             interaction, job_view.selected_job_id
@@ -716,7 +716,7 @@ class CreateRooms(commands.Cog):
             )
             return
 
-        # ── Step 5 — Application selection ────────────────────────
+        # ── Step 5, Application selection ────────────────────────
         app_embed = create_embed(
             title="Select an Application",
             description="Choose an applicant to interview.",
@@ -732,9 +732,9 @@ class CreateRooms(commands.Cog):
         if not app_view.selected_app_id:
             return  # cancelled
 
-        # ── Step 6 — DM validation ────────────────────────────────
+        # ── Step 6, DM validation ────────────────────────────────
 
-        # Try freelancer DM first — if it fails the client gets no
+        # Try freelancer DM first, if it fails the client gets no
         # premature notification.
         client_display_name = (
             app_view.selected_client_name
@@ -778,7 +778,7 @@ class CreateRooms(commands.Cog):
             )
             return
 
-        # ── Step 7 — Create room (backend) ────────────────────────
+        # ── Step 7, Create room (backend) ────────────────────────
 
         result = await self._create_room(
             interaction,
@@ -789,7 +789,7 @@ class CreateRooms(commands.Cog):
             await interaction.edit_original_response(embed=result)
             return
 
-        # ── Step 8 — Send rules system message ─────────────────────
+        # ── Step 8, Send rules system message ─────────────────────
         rules_freelancer_ok = await handle_system_message(
             "room_rules",
             {
@@ -835,7 +835,7 @@ class CreateRooms(commands.Cog):
                     msg_name='rules',
                 )
 
-        # ── Step 9 — Send job details system message ───────────────
+        # ── Step 9, Send job details system message ───────────────
         jd_freelancer_ok = await handle_system_message(
             "room_job_details",
             {
@@ -942,7 +942,7 @@ class CreateRooms(commands.Cog):
                 view=None,
             )
 
-        # Fire-and-forget analytics — use a guild-less event since this
+        # Fire-and-forget analytics, use a guild-less event since this
         # command runs in DMs, so interaction.guild_id is None.
         AnalyticsCollector.log_custom_event({
             'event_type': 'interview_room_created',

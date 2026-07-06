@@ -1,5 +1,5 @@
 """
-``/interview complain`` — Submit a complaint in the selected interview room.
+``/interview complain``, Submit a complaint in the selected interview room.
 
 Flow:
   1. Mutual exclusivity of ``message_id`` / ``complain_id`` is validated upfront.
@@ -39,12 +39,12 @@ logger = logging.getLogger('bot.rooms.interview_complain')
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Start View — opens the modal after room verification
+# Start View, opens the modal after room verification
 # ──────────────────────────────────────────────────────────────────────
 
 
 class ComplainStartView(discord.ui.View):
-    """View shown after room verification — user clicks to open the complaint modal."""
+    """View shown after room verification, user clicks to open the complaint modal."""
 
     def __init__(
         self,
@@ -95,7 +95,7 @@ class ComplainStartView(discord.ui.View):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Modal — complaint text input (opens after room verification)
+# Modal, complaint text input (opens after room verification)
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -286,7 +286,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
 
 
 class InterviewComplain(commands.Cog):
-    """``/interview complain`` — Submit a complaint in the interview chat."""
+    """``/interview complain``, Submit a complaint in the interview chat."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -314,7 +314,7 @@ class InterviewComplain(commands.Cog):
         complain_id : optional
             Link this complaint to a specific complaint ID in the room.
         """
-        # Validate mutual exclusivity — only one of message_id / complain_id may be set
+        # Validate mutual exclusivity, only one of message_id / complain_id may be set
         if message_id and complain_id:
             await interaction.response.send_message(
                 embed=error_embed(

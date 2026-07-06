@@ -3,10 +3,10 @@ Central handler for bot system messages (non-command notifications).
 
 Mirrors the pattern established by ``command_handler.py`` / ``commands.json``:
 
-  * ``system_messages.json`` — metadata registry (context, fields, description).
-  * ``system_messages/<name>.py`` — individual embed builders exporting
+  * ``system_messages.json``, metadata registry (context, fields, description).
+  * ``system_messages/<name>.py``, individual embed builders exporting
     ``build_embed(data) -> discord.Embed``.
-  * ``system_message_handler.handle()`` — the single entry point called by
+  * ``system_message_handler.handle()``, the single entry point called by
     the webhook server.
 
 Usage
@@ -101,7 +101,7 @@ async def handle_system_message(
     metadata = _load_system_messages_data()
     type_meta = next((m for m in metadata if m["name"] == message_type), None)
     if type_meta is None:
-        logger.warning("Unknown system message type '%s' — skipping.", message_type)
+        logger.warning("Unknown system message type '%s', skipping.", message_type)
         return False
 
     # 2. Resolve the target user
@@ -156,7 +156,7 @@ async def handle_system_message(
 
     # 5. Send the DM
     if user is None:
-        logger.warning("No user resolved for %s — cannot send DM", message_type)
+        logger.warning("No user resolved for %s, cannot send DM", message_type)
         return False
 
     kwargs = {"embed": embed}
@@ -174,7 +174,7 @@ async def handle_system_message(
             return True
 
         except discord.Forbidden:
-            logger.warning("Cannot DM user %s — DMs disabled or blocked", user.id)
+            logger.warning("Cannot DM user %s, DMs disabled or blocked", user.id)
             return False
 
         except discord.HTTPException as e:
@@ -195,12 +195,12 @@ async def handle_system_message(
                 )
                 return False
 
-            # Non-429 HTTP error — re-raise to fall into the generic handler
+            # Non-429 HTTP error, re-raise to fall into the generic handler
             raise
 
         except (discord.NotFound, discord.InvalidData):
             logger.warning(
-                "Channel/user vanished while sending %s DM to user %s — "
+                "Channel/user vanished while sending %s DM to user %s, "
                 "not retrying.",
                 message_type, user.id,
             )

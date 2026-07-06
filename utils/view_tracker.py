@@ -20,7 +20,7 @@ async def increment_profile_view(
 ) -> None:
     """Increment a profile view counter on the backend.
 
-    Only freelancer and client profiles get counted — server_admin views are
+    Only freelancer and client profiles get counted, server_admin views are
     deliberately excluded to avoid inflating stats with administrative lookups.
 
     This is a fire-and-forget call; failures are logged but never propagated.

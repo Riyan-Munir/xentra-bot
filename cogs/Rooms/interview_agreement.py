@@ -1,20 +1,20 @@
 """
-``/interview agreement`` — Sign the agreement of the selected interview room.
+``/interview agreement``, Sign the agreement of the selected interview room.
 
 Flow:
   1. Command handler validates the user and room context.
   2. Fetches selected interview room via shared resolver.
   3. Calls ``BotProcessAgreementView`` GET to check review flags.
-  4. If reviews incomplete — error with notification to the other party.
-  5. If both reviewed — shows confirmation embed with Accept / Decline.
-  6. On **Accept** — POST to ``BotAcceptAgreementView``, show success embed:
+  4. If reviews incomplete, error with notification to the other party.
+  5. If both reviewed, shows confirmation embed with Accept / Decline.
+  6. On **Accept**, POST to ``BotAcceptAgreementView``, show success embed:
      *"You've signed the Job Agreement. Xentra will share signed agreement soon."*
   7. Sends a DM notification to the other party with execution data
      *"Requested signature on Job Agreement."*
-  8. If **both** parties have now accepted — generates signed PDF with stamps
+  8. If **both** parties have now accepted, generates signed PDF with stamps
      from the database, sends it to **both** client and freelancer via DM.
   9. Logs *"Sent signed Job Agreement"* as a system message.
- 10. If DM delivery fails for one person — sends a notification to the other
+ 10. If DM delivery fails for one person, sends a notification to the other
      party with heading *"Sender: Xentra"* and a message about the blocked DM.
 """
 
@@ -223,7 +223,7 @@ class AgreementConfirmView(discord.ui.View):
                 )
             except discord.Forbidden:
                 logger.warning(
-                    'Cannot DM %s (%s) — DMs may be disabled.',
+                    'Cannot DM %s (%s), DMs may be disabled.',
                     display_name, did,
                 )
                 failed_ids.add(did)
@@ -254,7 +254,7 @@ class AgreementConfirmView(discord.ui.View):
                 other_name = self.client_name
 
             if other_id in failed_ids:
-                continue  # Both failed — can't notify either
+                continue  # Both failed, can't notify either
 
             try:
                 other_user = interaction.client.get_user(int(other_id))
@@ -316,7 +316,7 @@ class AgreementConfirmView(discord.ui.View):
 # ---------------------------------------------------------------------------
 
 class InterviewAgreement(commands.Cog):
-    """``/interview agreement`` — Sign the agreement of the selected interview room."""
+    """``/interview agreement``, Sign the agreement of the selected interview room."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -378,7 +378,7 @@ class InterviewAgreement(commands.Cog):
                 )
             else:
                 logger.warning(
-                    'No msg_id in response — cannot log failed delivery for %s in room %s',
+                    'No msg_id in response, cannot log failed delivery for %s in room %s',
                     notify_discord_id, room_id,
                 )
 
@@ -462,7 +462,7 @@ class InterviewAgreement(commands.Cog):
                     message=body.get('message', 'Failed to process the agreement.'),
                 )
 
-            # ── 4. Both reviews complete — handle ALREADY_SIGNED ─────────
+            # ── 4. Both reviews complete, handle ALREADY_SIGNED ─────────
             if body.get('code') == 'ALREADY_SIGNED':
                 both_accepted = body.get('both_accepted', False)
                 other_name = body.get('notify_receiver_name', 'The other party')
@@ -475,7 +475,7 @@ class InterviewAgreement(commands.Cog):
                 )
 
                 if both_accepted:
-                    # Both parties have signed — deliver signed PDF
+                    # Both parties have signed, deliver signed PDF
                     # Construct a minimal body for _deliver_signed_pdf
                     pdf_body = {
                         'agreement_id': body.get('agreement_id', ''),
@@ -593,14 +593,14 @@ class InterviewAgreement(commands.Cog):
                         'The room will be closed shortly.',
                     )
                 else:
-                    # Already signed but other party hasn't — just notify
+                    # Already signed but other party hasn't, just notify
                     return error_embed(
                         message='**You** have already signed the agreement for this job. '
                         f'A notification has been sent to **{other_name}** '
                         f'requesting their signature.',
                     )
 
-            # ── 5. Both reviews complete — show confirmation embed ──────
+            # ── 5. Both reviews complete, show confirmation embed ──────
             if body.get('status') != 'ok':
                 return error_embed(
                     message='Unexpected response from the server. Please try again.',

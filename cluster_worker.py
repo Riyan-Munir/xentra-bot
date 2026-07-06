@@ -1,5 +1,5 @@
 """
-ClusterWorker — bot-side cluster management.
+ClusterWorker, bot-side cluster management.
 
 Sends periodic heartbeats to the backend, registers/deregisters this
 node, and (in later phases) polls the webhook queue and participates in
@@ -89,16 +89,16 @@ class ClusterWorker:
     async def start(self) -> None:
         """Register the node and start the heartbeat loop.
 
-        Safe to call even when clustering is disabled — it is a no-op.
+        Safe to call even when clustering is disabled, it is a no-op.
         """
         if not CLUSTER_ENABLED:
-            logger.info("ClusterWorker disabled — skipping start")
+            logger.info("ClusterWorker disabled, skipping start")
             return
 
         await self._register()
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         logger.info(
-            "ClusterWorker started — node_id=%s heartbeat_interval=%ds",
+            "ClusterWorker started, node_id=%s heartbeat_interval=%ds",
             self._node_id,
             HEARTBEAT_INTERVAL,
         )
@@ -116,7 +116,7 @@ class ClusterWorker:
             except asyncio.CancelledError:
                 pass
         await self._deregister()
-        logger.info("ClusterWorker stopped — node_id=%s deregistered", self._node_id)
+        logger.info("ClusterWorker stopped, node_id=%s deregistered", self._node_id)
 
     # ── Registration ─────────────────────────────────────────────────
 
@@ -138,13 +138,13 @@ class ClusterWorker:
                     data = await resp.json()
                     self._registered = True
                     logger.info(
-                        "Cluster node registered — id=%s status=%s",
+                        "Cluster node registered, id=%s status=%s",
                         self._node_id,
                         data.get("status"),
                     )
                 else:
                     logger.warning(
-                        "Cluster registration failed — status=%s body=%s",
+                        "Cluster registration failed, status=%s body=%s",
                         resp.status,
                         await resp.text(),
                     )
@@ -163,10 +163,10 @@ class ClusterWorker:
             ) as resp:
                 if resp.status == 200:
                     self._registered = False
-                    logger.info("Cluster node deregistered — id=%s", self._node_id)
+                    logger.info("Cluster node deregistered, id=%s", self._node_id)
                 else:
                     logger.warning(
-                        "Cluster deregistration failed — status=%s",
+                        "Cluster deregistration failed, status=%s",
                         resp.status,
                     )
         except Exception as exc:
@@ -199,7 +199,7 @@ class ClusterWorker:
             ) as resp:
                 if resp.status != 200:
                     logger.warning(
-                        "Heartbeat failed — status=%s", resp.status
+                        "Heartbeat failed, status=%s", resp.status
                     )
         except Exception as exc:
             logger.warning("Heartbeat error: %s", exc)
@@ -226,7 +226,7 @@ class ClusterWorker:
                 if resp.status == 200:
                     return await resp.json()
                 logger.warning(
-                    "Webhook poll failed — status=%s", resp.status
+                    "Webhook poll failed, status=%s", resp.status
                 )
         except Exception as exc:
             logger.warning("Webhook poll error: %s", exc)

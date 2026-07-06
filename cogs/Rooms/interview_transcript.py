@@ -1,9 +1,9 @@
 """
-``/interview transcript`` — Request a transcript of the interview chat.
+``/interview transcript``, Request a transcript of the interview chat.
 
 Flow:
   1. ``validate_and_respond`` validates the user, role, and room context.
-  2. Checks premium tier — on-demand transcript generation requires Premium.
+  2. Checks premium tier, on-demand transcript generation requires Premium.
   3. Fetches the selected interview room via the shared resolver.
   4. Calls the backend ``BotRoomTranscriptView`` to log the command execution
      and persist the ``InterviewRoomMsg`` record.
@@ -38,7 +38,7 @@ logger = logging.getLogger('bot.rooms.interview_transcript')
 
 
 class InterviewTranscript(commands.Cog):
-    """``/interview transcript`` — Generate a transcript of the interview chat."""
+    """``/interview transcript``, Generate a transcript of the interview chat."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -266,7 +266,7 @@ class InterviewTranscript(commands.Cog):
                         )
                     except discord.Forbidden:
                         logger.warning(
-                            'Cannot DM %s (%s) — DMs may be disabled.',
+                            'Cannot DM %s (%s), DMs may be disabled.',
                             viewer_name, interaction.user.id,
                         )
                         await log_failed_delivery(

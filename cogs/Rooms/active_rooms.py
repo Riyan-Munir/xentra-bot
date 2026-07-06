@@ -1,5 +1,5 @@
 """
-``/active rooms`` — Display a paginated list of active (open) interview rooms.
+``/active rooms``, Display a paginated list of active (open) interview rooms.
 
 Flow:
   1. Dropdown to select Interview Room or Job Room.
@@ -97,7 +97,7 @@ class ActiveRoomsSetupView(discord.ui.View):
 
         if self.room_type == "job":
             embed = create_embed(
-                title="Job Rooms — Coming Soon",
+                title="Job Rooms, Coming Soon",
                 description="Job rooms are not implemented yet. "
                 "This feature will be available in a future update.",
                 color=BrandColor.PRIMARY,
@@ -247,7 +247,7 @@ class ActiveRoomsPaginationView(PaginationView):
             )
 
             embed.add_field(
-                name=f"Room — {room_id}",
+                name=f"Room, {room_id}",
                 value=details,
                 inline=False,
             )
@@ -259,7 +259,7 @@ class ActiveRoomsPaginationView(PaginationView):
 # Cog
 # ──────────────────────────────────────────────────────────────────────
 class ActiveRooms(commands.Cog):
-    """``/active rooms`` — Browse your active interview rooms."""
+    """``/active rooms``, Browse your active interview rooms."""
 
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -275,8 +275,8 @@ class ActiveRooms(commands.Cog):
                 title="Active Rooms",
                 description=(
                     "**Select a room type** to view your active rooms.\n"
-                    "• **Interview Room** — Show all open interview rooms.\n"
-                    "• **Job Room** — Not yet implemented.\n\n"
+                    "• **Interview Room**, Show all open interview rooms.\n"
+                    "• **Job Room**, Not yet implemented.\n\n"
                     "Press **Submit** to continue or **Cancel** to abort."
                 ),
                 color=BrandColor.PRIMARY,

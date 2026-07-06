@@ -23,7 +23,7 @@ class PaginationView(discord.ui.View):
     ★ Override ``update_buttons()``  if extra controls are needed  (optional)
 
     By default ``change_page()`` calls ``update_message()``, which
-    rebuilds the embed and refreshes the buttons — suitable for
+    rebuilds the embed and refreshes the buttons, suitable for
     local-data pagination (no extra fetch needed).
     """
 

@@ -1,12 +1,12 @@
 """
-``/interview review`` — Review the agreement of the selected interview room.
+``/interview review``, Review the agreement of the selected interview room.
 
 Flow:
   1. Command handler validates the user and room context.
   2. Fetches selected interview room via shared resolver.
   3. Backend validates agreement budget, milestones, budget sum, deadline ordering,
      and job-deadline boundary.
-  4. Role-aware error messages — the party who can fix the issue sees actionable
+  4. Role-aware error messages, the party who can fix the issue sees actionable
      instructions; the other party receives a DM notification summarising the gap.
   5. On success, sets the proposal review flag on the room, logs a system message,
      sends a DM notification to the other party, and returns a simple success embed.
@@ -31,7 +31,7 @@ logger = logging.getLogger('bot.rooms.interview_review')
 
 
 class InterviewReview(commands.Cog):
-    """``/interview review`` — Review the agreement of the selected interview room."""
+    """``/interview review``, Review the agreement of the selected interview room."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -95,7 +95,7 @@ class InterviewReview(commands.Cog):
                 )
             else:
                 logger.warning(
-                    'No msg_id in response — cannot log failed delivery for %s in room %s',
+                    'No msg_id in response, cannot log failed delivery for %s in room %s',
                     notify_discord_id, room_id,
                 )
 
@@ -146,17 +146,17 @@ class InterviewReview(commands.Cog):
             if body.get('status') == 'error':
                 code = body.get('code', '')
 
-                # NO_AGREEMENT — neither party can fix via commands
+                # NO_AGREEMENT, neither party can fix via commands
                 if code == 'NO_AGREEMENT':
                     return error_embed(
                         message='No job agreement exists for this room yet. '
                         'Contact a server administrator if the issue persists.',
                     )
 
-                # NO_BUDGET — client must set the budget
+                # NO_BUDGET, client must set the budget
                 if code == 'NO_BUDGET':
                     client_name = body.get('client_name', 'Client')
-                    # Notify the client (always — they're the one who can act)
+                    # Notify the client (always, they're the one who can act)
                     await self._notify_other_party(
                         body, room_id, job_title,
                         f'Requested review of Job Agreement. Requires {client_name} '
@@ -175,7 +175,7 @@ class InterviewReview(commands.Cog):
                             'Use `/interview_budget` to set it, then re-run this command.',
                         )
 
-                # NO_MILESTONES — freelancer must create them
+                # NO_MILESTONES, freelancer must create them
                 if code == 'NO_MILESTONES':
                     freelancer_name = body.get('freelancer_name', 'Freelancer')
                     await self._notify_other_party(
@@ -195,7 +195,7 @@ class InterviewReview(commands.Cog):
                             f'A notification has been sent to **{freelancer_name}**.',
                         )
 
-                # BUDGET_MISMATCH — milestone total != final budget
+                # BUDGET_MISMATCH, milestone total != final budget
                 if code == 'BUDGET_MISMATCH':
                     total = body.get('total_budget', '?')
                     final_budget = body.get('final_budget', '?')
@@ -219,7 +219,7 @@ class InterviewReview(commands.Cog):
                             f'A notification has been sent to **{freelancer_name}**.',
                         )
 
-                # DEADLINE_CONFLICT — milestone deadlines have ordering issues
+                # DEADLINE_CONFLICT, milestone deadlines have ordering issues
                 if code == 'DEADLINE_CONFLICT':
                     detail = body.get(
                         'conflict_detail',
@@ -240,7 +240,7 @@ class InterviewReview(commands.Cog):
                             f'**{freelancer_name}** has been notified.',
                         )
 
-                # JOB_DEADLINE_EXCEEDED — last milestone past job deadline
+                # JOB_DEADLINE_EXCEEDED, last milestone past job deadline
                 if code == 'JOB_DEADLINE_EXCEEDED':
                     job_deadline = body.get('job_deadline', '?')
                     last_milestone_dl = body.get('last_milestone_deadline', '?')
@@ -262,7 +262,7 @@ class InterviewReview(commands.Cog):
                     message=body.get('message', 'Failed to review the agreement.'),
                 )
 
-            # ── 4. Success — notify other party, return simple success ──
+            # ── 4. Success, notify other party, return simple success ──
             if body.get('status') != 'ok':
                 return error_embed(
                     message='Unexpected server response. Please try again.',
@@ -319,7 +319,7 @@ class InterviewReview(commands.Cog):
                     pdf_delivered = True
                 except discord.Forbidden:
                     logger.warning(
-                        'Cannot DM executor %s — DMs may be disabled.',
+                        'Cannot DM executor %s, DMs may be disabled.',
                         interaction.user.id,
                     )
                     # Fallback: send in the interaction channel with ephemeral
@@ -337,7 +337,7 @@ class InterviewReview(commands.Cog):
                     # At least return the success embed
                     return success_embed(
                         'Review request has been submitted. '
-                        'Could not send the PDF file — please check your DM settings.',
+                        'Could not send the PDF file, please check your DM settings.',
                     )
 
                 # ── 6. Log PDF delivery as a system message ──────────────

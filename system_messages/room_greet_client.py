@@ -5,9 +5,9 @@ Sent to the client when an interview room has been successfully created.
 
 Expected data keys
 ------------------
-- discord_id (str) — Snowflake of the client (used by handler).
-- freelancer_name (str) — Name of the freelancer.
-- job_title (str) — Title of the job.
+- discord_id (str), Snowflake of the client (used by handler).
+- freelancer_name (str), Name of the freelancer.
+- job_title (str), Title of the job.
 """
 
 import discord

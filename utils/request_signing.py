@@ -44,7 +44,7 @@ def _compute_signature(
     secret: Optional[bytes] = None,
 ) -> str:
     """
-    Compute HMAC-SHA256 signature — identical algorithm to backend's
+    Compute HMAC-SHA256 signature, identical algorithm to backend's
     ``_compute_signature()`` in ``common/signing.py``.
 
     Canonical form::
@@ -83,7 +83,7 @@ def sign_request(
         HTTP method (GET, POST, PATCH, DELETE, …).
     path : str
         URL **path** only (e.g. ``/api/v1/rooms/bot/quota-check/``).
-        Do NOT include the scheme/host — the backend validates only ``request.path``.
+        Do NOT include the scheme/host, the backend validates only ``request.path``.
     body : bytes
         Raw request body bytes (default ``b""`` for GET requests).
     secret : bytes, optional

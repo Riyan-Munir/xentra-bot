@@ -44,14 +44,14 @@ class WebhookServer:
         self._last_request_time: Optional[float] = None
         self._start_time: float = time.time()
         self.app = web.Application()
-        # Unauthenticated health endpoint — used by HF Spaces monitor ping
+        # Unauthenticated health endpoint, used by HF Spaces monitor ping
         self.app.router.add_route('GET', '/health', self.handle_health)
-        # HTML status page — shows last request timestamp, bot latency, uptime
+        # HTML status page, shows last request timestamp, bot latency, uptime
         self.app.router.add_route('GET', '/status', self.handle_status_page)
         # Accept POST webhooks and preflight OPTIONS from backend only
         self.app.router.add_route('POST', '/status', self.handle_status_update)
         self.app.router.add_route('OPTIONS', '/status', self.handle_status_update)
-        # Discord API proxy — backend delegates Discord HTTPS calls through the bot
+        # Discord API proxy, backend delegates Discord HTTPS calls through the bot
         # because the backend's urllib3/requests stack is blocked by Cloudflare.
         self.app.router.add_route('POST', '/proxy/discord', self.handle_discord_proxy)
         self.app.router.add_route('OPTIONS', '/proxy/discord', self.handle_discord_proxy)
@@ -59,7 +59,7 @@ class WebhookServer:
         self._poll_task: Optional[asyncio.Task] = None
 
     async def handle_health(self, request):
-        """Unauthenticated health check — returns 200 OK for monitor pings."""
+        """Unauthenticated health check, returns 200 OK for monitor pings."""
         self._touch_last_request()
         return web.json_response({'status': 'healthy'})
 
@@ -272,10 +272,10 @@ class WebhookServer:
                 return web.json_response(result)
 
         except Exception as e:
-            logger.error(f"Discord proxy error: {method} {url} — {e}")
+            logger.error(f"Discord proxy error: {method} {url}, {e}")
             resp = web.json_response(
                 {'status': 'error', 'message': str(e)},
-                status=502,  # Bad Gateway — the bot couldn't reach Discord
+                status=502,  # Bad Gateway, the bot couldn't reach Discord
             )
             if backend_origin:
                 resp.headers['Access-Control-Allow-Origin'] = backend_origin

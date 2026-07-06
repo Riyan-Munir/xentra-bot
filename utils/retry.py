@@ -9,7 +9,7 @@ Usage
 -----
     from utils.retry import validation_fail, security_fail, retry_view
 
-    # Validation error (empty data, word count exceeded, etc.) — retry allowed
+    # Validation error (empty data, word count exceeded, etc.), retry allowed
     await validation_fail(
         interaction,
         message='Title cannot be empty.',
@@ -17,7 +17,7 @@ Usage
         modal_kwargs={'prefill': {...}},
     )
 
-    # Security threat (XSS, injection) — command killed, no retry
+    # Security threat (XSS, injection), command killed, no retry
     await security_fail(interaction, message='Invalid input detected.')
 
     # Custom retry view for non-modal contexts
@@ -37,7 +37,7 @@ logger = logging.getLogger('bot.utils.retry')
 
 
 # ---------------------------------------------------------------------------
-#  RetryView — a view with a single button that re-opens a modal
+#  RetryView, a view with a single button that re-opens a modal
 # ---------------------------------------------------------------------------
 
 def retry_view(
@@ -82,7 +82,7 @@ def retry_view(
 
 
 # ---------------------------------------------------------------------------
-#  Validation failure — info embed + retry button
+#  Validation failure, info embed + retry button
 # ---------------------------------------------------------------------------
 
 async def validation_fail(
@@ -132,7 +132,7 @@ async def validation_fail(
 
 
 # ---------------------------------------------------------------------------
-#  Security threat — error embed + kill (no retry)
+#  Security threat, error embed + kill (no retry)
 # ---------------------------------------------------------------------------
 
 async def security_fail(
@@ -141,7 +141,7 @@ async def security_fail(
     *,
     ephemeral: bool = False,
 ) -> None:
-    """Show an error embed with **no** retry button — command is terminated.
+    """Show an error embed with **no** retry button, command is terminated.
 
     Use when input contains XSS, SQL injection, or other malicious patterns.
     """

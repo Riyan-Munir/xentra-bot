@@ -1,5 +1,5 @@
 """
-``/switch room`` — Switch your selected room for chat.
+``/switch room``, Switch your selected room for chat.
 
 Flow:
   1. Dropdown to select Interview Room or Job Room.
@@ -96,7 +96,7 @@ class SwitchRoomSetupView(discord.ui.View):
 
         if self.room_type == "job":
             embed = create_embed(
-                title="Job Rooms — Coming Soon",
+                title="Job Rooms, Coming Soon",
                 description="Job rooms are not implemented yet. "
                 "This feature will be available in a future update.",
                 color=BrandColor.PRIMARY,
@@ -170,7 +170,7 @@ class SwitchRoomSetupView(discord.ui.View):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Step 2: Room picker — dropdown of active rooms + Confirm / Cancel
+# Step 2: Room picker, dropdown of active rooms + Confirm / Cancel
 # ──────────────────────────────────────────────────────────────────────
 class ActiveRoomSelect(discord.ui.Select):
     """Dropdown listing active rooms by room_id + job_title."""
@@ -180,7 +180,7 @@ class ActiveRoomSelect(discord.ui.Select):
         for room in rooms[:25]:  # Discord max 25 options per dropdown
             room_id = room.get("room_id", "???")
             job_title = room.get("job_title", "Unknown")
-            label = f"{room_id} — {job_title[:50]}"
+            label = f"{room_id}, {job_title[:50]}"
             options.append(
                 discord.SelectOption(
                     label=label[:100],
@@ -321,7 +321,7 @@ class RoomPickerView(discord.ui.View):
 # Cog
 # ──────────────────────────────────────────────────────────────────────
 class SwitchRoom(commands.Cog):
-    """``/switch room`` — Change your selected room for messages."""
+    """``/switch room``, Change your selected room for messages."""
 
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -337,8 +337,8 @@ class SwitchRoom(commands.Cog):
                 title="Switch Room",
                 description=(
                     "**Select a room type** to switch your active room.\n"
-                    "• **Interview Room** — Pick from your active interview rooms.\n"
-                    "• **Job Room** — Not yet implemented.\n\n"
+                    "• **Interview Room**, Pick from your active interview rooms.\n"
+                    "• **Job Room**, Not yet implemented.\n\n"
                     "Press **Submit** to continue or **Cancel** to abort."
                 ),
                 color=BrandColor.PRIMARY,

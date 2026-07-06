@@ -12,7 +12,7 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.profile_mgmt')
 
 class MembersListView(PaginationView):
-    """Members list uses 0‑based page index — overrides prev/next/update_buttons."""
+    """Members list uses 0‑based page index, overrides prev/next/update_buttons."""
     def __init__(self, viewer_data, entries):
         self.entries = entries
         self.page_size = 5
@@ -43,7 +43,7 @@ class MembersListView(PaginationView):
         close = discord.ui.Button(label='Close', style=discord.ButtonStyle.red)
         close.callback = self.close_view
         self.add_item(close)
-        # Admin broadcast button — imported already via PaginationView base
+        # Admin broadcast button, imported already via PaginationView base
 
     async def prev_page(self, interaction: discord.Interaction):
         self._member_current -= 1

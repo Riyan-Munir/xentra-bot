@@ -87,7 +87,7 @@ async def send_room_closure_and_transcript(
     leave_reason:
         The reason provided by the user who left (leave flow only).
     left_by:
-        ``'client'`` or ``'freelancer'`` — who initiated the leave
+        ``'client'`` or ``'freelancer'``, who initiated the leave
         (leave flow only).
 
     Returns
@@ -110,7 +110,7 @@ async def send_room_closure_and_transcript(
     # ── 2. Fetch transcript data from backend ────────────────────────
     transcript_data = await _fetch_transcript_data(room_id, headers, session)
     if not transcript_data:
-        logger.error('Cannot generate transcripts — no transcript data for room %s', room_id)
+        logger.error('Cannot generate transcripts, no transcript data for room %s', room_id)
         return False
 
     # ── 3. Determine participant info ────────────────────────────────
@@ -142,7 +142,7 @@ async def send_room_closure_and_transcript(
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M') + ' UTC'
     base_messages = transcript_data.get('freelancer_messages', [])
 
-    # Freelancer view — freelancer msgs on right
+    # Freelancer view, freelancer msgs on right
     freelancer_pdf_data = {
         'transcript_id': transcript_data.get('transcript_id', f'XEN-TRX-{room_id}'),
         'room_id': room_id,
@@ -156,7 +156,7 @@ async def send_room_closure_and_transcript(
         'watermark_b64': transcript_data.get('watermark_b64', ''),
     }
 
-    # Client view — client msgs on right
+    # Client view, client msgs on right
     client_pdf_data = {
         'transcript_id': transcript_data.get('transcript_id', f'XEN-TRX-{room_id}'),
         'room_id': room_id,
@@ -343,7 +343,7 @@ async def _send_dm(
         return True
     except discord.Forbidden:
         logger.warning(
-            'Cannot DM %s (%s) — DMs may be disabled.',
+            'Cannot DM %s (%s), DMs may be disabled.',
             display_name, discord_id,
         )
     except Exception:

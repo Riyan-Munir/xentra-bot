@@ -1,5 +1,5 @@
 """
-``/interview delivery`` — Retry any failed system message deliveries
+``/interview delivery``, Retry any failed system message deliveries
 (rules, job details) for your active interview rooms.
 
 The bot stores a backend record when it cannot reach a user (DMs disabled /
@@ -33,7 +33,7 @@ RESOLVE_URL = f'{BACKEND_URL}rooms/bot/resolve-delivery/'
 
 
 class InterviewDelivery(commands.Cog):
-    """``/interview delivery`` — retry failed system-message deliveries."""
+    """``/interview delivery``, retry failed system-message deliveries."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -105,7 +105,7 @@ class InterviewDelivery(commands.Cog):
                             )
                             failed += 1
                             results_lines.append(
-                                f'`{room_id}` — reconstruction failed',
+                                f'`{room_id}`, reconstruction failed',
                             )
                             continue
                         recon_data = await recon_resp.json()
@@ -113,7 +113,7 @@ class InterviewDelivery(commands.Cog):
                     logger.exception('Exception during reconstruct for delivery %s', record_id)
                     failed += 1
                     results_lines.append(
-                        f'`{room_id}` — reconstruction request failed',
+                        f'`{room_id}`, reconstruction request failed',
                     )
                     continue
 
@@ -158,17 +158,17 @@ class InterviewDelivery(commands.Cog):
 
                     succeeded += 1
                     results_lines.append(
-                        f'`{room_id}` — delivered successfully',
+                        f'`{room_id}`, delivered successfully',
                     )
                 else:
                     failed += 1
                     results_lines.append(
-                        f'`{room_id}` — user still unreachable',
+                        f'`{room_id}`, user still unreachable',
                     )
 
             # ── 3. Build results embed ─────────────────────────────────
             summary = (
-                f'**Retry complete — {succeeded} delivered, {failed} failed**\n\n'
+                f'**Retry complete, {succeeded} delivered, {failed} failed**\n\n'
                 + '\n'.join(results_lines)
             )
 

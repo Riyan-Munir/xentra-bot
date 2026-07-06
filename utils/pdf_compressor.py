@@ -18,7 +18,7 @@ from typing import Optional
 
 logger = logging.getLogger('bot.utils.pdf_compressor')
 
-# Discord bot file-upload limit (conservative — leave 1 MB headroom)
+# Discord bot file-upload limit (conservative, leave 1 MB headroom)
 DISCORD_MAX_BYTES = 24 * 1024 * 1024
 
 
@@ -37,7 +37,7 @@ def compress_pdf(
     Strategy (escalating):
       1. Lossless content-stream compression only (fast).
       2. If still too large, re-compress object streams.
-      3. If still too large, remove all images (lossy — last resort).
+      3. If still too large, remove all images (lossy, last resort).
 
     Parameters
     ----------
@@ -55,7 +55,7 @@ def compress_pdf(
     try:
         from pypdf import PdfReader, PdfWriter
     except ImportError:
-        logger.warning('pypdf not installed — returning original PDF bytes')
+        logger.warning('pypdf not installed, returning original PDF bytes')
         return pdf_bytes
 
     try:
@@ -104,7 +104,7 @@ def compress_pdf(
         # Pass 3 (lossy): remove images from all pages
         if max_pass >= 3:
             logger.warning(
-                'PDF still %d bytes after lossless passes — removing images',
+                'PDF still %d bytes after lossless passes, removing images',
                 len(best),
             )
             writer3 = PdfWriter()
@@ -125,7 +125,7 @@ def compress_pdf(
         return best
 
     except Exception:
-        logger.exception('PDF compression failed — returning original bytes')
+        logger.exception('PDF compression failed, returning original bytes')
         return pdf_bytes
 
 

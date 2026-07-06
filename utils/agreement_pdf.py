@@ -832,7 +832,7 @@ def build_signature_flow(data):
     stamp_b64 = PageContext.stamp_b64
 
     def sig_cell(role_label, name):
-        """Signature box — with stamp when signed, empty when in review phase."""
+        """Signature box, with stamp when signed, empty when in review phase."""
         return [
             SignatureBox(box_w - 16, sig_box_h, stamp=is_signed, stamp_b64=stamp_b64, stamp_radius=13 * mm),
             Spacer(1, 5),
@@ -876,14 +876,14 @@ class StampingDocTemplate(BaseDocTemplate):
 def build_pdf(data, output_path):
     """
     Build the PDF document to the given file-like object or path.
-    data: dict with keys —
+    data: dict with keys,
         agreement_id, client_name, freelancer_name, job_id, job_application_id,
         interview_room_id, final_budget, milestones (list of dicts),
         terms_sections (optional, list of dicts), generated_on (optional),
         signed_on (optional),
         stamp_b64 (optional base64-encoded stamp image),
         watermark_b64 (optional base64-encoded watermark image),
-        is_signed (optional bool — True for signed PDF with stamps, False for review)
+        is_signed (optional bool, True for signed PDF with stamps, False for review)
     output_path: destination (file path or BytesIO-like object)
     """
     PageContext.agreement_id = data.get("agreement_id", "")
