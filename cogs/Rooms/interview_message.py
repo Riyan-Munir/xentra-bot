@@ -35,6 +35,7 @@ from utils.embeds import (
     dm_blocked_embed,
 )
 from utils.http import get_http_session
+from utils.retry import validation_fail, security_fail, contains_security_threat
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
 
@@ -106,22 +107,42 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         user_data: dict,
         room_data: dict,
         original_interaction: discord.Interaction,
+        message_id: str = '',
+        prefill_msg: str = '',
     ) -> None:
         super().__init__(timeout=300)
         self.user_data = user_data
         self.room_data = room_data
         self.original_interaction = original_interaction
+        self.message_id = message_id
+        if prefill_msg:
+            self.msg.default = prefill_msg
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         msg_text = self.msg.value.strip()
+
+        # --- security check first ---
+        if contains_security_threat(msg_text):
+            await security_fail(
+                interaction,
+                message='The message contains prohibited content. Command terminated.',
+            )
+            return
+
         word_count = len(msg_text.split()) if msg_text else 0
 
         if word_count > 1000:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message=f'Message exceeds 1000 words ({word_count} words). Please shorten it.'
-                ),
-                ephemeral=True,
+            await validation_fail(
+                interaction,
+                message=f'Message exceeds 1000 words ({word_count} words). Please shorten it.',
+                modal_class=InterviewMessageModal,
+                modal_kwargs={
+                    'user_data': self.user_data,
+                    'room_data': self.room_data,
+                    'original_interaction': self.original_interaction,
+                    'message_id': self.message_id,
+                    'prefill_msg': msg_text,
+                },
             )
             return
 
@@ -137,6 +158,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
             room_data=self.room_data,
             msg_text=msg_text,
             word_count=word_count,
+            message_id=self.message_id,
         )
 
         embed = _build_confirm_embed(msg_text, view.attachments, word_count)
@@ -178,6 +200,7 @@ class InterviewMessageConfirmView(discord.ui.View):
         room_data: dict,
         msg_text: str,
         word_count: int,
+        message_id: str = '',
     ) -> None:
         super().__init__(timeout=300)
         self.author_id = author_id
@@ -186,6 +209,7 @@ class InterviewMessageConfirmView(discord.ui.View):
         self.room_data = room_data
         self.msg_text = msg_text
         self.word_count = word_count
+        self.message_id = message_id
         self.attachments: list[discord.Attachment] = []
         self.original_interaction = original_interaction  # for editing the original embed
         self._done = False
@@ -218,6 +242,14 @@ class InterviewMessageConfirmView(discord.ui.View):
         except Exception:
             pass
 
+    async def _cleanup_instruction(self) -> None:
+        """Delete the visible instruction message if it exists."""
+        if self._instruction_msg is not None:
+            try:
+                await self._instruction_msg.delete()
+            except Exception:
+                pass
+            self._instruction_msg = None
 
     # ── buttons ──────────────────────────────────────────────────────
 
@@ -437,6 +469,8 @@ class InterviewMessageConfirmView(discord.ui.View):
             'msg_data': self.msg_text,
             'attachment_metadata': attachment_metadata,
         }
+        if self.message_id:
+            payload['target_msg_id'] = self.message_id
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
         try:
@@ -479,6 +513,8 @@ class InterviewMessageConfirmView(discord.ui.View):
             if self.attachments
             else '',
         }
+        if self.message_id:
+            system_data['target_msg_id'] = self.message_id
 
         # Convert attachments to discord.File objects for the DM
         discord_files: list[discord.File] = []
@@ -576,9 +612,20 @@ class InterviewMessage(commands.Cog):
         name='interview_message',
         description='...',
     )
+    @app_commands.describe(
+        message_id='Optional — link this message to a previous message ID (reply-style).',
+    )
     @app_commands.checks.cooldown(1, 15, key=lambda i: i.user.id)
-    async def interview_message(self, interaction: discord.Interaction) -> None:
-        """Send a message to the other party in the selected interview room."""
+    async def interview_message(
+        self,
+        interaction: discord.Interaction,
+        message_id: str | None = None,
+    ) -> None:
+        """Send a message to the other party in the selected interview room.
+
+        Parameters:
+            message_id: Optional — link this message to a previous message ID.
+        """
 
         async def callback(user_data: dict):
             active_role = user_data.get('active_role')
@@ -587,6 +634,32 @@ class InterviewMessage(commands.Cog):
             # ── 1. Use auto-fetched selected room ─────────────────────────
             room_data = user_data['_selected_room']
 
+            # If message_id was provided, verify it exists in this room
+            if message_id:
+                session = get_http_session()
+                verify_url = f'{BACKEND_URL}rooms/bot/verify-room-reference/'
+                verify_payload = {
+                    'room_id': room_data.get('room_id', ''),
+                    'msg_id': message_id,
+                }
+                try:
+                    async with session.post(
+                        verify_url, json=verify_payload, headers=headers,
+                    ) as resp:
+                        if resp.status != 200:
+                            err_data = await resp.json()
+                            return error_embed(
+                                message=err_data.get(
+                                    'error',
+                                    f'Message ID `{message_id}` not found in this room.',
+                                ),
+                            )
+                except Exception:
+                    logger.exception('Failed to verify message reference')
+                    return error_embed(
+                        message='Could not verify the message reference. Please try again.',
+                    )
+
             # Merge profile display name into user_data
             if active_role == 'client':
                 user_data['client_name'] = room_data.get('client_name', 'Client')
@@ -594,14 +667,20 @@ class InterviewMessage(commands.Cog):
                 user_data['freelancer_name'] = room_data.get('freelancer_name', 'Freelancer')
 
             # ── 2. Show embed with Write Message + Cancel buttons ────────
+            desc_parts = [
+                'You are about to send a message in the interview chat.\n\n'
+                f'**Room:** `{room_data.get("room_id", "")}`\n'
+                f'**Job:** {room_data.get("job_title", "")}',
+            ]
+            if message_id:
+                desc_parts.append(f'**Target Message ID:** `{message_id}`')
+            desc_parts.append(
+                '\n\nClick **Write Message** to compose your message.'
+            )
+
             embed = create_embed(
                 title='Interview Message',
-                description=(
-                    'You are about to send a message in the interview chat.\n\n'
-                    f'**Room:** `{room_data.get("room_id", "")}`\n'
-                    f'**Job:** {room_data.get("job_title", "")}\n\n'
-                    'Click **Write Message** to compose your message.'
-                ),
+                description='\n'.join(desc_parts),
                 color=BrandColor.PRIMARY,
                 footer='Xentra • Room System',
             )
@@ -610,6 +689,7 @@ class InterviewMessage(commands.Cog):
                 user_data=user_data,
                 room_data=room_data,
                 original_interaction=interaction,
+                message_id=message_id or '',
             )
             view.author_id = interaction.user.id
 
@@ -629,12 +709,14 @@ class MessageStartView(discord.ui.View):
         user_data: dict,
         room_data: dict,
         original_interaction: discord.Interaction,
+        message_id: str = '',
     ) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
         self.user_data = user_data
         self.room_data = room_data
         self.original_interaction = original_interaction
+        self.message_id = message_id
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -650,6 +732,7 @@ class MessageStartView(discord.ui.View):
             user_data=self.user_data,
             room_data=self.room_data,
             original_interaction=self.original_interaction,
+            message_id=self.message_id,
         )
         await interaction.response.send_modal(modal)
         self.stop()
