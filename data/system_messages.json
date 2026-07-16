@@ -218,5 +218,30 @@
         "mandatory": false
       }
     ]
+  },
+  {
+    "name": "premium_expiry_reminder",
+    "description": "Notify the user that their premium benefits are about to end (generic, no interval specificity).",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the target user",
+        "mandatory": true
+      },
+      {
+        "name": "discord_username",
+        "description": "Display name for the greeting",
+        "mandatory": true
+      },
+      {
+        "name": "expires_at",
+        "description": "ISO-8601 timestamp of premium expiry",
+        "mandatory": false
+      }
+    ]
   }
 ]

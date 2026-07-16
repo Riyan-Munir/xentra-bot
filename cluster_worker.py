@@ -7,21 +7,29 @@ shard claiming.
 
 **All functionality is feature-gated behind ``CLUSTER_ENABLED``** (default
 ``False``).  When disabled, the ``ClusterWorker`` is a no-op stub so that
-:c:class:`Xentra` can safely instantiate it without conditional branches.
+:class:`Xentra` can safely instantiate it without conditional branches.
+
+All cluster API calls are signed with HMAC-SHA256 headers via
+:func:`utils.request_signing.sign_request` so that the backend's
+:class:`~cluster.auth.ClusterSignatureRequired` permission class can
+validate them.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import uuid
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import aiohttp
 
 from config import BACKEND_URL
 from utils.http import get_http_session
+from utils.request_signing import sign_request
 
 logger = logging.getLogger("bot.cluster_worker")
 
@@ -40,6 +48,10 @@ HEARTBEAT_INTERVAL = int(os.getenv("CLUSTER_HEARTBEAT_INTERVAL", "30"))
 
 #: Shard count hint (used in registration; real count comes from Discord).
 SHARD_COUNT = int(os.getenv("SHARD_COUNT", "1"))
+
+#: Optional dedicated signing secret for cluster API calls.
+#: Falls back to REQUEST_SIGNING_SECRET (from config) if not set.
+CLUSTER_SIGNING_SECRET = os.getenv("CLUSTER_SIGNING_SECRET", "")
 
 
 class ClusterWorker:
@@ -123,6 +135,13 @@ class ClusterWorker:
     async def _register(self) -> None:
         """Register this node with the backend cluster service."""
         url = self._url("cluster/register/")
+        body_bytes = json.dumps({
+            "node_id": self._node_id,
+            "host": self._host,
+            "port": self._port,
+        }).encode("utf-8")
+        headers = self._signed_headers("POST", url, body_bytes)
+
         session = get_http_session()
         try:
             async with session.post(
@@ -132,6 +151,7 @@ class ClusterWorker:
                     "host": self._host,
                     "port": self._port,
                 },
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status in (200, 201):
@@ -154,11 +174,15 @@ class ClusterWorker:
     async def _deregister(self) -> None:
         """Deregister this node from the backend cluster service."""
         url = self._url("cluster/deregister/")
+        body_bytes = json.dumps({"node_id": self._node_id}).encode("utf-8")
+        headers = self._signed_headers("POST", url, body_bytes)
+
         session = get_http_session()
         try:
             async with session.post(
                 url,
                 json={"node_id": self._node_id},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:
@@ -190,11 +214,15 @@ class ClusterWorker:
     async def _send_heartbeat(self) -> None:
         """Send a single heartbeat to the backend."""
         url = self._url("cluster/heartbeat/")
+        body_bytes = json.dumps({"node_id": self._node_id}).encode("utf-8")
+        headers = self._signed_headers("PATCH", url, body_bytes)
+
         session = get_http_session()
         try:
             async with session.patch(
                 url,
                 json={"node_id": self._node_id},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp:
                 if resp.status != 200:
@@ -216,11 +244,15 @@ class ClusterWorker:
             return []
 
         url = self._url("cluster/webhooks/poll/")
+        body_bytes = b""  # GET request, no body
+        headers = self._signed_headers("GET", url, body_bytes)
+
         session = get_http_session()
         try:
             async with session.get(
                 url,
                 params={"node_id": self._node_id, "limit": limit},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:
@@ -241,11 +273,18 @@ class ClusterWorker:
             return 0
 
         url = self._url("cluster/webhooks/claim/")
+        body_bytes = json.dumps({
+            "node_id": self._node_id,
+            "event_ids": event_ids,
+        }).encode("utf-8")
+        headers = self._signed_headers("POST", url, body_bytes)
+
         session = get_http_session()
         try:
             async with session.post(
                 url,
                 json={"node_id": self._node_id, "event_ids": event_ids},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:
@@ -264,11 +303,15 @@ class ClusterWorker:
             return 0
 
         url = self._url("cluster/webhooks/complete/")
+        body_bytes = json.dumps({"event_ids": event_ids}).encode("utf-8")
+        headers = self._signed_headers("POST", url, body_bytes)
+
         session = get_http_session()
         try:
             async with session.post(
                 url,
                 json={"event_ids": event_ids},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:
@@ -293,17 +336,21 @@ class ClusterWorker:
             return {"claimed_from_dead": 0, "claimed_unassigned": 0, "total": 0}
 
         url = self._url("cluster/claim-shards/")
-        session = get_http_session()
         payload: Dict[str, Any] = {"node_id": self._node_id}
         if shard_count:
             payload["shard_count"] = shard_count
         if only_unassigned:
             payload["only_unassigned"] = True
 
+        body_bytes = json.dumps(payload).encode("utf-8")
+        headers = self._signed_headers("POST", url, body_bytes)
+
+        session = get_http_session()
         try:
             async with session.post(
                 url,
                 json=payload,
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 return await resp.json()
@@ -312,6 +359,24 @@ class ClusterWorker:
             return {"error": str(exc)}
 
     # ── Internal helpers ─────────────────────────────────────────────
+
+    def _signed_headers(self, method: str, url: str, body: bytes) -> Dict[str, str]:
+        """Build HMAC-signed headers for a cluster API request.
+
+        Extracts just the URL path (not the full URL) for signing,
+        which is what the backend's ``ClusterSignatureRequired``
+        permission class expects from ``request.path``.
+
+        Uses ``CLUSTER_SIGNING_SECRET`` if set, otherwise falls back
+        to ``REQUEST_SIGNING_SECRET`` (from bot config) via
+        ``sign_request()`` default behaviour.
+        """
+        parsed = urlparse(url)
+        path = parsed.path
+        secret: bytes | None = None
+        if CLUSTER_SIGNING_SECRET:
+            secret = CLUSTER_SIGNING_SECRET.encode("utf-8")
+        return sign_request(method, path, body, secret=secret)
 
     @staticmethod
     def _url(path: str) -> str:

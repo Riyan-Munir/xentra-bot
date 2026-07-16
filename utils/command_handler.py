@@ -599,17 +599,15 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     role_match = active_role in required_roles
     
     # Strict administrative verification (Only enforced within a guild context).
-    # Only block server_admins who lack guild admin permissions when the command
-    # does NOT explicitly allow `server_admin`.  If the command lists `server_admin`
-    # as an allowed role, skip the strict guild admin check, role_match below
-    # handles permission verification.
+    # If the executor's active role is server_admin, they MUST be a registered
+    # guild admin (mod or owner) in the ServerAdminGuild table, regardless of
+    # which command they are executing. The backend re-verifies as source of truth.
     if (
         active_role == 'server_admin'
         and interaction.guild
         and not user_data.get('is_guild_admin')
-        and 'server_admin' not in required_roles
     ):
-        err = error_embed("This command is not available for your role. Run `/help` for details.")
+        err = error_embed("You're not an authorized Server Admin for this server.")
         await send_response(err)
         return
 

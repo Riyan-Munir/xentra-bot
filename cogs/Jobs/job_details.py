@@ -27,6 +27,8 @@ class JobDetailsCommand(commands.Cog):
                 'discord_id': interaction.user.id,
                 'job_id': job_id
             }
+            if interaction.guild_id:
+                params['guild_id'] = interaction.guild_id
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             
             session = get_http_session()

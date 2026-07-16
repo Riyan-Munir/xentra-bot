@@ -33,8 +33,10 @@ class ApplicationDetailsCommand(commands.Cog):
             url = f"{BACKEND_URL}jobs/bot/application-detail/"
             params = {
                 'discord_id': str(interaction.user.id),
-                'application_id': application_id,
+                'app_id': application_id,
             }
+            if interaction.guild_id:
+                params['guild_id'] = str(interaction.guild_id)
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             session = get_http_session()
