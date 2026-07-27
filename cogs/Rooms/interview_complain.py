@@ -6,9 +6,8 @@ Flow:
   2. ``validate_and_respond`` validates the user, role, and room context.
   3. Shows a "Write Complaint" button after room verification passes.
   4. Button opens the complaint Modal.
-  5. Modal collects text; on submit it saves the complaint and notifies the other party.
-  6. If the other party has DMs disabled, logs a failed delivery record with
-     message_type='notification' and complain_id set so it can be retried.
+  5. Modal collects text and saves the complaint for staff review.
+     Complaints are private and never shared with the other room participant.
 """
 
 import logging
@@ -29,11 +28,8 @@ from utils.embeds import (
     error_embed,
     success_embed,
     info_embed,
-    dm_blocked_embed,
 )
 from utils.http import get_http_session
-from utils.system_message_handler import handle_system_message
-from utils.failed_delivery import log_failed_delivery
 
 logger = logging.getLogger('bot.rooms.interview_complain')
 
@@ -198,7 +194,6 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                     return
                 save_data = await resp.json()
                 complaint_id = save_data.get('complaint_id', '')
-                other_discord_id = save_data.get('other_discord_id', '')
         except Exception:
             logger.exception('Failed to save complaint to backend')
             await self._edit_done(
@@ -209,60 +204,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
             )
             return
 
-        # 3. Determine sender display name
-        sender_name = (
-            room_data.get('client_name')
-            if active_role == 'client'
-            else room_data.get('freelancer_name', 'Freelancer')
-        )
-
-        # 4. Send notification to other party
-        if other_discord_id:
-            notify_data = {
-                'discord_id': other_discord_id,
-                'room_id': room_data.get('room_id', ''),
-                'job_title': room_data.get('job_title', ''),
-                'command_name': 'interview_complain',
-                'executor_name': sender_name,
-                'complaint_id': complaint_id,
-                'complaint_data': complaint_text,
-            }
-            if self.message_id:
-                notify_data['target_msg_id'] = self.message_id
-            if self.complain_id:
-                notify_data['target_complain_id'] = self.complain_id
-
-            delivery_ok = await handle_system_message(
-                message_type='room_interview_message',
-                data=notify_data,
-                bot=interaction.client,
-            )
-
-            if not delivery_ok:
-                await log_failed_delivery(
-                    room_id=room_data.get('room_id', ''),
-                    message_type='notification',
-                    target_discord_id=other_discord_id,
-                    complain_id=complaint_id,
-                    session=session,
-                    headers=headers,
-                )
-
-                # Determine receiver name for the dm_blocked message
-                if active_role == 'client':
-                    receiver_name = room_data.get('freelancer_name', 'Freelancer')
-                else:
-                    receiver_name = room_data.get('client_name', 'Client')
-
-                await self._edit_done(
-                    dm_blocked_embed(
-                        attempted_action='your complaint notification',
-                        receiver_name=receiver_name,
-                    ),
-                )
-                return
-
-        # 5. Success
+        # 3. Success
         success_msg = f'Complaint submitted in room `{room_data.get("room_id", "")}`.'
         if complaint_id:
             success_msg += f' (ID: `{complaint_id}`)'

@@ -76,7 +76,7 @@ class JobDetailsCommand(commands.Cog):
                     return embed, final_view
                 else:
                     err_data = await resp.json()
-                    return error_embed(message=err_data.get('error', 'Could not load job details.'))
+                    return error_embed(message=err_data.get('error', 'Could not load job details. Please try again.'))
         
         await validate_and_respond(interaction, details_callback)
 

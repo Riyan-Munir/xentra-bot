@@ -1,51 +1,35 @@
+﻿"""
+Security bypass attempt notification.
+
+Injected as a system message DM when a user triggers an advanced
+security event.  Built as a tiered embed with escalating urgency.
 """
-Embed builder for ``security_bypass_attempt`` system messages.
 
-Structure
----------
-This module mirrors the commands pattern: one file per message type, each
-exporting a ``build_embed(data)`` function that returns a ``discord.Embed``.
-
-Callers (via ``system_message_handler``) pass the full payload dict after
-unwrapping.  Expected keys are defined in ``data/system_messages.json``.
-
-Tier-based messaging
---------------------
-The embed content changes based on ``bypass_tier`` (1-5):
-
-+-------+-------------------+-------------------------------------------+
-| Tier  | Label             | Message                                   |
-+-------+-------------------+-------------------------------------------+
-| 1     | Low concern       | Informational warning                     |
-| 2     | Elevated concern  | Warning with rate-limit notice            |
-| 3     | Serious concern   | Feature restriction notice                |
-| 4     | Critical concern  | Near-ban warning, contact admin          |
-| 5     | Auto-ban          | Account suspended                         |
-+-------+-------------------+-------------------------------------------+
-
-The ``auto_ban_at`` threshold is **never** revealed to the user, only the
-current attempt count and the tier-appropriate message are shown.
-"""
+from typing import Any
 
 import discord
+
 from utils.embeds import create_embed, BrandColor
 
+__all__ = ["build_embed"]
 
-# ── Tier-specific embed colours ───────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+#  Tier-level metadata (unused values left for readability)
+# ═══════════════════════════════════════════════════════════════════
+
 _TIER_COLORS: dict[int, int] = {
-    1: BrandColor.INFO,       # Blue, informational
-    2: BrandColor.WARNING,    # Yellow, caution
-    3: BrandColor.WARNING,    # Yellow, serious
-    4: BrandColor.ERROR,      # Red, critical
-    5: 0x2F3136,              # Dark grey, banned/suspended
+    1: BrandColor.WARNING,
+    2: BrandColor.WARNING,
+    3: BrandColor.ERROR,
+    4: BrandColor.ERROR,
+    5: BrandColor.BAN,
 }
 
-# ── Tier-specific titles ──────────────────────────────────────────────
 _TIER_TITLES: dict[int, str] = {
-    1: "Security Notice",
-    2: "Security Warning",
-    3: "Security Alert, Action Required",
-    4: "Critical Security Alert",
+    1: "Low Concern — Security Alert",
+    2: "Elevated Concern — Security Alert",
+    3: "Serious Concern — Security Alert",
+    4: "Critical Concern — Security Alert",
     5: "Account Suspended",
 }
 
@@ -59,58 +43,36 @@ def _tier_embed_body(tier: int, data: dict) -> str:
     attempt_count = data.get("total_attempts", 1)
     tier_msg = data.get("tier_msg", "")
 
-    event_line = f"**Event:** `{event_type}`\n**IP Address:** `{ip}`\n**Path:** `{path}`\n**Detail:** {detail}"
+    event_line = (
+        f"**Event:** `{event_type}`\n"
+        f"**IP Address:** `{ip}`\n"
+        f"**Path:** `{path}`\n"
+        f"**Detail:** {detail}"
+    )
 
+    # ── Tier-specific label & action ────────────────────────────────
     if tier == 5:
-        # Account suspended, no event details, just ban info
-        return (
-            f"Your account has been **automatically suspended** due to "
-            f"repeated security violations.\n\n"
-            f"**Total attempts recorded:** `{attempt_count}`\n\n"
-            f"> If you believe this is a mistake, please contact a server "
-            f"administrator to appeal the suspension."
-        )
+        tier_label = "**Auto-ban:**"
+        action = "Please log into the **Xentra Dashboard** to appeal this suspension."
+    elif tier == 4:
+        tier_label = "**Critical:**"
+        action = "Please log into the **Xentra Dashboard** to acknowledge this notification immediately."
+    elif tier == 3:
+        tier_label = "**Serious:**"
+        action = "Please log into the **Xentra Dashboard** to acknowledge this notification."
+    elif tier == 2:
+        tier_label = "**Elevated:**"
+        action = "Please log into the **Xentra Dashboard** to review your account activity."
+    else:  # Tier 1 (default)
+        tier_label = ""
+        action = "If you believe this is a mistake, please log into the **Xentra Dashboard** to submit an appeal."
 
-    if tier == 4:
-        return (
-            f"A security bypass attempt was detected on your account.\n\n"
-            f"{event_line}\n\n"
-            f"**Total attempts:** `{attempt_count}`\n\n"
-            f"**Critical:** {tier_msg}\n\n"
-            f"> Please log in to the **Xentra Dashboard** to acknowledge this "
-            f"notification immediately. Contact a server administrator if you "
-            f"need assistance."
-        )
-
-    if tier == 3:
-        return (
-            f"A security bypass attempt was detected on your account.\n\n"
-            f"{event_line}\n\n"
-            f"**Total attempts:** `{attempt_count}`\n\n"
-            f"**{tier_msg}**\n\n"
-            f"> Some dashboard features may be restricted. Please log in to "
-            f"the **Xentra Dashboard** to acknowledge this notification."
-        )
-
-    if tier == 2:
-        return (
-            f"A security bypass attempt was detected on your account.\n\n"
-            f"{event_line}\n\n"
-            f"**Total attempts:** `{attempt_count}`\n\n"
-            f"**{tier_msg}**\n\n"
-            f"> Please log in to the **Xentra Dashboard** to review your "
-            f"account activity."
-        )
-
-    # Tier 1 (default)
     return (
-        f"A **security bypass attempt** was detected on your account.\n\n"
+        f"A security bypass attempt was detected on your account.\n\n"
         f"{event_line}\n\n"
         f"**Total attempts:** `{attempt_count}`\n\n"
-        f"{tier_msg}\n\n"
-        f"> Please log in to the **Xentra Dashboard** to acknowledge this "
-        f"notification and restore full access to your account. If you "
-        f"believe this is a mistake, contact a server administrator."
+        f"{tier_label} {tier_msg}\n\n"
+        f"> {action}"
     )
 
 

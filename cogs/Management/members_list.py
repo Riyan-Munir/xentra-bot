@@ -146,7 +146,7 @@ class MembersList(commands.Cog):
                 async with session.get(url, params=params, headers=headers) as resp:
                         if resp.status != 200:
                             data = await resp.json()
-                            return error_embed(message=f"Could not fetch members: {data.get('error', 'Unknown error')}")
+                            return error_embed(message="Could not load the members list. Please try again.")
                         data = await resp.json()
             except Exception as e:
                 logger.error(f"Error fetching members list: {e}")

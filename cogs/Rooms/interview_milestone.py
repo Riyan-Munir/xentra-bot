@@ -296,7 +296,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                 if resp.status != 200:
                     await interaction.response.edit_message(
                         embed=error_embed(
-                            message=body.get('error', 'Failed to save milestones.'),
+                            message='Could not save milestones. Please try again.',
                         ),
                         view=None,
                     )
@@ -346,7 +346,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             logger.exception('Failed to save milestones to backend')
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message='Could not save milestones due to a system error. Please try again later.',
+                    message='The service is temporarily unavailable. Please try again later.',
                 ),
                 view=None,
             )

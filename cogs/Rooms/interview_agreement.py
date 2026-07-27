@@ -133,7 +133,7 @@ class AgreementConfirmView(discord.ui.View):
 
         # ── Success embed ──────────────────────────────────────────────
         success = success_embed(
-            "You've signed the Job Agreement. Xentra will share signed agreement soon.",
+            "You've signed the Job Agreement. We will share the signed agreement soon.",
         )
         await interaction.edit_original_response(embed=success, view=None)
 
@@ -261,11 +261,11 @@ class AgreementConfirmView(discord.ui.View):
                 if not other_user:
                     other_user = await interaction.client.fetch_user(int(other_id))
                 blocked_embed = create_embed(
-                    title='Sender: Xentra',
+                    title='System Notification',
                     description=(
                         f'{failed_name} didn\'t receive the document due to a DM block. '
                         f'You are required to share this document for awareness '
-                        f'as Xentra is closing this room.'
+                        f'as this room is being closed.'
                     ),
                     color=BrandColor.ERROR,
                 )
@@ -555,11 +555,11 @@ class InterviewAgreement(commands.Cog):
                                 if not other_user:
                                     other_user = await interaction.client.fetch_user(int(other_id))
                                 blocked_embed = create_embed(
-                                    title='Sender: Xentra',
+                                    title='System Notification',
                                     description=(
                                         f'{failed_name} didn\'t receive the document due to a DM block. '
                                         f'You are required to share this document for awareness '
-                                        f'as Xentra is closing this room.'
+                                        f'as this room is being closed.'
                                     ),
                                     color=BrandColor.ERROR,
                                 )
@@ -617,7 +617,7 @@ class InterviewAgreement(commands.Cog):
             confirm_embed = create_embed(
                 description=(
                     'Did you accept the Job Agreement? By accepting it you are also '
-                    'agreeing to Xentra\'s terms and conditions.'
+                    'agreeing to our terms and conditions.'
                 ),
                 color=BrandColor.PRIMARY,
             )

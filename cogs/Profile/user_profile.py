@@ -43,7 +43,7 @@ class UserProfile(commands.Cog):
                         return throttled_embed(err.get('retry_after', 10))
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', 'Could not load profile data.'))
+                        return error_embed(message=err.get('error', 'Could not load profile. Please try again.'))
 
         async def premium_role_callback(inter, role, identifier, view):
             # Resolve premium ID
@@ -96,7 +96,7 @@ class UserProfile(commands.Cog):
                             return throttled_embed(err.get('retry_after', 10))
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'Could not load your profile.'))
+                            return error_embed(message=err.get('error', 'Could not load profile. Please try again.'))
 
             result = resolve_user_id(user_id)
             if result.is_system:

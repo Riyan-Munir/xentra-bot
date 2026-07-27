@@ -40,7 +40,7 @@ class UserStats(commands.Cog):
                         return self.build_stats_embed(data, role)
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', 'Could not load stats data.'))
+                        return error_embed(message=err.get('error', 'Could not load stats. Please try again.'))
 
         async def premium_stats_callback(inter, role, identifier, view):
             resolve_url = f"{BACKEND_URL}users/resolve-id/"
@@ -88,7 +88,7 @@ class UserStats(commands.Cog):
                             return self.build_stats_embed(data, resp_role)
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'Could not load your stats.'))
+                            return error_embed(message=err.get('error', 'Could not load stats. Please try again.'))
 
             result = resolve_user_id(user_id)
             if result.is_system:

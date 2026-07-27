@@ -66,7 +66,7 @@ class PostedJobsCommand(commands.Cog):
                         jobs_list = data['results']
                         
                         if total_count == 0:
-                            return error_embed(message="No open jobs found yet.")
+                            return error_embed(message="No open jobs found.")
                             
                         view = JobsPaginationView(jobs_list, 1, total_count, user_data, target_user_id=normalized_user_id)
                         view.author_id = interaction.user.id
@@ -74,7 +74,7 @@ class PostedJobsCommand(commands.Cog):
                         return view.build_embed(), view
                     else:
                         err_data = await resp.json()
-                        return error_embed(message=err_data.get('error', 'Could not load posted jobs.'))
+                        return error_embed(message=err_data.get('error', 'Could not load jobs. Please try again.'))
         
         await validate_and_respond(interaction, jobs_callback)
 
@@ -108,7 +108,7 @@ class JobsPaginationView(PaginationView):
                     self.current_page = new_page
                     await self.update_message(interaction)
                 else:
-                    await interaction.response.edit_message(embed=error_embed(message="Failed to load page."), view=self)
+                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=self)
 
     def build_embed(self):
         title = "Client Posted Jobs"

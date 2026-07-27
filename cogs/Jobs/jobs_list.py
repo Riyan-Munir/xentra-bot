@@ -159,7 +159,7 @@ class JobsListFilterView(discord.ui.View):
                     else:
                         err_data = await resp.json()
                         await interaction.edit_original_response(
-                            embed=error_embed(message=err_data.get('error', 'Could not load jobs.')),
+                            embed=error_embed(message=err_data.get('error', 'Could not load jobs. Please try again.')),
                             view=None,
                         )
         except Exception as e:
@@ -209,7 +209,7 @@ class JobsDiscoverPaginationView(PaginationView):
                         self.current_page = new_page
                         await self.update_message(interaction)
                     else:
-                        await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=self)
+                        await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=self)
         except Exception as e:
             logger.error(f"Error querying jobs/bot/list/: {e}")
             await interaction.response.edit_message(embed=error_embed(message="Something went wrong. Please try again."), view=self)
@@ -306,7 +306,7 @@ class JobsList(commands.Cog):
                             return embed, view
                         else:
                             err_data = await resp.json()
-                            return error_embed(message=err_data.get('error', 'Could not load server jobs.'))
+                            return error_embed(message=err_data.get('error', 'Could not load jobs. Please try again.'))
                 except Exception as e:
                     logger.error(f"Error querying jobs/bot/list/: {e}")
                     return error_embed(message="Something went wrong. Please try again.")

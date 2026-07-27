@@ -166,7 +166,7 @@ class ViewPortfolio(commands.Cog):
                         return view.build_embed(), view
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', 'Could not load portfolio.'))
+                        return error_embed(message=err.get('error', 'Could not load portfolio. Please try again.'))
         
         async def portfolio_callback(user_data):
             if not user_id:
@@ -198,7 +198,7 @@ class ViewPortfolio(commands.Cog):
                             return view.build_embed(), view
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'Could not load your portfolio.'))
+                            return error_embed(message=err.get('error', 'Could not load portfolio. Please try again.'))
             
             # ID resolution logic (Force freelancer role for portfolios)
             resolve_url = f"{BACKEND_URL}users/resolve-id/"

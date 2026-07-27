@@ -139,7 +139,7 @@ class InterviewReview(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach review-agreement endpoint')
                 return error_embed(
-                    message='Unable to reach the backend service. Please try again later.',
+                    message='The service is temporarily unavailable. Please try again later.',
                 )
 
             # ── 3. Handle error codes with role-aware messages ──────────

@@ -76,8 +76,7 @@ class ApplicationDetailsCommand(commands.Cog):
                         return error_embed(
                             message=err_data.get(
                                 "error",
-                                "Could not fetch application details. "
-                                "Check the application ID and try again.",
+                                "Could not load application details. Please try again.",
                             )
                         )
             except Exception as e:

@@ -40,6 +40,8 @@ _BOT_PATH_PREFIXES = (
     "/api/v1/jobs/bot/",
     "/api/v1/users/bot/",
     "/api/v1/analytics/",
+    "/api/v1/wallets/bot/",
+    "/api/v1/premium/bot/",
 )
 
 

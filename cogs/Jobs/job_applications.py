@@ -41,7 +41,7 @@ class JobApplicationsCommand(commands.Cog):
                         apps_list = data['results']
                         
                         if total_count == 0:
-                            return error_embed(message="No applications yet for this job.")
+                            return error_embed(message="No applications found for this job.")
                             
                         view = JobApplicationsPaginationView(apps_list, 1, total_count, user_data, job_id)
                         view.author_id = interaction.user.id
@@ -49,7 +49,7 @@ class JobApplicationsCommand(commands.Cog):
                         return view.build_embed(), view
                     else:
                         err_data = await resp.json()
-                        return error_embed(message=err_data.get('error', 'Could not load applications.'))
+                        return error_embed(message=err_data.get('error', 'Could not load applications. Please try again.'))
         
         await validate_and_respond(interaction, apps_callback)
 
@@ -81,7 +81,7 @@ class JobApplicationsPaginationView(PaginationView):
                     self.current_page = new_page
                     await self.update_message(interaction)
                 else:
-                    await interaction.response.edit_message(embed=error_embed(message="Failed to load page."), view=self)
+                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=self)
 
     def build_embed(self):
         title = f"Applications for Job: {self.job_id}"

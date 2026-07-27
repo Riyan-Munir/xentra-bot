@@ -471,8 +471,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                 logger.error(f"Backend error: {e}")
                 await interaction.followup.send(
                     embed=error_embed(
-                        "Unable to reach the backend service right now. "
-                        "Please try again later."
+                        "The service is temporarily unavailable. Please try again later."
                     ),
                     ephemeral=True,
                 )
@@ -501,7 +500,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
 
     # Universal executor allowance check (backend resolver)
     if not user_data.get('is_allowed_executor', True):
-        err = error_embed("You are not permitted to execute commands in this server. Contact moderators for more information.")
+        err = error_embed("We could not verify your permissions in this server. Contact moderators for more information.")
         await interaction.followup.send(embed=err, ephemeral=True)
         return
 
@@ -512,9 +511,9 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         
         if allowed_contexts and current_context not in allowed_contexts:
             if current_context == 'dm':
-                err = error_embed("This command is only available in Server.")
+                err = error_embed("This command is only available in a server.")
             else:
-                err = error_embed("This command is only available in DM.")
+                err = error_embed("This command is only available in DMs.")
             await interaction.followup.send(embed=err, ephemeral=True)
             return
 
@@ -546,9 +545,9 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         if q_name != "command channel":
             if not assigned_channel_id:
                 # Channel is not set
-                msg = "Command Channel is not set for this Server."
+                msg = "Command channel is not set for this server."
                 if active_role == 'server_admin' and user_data.get('is_guild_admin'):
-                    msg += " Run `/command_channel` to set a Channel for Command execution."
+                    msg += " Run `/command_channel` to set a channel for command execution."
                 
                 err = error_embed(msg)
                 await send_response(err)
@@ -607,7 +606,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         and interaction.guild
         and not user_data.get('is_guild_admin')
     ):
-        err = error_embed("You're not an authorized Server Admin for this server.")
+        err = error_embed("You are not an authorized Server Admin for this server.")
         await send_response(err)
         return
 

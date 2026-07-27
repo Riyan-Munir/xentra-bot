@@ -62,8 +62,8 @@ def _load_handler(message_type: str) -> Optional[Callable]:
             logger.warning("system_messages.%s has no build_embed function", message_type)
         _handler_cache[message_type] = builder
         return builder
-    except ModuleNotFoundError:
-        logger.warning("No embed builder for system message type '%s'", message_type)
+    except (ModuleNotFoundError, ImportError) as exc:
+        logger.warning("No embed builder for system message type '%s': %s", message_type, exc)
         _handler_cache[message_type] = None
         return None
 

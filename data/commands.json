@@ -795,5 +795,147 @@
     "requiresJobChat": false,
     "requiresInterviewChat": false,
     "parameters": []
+  },
+  {
+    "name": "wallet list",
+    "description": "View registered wallets.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Wallet",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "wallet register",
+    "description": "Register a wallet.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Wallet",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "wallet verify",
+    "description": "Verify a registered wallet.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Wallet",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "wallet default",
+    "description": "Set default wallet.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Wallet",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "wallet remove",
+    "description": "Remove a registered wallet.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Wallet",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "subscribe plans",
+    "description": "Browse subscription plans.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Premium",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "user_id",
+        "description": "Bot's role id to gift.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "subscribe status",
+    "description": "Check subscription status.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Premium",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
+  },
+  {
+    "name": "subscribe history",
+    "description": "View subscription history.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "freelancer",
+        "client"
+      ]
+    },
+    "category": "Premium",
+    "requiresJobChat": false,
+    "requiresInterviewChat": false,
+    "parameters": []
   }
 ]
