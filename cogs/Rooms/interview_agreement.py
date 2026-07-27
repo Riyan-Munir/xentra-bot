@@ -109,7 +109,6 @@ class AgreementConfirmView(discord.ui.View):
         url = f'{BACKEND_URL}rooms/bot/accept-agreement/'
         payload = {
             'discord_id': str(interaction.user.id),
-            'role': self.active_role,
             'room_id': self.room_id,
         }
 
@@ -412,7 +411,6 @@ class InterviewAgreement(commands.Cog):
             url = f'{BACKEND_URL}rooms/bot/process-agreement/'
             params = {
                 'discord_id': str(interaction.user.id),
-                'role': active_role,
                 'room_id': room_id,
             }
 

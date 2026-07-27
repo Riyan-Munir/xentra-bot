@@ -187,9 +187,10 @@ class SubscribePlansCommand(commands.Cog):
         async def callback(user_data):
             url = f"{BACKEND_URL}premium/bot/plans/"
             params = {'discord_id': user_data['discord_id']}
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             try:
-                async with session.get(url, params=params) as resp:
+                async with session.get(url, params=params, headers=headers) as resp:
                     if resp.status != 200:
                         try:
                             err = await resp.json()

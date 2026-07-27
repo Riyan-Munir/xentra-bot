@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import BACKEND_URL
+from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands
 from utils.embeds import BrandColor, create_embed, error_embed
 from utils.http import get_http_session
@@ -28,9 +28,10 @@ class SubscribeStatusCommand(commands.Cog):
         async def callback(user_data):
             url = f"{BACKEND_URL}premium/bot/active/"
             params = {'discord_id': user_data['discord_id']}
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             try:
-                async with session.get(url, params=params) as resp:
+                async with session.get(url, params=params, headers=headers) as resp:
                     if resp.status != 200:
                         try:
                             err = await resp.json()

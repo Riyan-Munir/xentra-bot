@@ -23,13 +23,8 @@ class WalletListCommand(commands.Cog):
     async def wallet_list(self, interaction: discord.Interaction) -> None:
 
         async def callback(user_data):
-            active_role = user_data.get('active_role')
-            wallet_type = active_role if active_role in ('freelancer', 'client') else None
-
             url = f"{BACKEND_URL}wallets/bot/list/"
             params = {'discord_id': interaction.user.id}
-            if wallet_type:
-                params['type'] = wallet_type
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             session = get_http_session()
@@ -41,13 +36,13 @@ class WalletListCommand(commands.Cog):
 
                         if not wallets:
                             return error_embed(
-                                message='You have no registered wallets. '
+                                message='No registered wallets found. '
                                 'Use `/wallet register` to add one.'
                             )
 
                         embed = create_embed(
-                            title=f"Your Wallets ({active_role.title()})",
-                            description=f"You have **{len(wallets)}** wallet(s) registered.",
+                            title=f"Registered Wallets",
+                            description=f"**{len(wallets)}** wallet(s) found.",
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Wallet List",
                         )
@@ -55,20 +50,19 @@ class WalletListCommand(commands.Cog):
                         for w in wallets:
                             status_text = 'Verified' if w['is_verified'] else 'Pending'
                             default_tag = ' **(Default)**' if w['is_default'] else ''
-                            label = w.get('label', '') or ''
-                            label_line = f"\n> *{label}*" if label else ''
+                            label = w.get('label', '') or f"Wallet {w['id'][:8]}..."
                             address = w['address']
                             short_addr = f"`{address[:8]}...{address[-4:]}`"
 
                             value = (
+                                f"> **ID**: `{w['id']}`{default_tag}\n"
                                 f"> **Status**: `{w['status'].title()}` {status_text}\n"
                                 f"> **Address**: {short_addr}\n"
                                 f"> **Provider**: `{w.get('provider', 'N/A')}`"
-                                f"{label_line}"
                             )
 
                             embed.add_field(
-                                name=f"{w['id']}{default_tag}",
+                                name=label,
                                 value=value,
                                 inline=False,
                             )
@@ -77,12 +71,12 @@ class WalletListCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Could not load wallets. Please try again.')
+                            message=err_data.get('error', 'Failed to load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallet list")
                 return error_embed(
-                    message='Something went wrong. Please try again later.'
+                    message='An unexpected error occurred.'
                 )
 
         await validate_and_respond(interaction, callback)

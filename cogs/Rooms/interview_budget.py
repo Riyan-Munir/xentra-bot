@@ -58,7 +58,6 @@ class InterviewBudget(commands.Cog):
             url = f'{BACKEND_URL}rooms/bot/set-budget/'
             payload = {
                 'discord_id': str(interaction.user.id),
-                'role': active_role,
                 'room_id': room_data['room_id'],
                 'budget': str(budget),
             }

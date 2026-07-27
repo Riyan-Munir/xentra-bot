@@ -234,12 +234,67 @@
       },
       {
         "name": "discord_username",
-        "description": "Display name for the greeting",
+        "description": "Discord username (fallback for the greeting)",
         "mandatory": true
+      },
+      {
+        "name": "display_name",
+        "description": "Profile display name (Freelancer/Client username) for the greeting",
+        "mandatory": false
       },
       {
         "name": "expires_at",
         "description": "ISO-8601 timestamp of premium expiry",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "room_closure",
+    "description": "Notify both parties when an interview room is concluded (agreement signed or party left).",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the recipient",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID",
+        "mandatory": true
+      },
+      {
+        "name": "closure_type",
+        "description": "\"agreement\" or \"leave\"",
+        "mandatory": true
+      },
+      {
+        "name": "client_name",
+        "description": "Display name of the client",
+        "mandatory": false
+      },
+      {
+        "name": "freelancer_name",
+        "description": "Display name of the freelancer",
+        "mandatory": false
+      },
+      {
+        "name": "agreement_id",
+        "description": "Agreement ID (agreement closure only)",
+        "mandatory": false
+      },
+      {
+        "name": "leave_reason",
+        "description": "Reason provided for leaving (leave closure only)",
+        "mandatory": false
+      },
+      {
+        "name": "left_by",
+        "description": "\"client\" or \"freelancer\" (leave closure only)",
         "mandatory": false
       }
     ]

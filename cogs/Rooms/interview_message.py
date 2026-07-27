@@ -426,7 +426,6 @@ class InterviewMessageConfirmView(discord.ui.View):
 
     async def _do_send(self, interaction: discord.Interaction) -> None:
         room = self.room_data
-        role: str = self.user_data.get('active_role', '')
         my_discord_id = str(interaction.user.id)
 
         # Determine receiver's discord_id
@@ -464,7 +463,6 @@ class InterviewMessageConfirmView(discord.ui.View):
         save_url = f'{BACKEND_URL}rooms/bot/save-message/'
         payload = {
             'discord_id': my_discord_id,
-            'role': role,
             'room_id': room.get('room_id', ''),
             'msg_data': self.msg_text,
             'attachment_metadata': attachment_metadata,
@@ -503,7 +501,6 @@ class InterviewMessageConfirmView(discord.ui.View):
             'discord_id': receiver_discord_id,
             'room_id': room.get('room_id', ''),
             'job_title': room.get('job_title', ''),
-            'sender_role': role,
             'sender_name': sender_name,
             'msg_id': msg_id,
             'msg_text': self.msg_text,

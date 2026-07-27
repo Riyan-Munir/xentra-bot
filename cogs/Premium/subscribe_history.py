@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import BACKEND_URL
+from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands
 from utils.embeds import BrandColor, create_embed, error_embed, loading_embed
 from utils.http import get_http_session
@@ -34,9 +34,10 @@ class HistoryPaginationView(PaginationView):
             'page': new_page,
             'page_size': HISTORY_PAGE_SIZE,
         }
+        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         session = get_http_session()
         try:
-            async with session.get(url, params=params) as resp:
+            async with session.get(url, params=params, headers=headers) as resp:
                 if resp.status != 200:
                     try:
                         err = await resp.json()
@@ -124,9 +125,10 @@ class SubscribeHistoryCommand(commands.Cog):
                 'page': 1,
                 'page_size': HISTORY_PAGE_SIZE,
             }
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             try:
-                async with session.get(url, params=params) as resp:
+                async with session.get(url, params=params, headers=headers) as resp:
                     if resp.status != 200:
                         try:
                             err = await resp.json()

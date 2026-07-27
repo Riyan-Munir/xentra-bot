@@ -15,8 +15,7 @@ logger = logging.getLogger('bot.wallets.remove')
 class RemovableWalletSelect(discord.ui.Select):
     """Dropdown of non-default wallets to remove."""
 
-    def __init__(self, wallets: list[dict], wallet_type: str):
-        self.wallet_type = wallet_type
+    def __init__(self, wallets: list[dict]):
         options = []
         for w in wallets:
             addr = w['address']
@@ -38,12 +37,13 @@ class RemovableWalletSelect(discord.ui.Select):
             return
         view: WalletRemoveView = self.view  # type: ignore
         wallet_id = self.values[0]
+        wallet_type = view.wallet_type
         selected = next((w for w in view.wallets if w['id'] == wallet_id), None)
 
         # Show confirmation view
         confirm_view = WalletRemoveConfirmView(
             wallet_id=wallet_id,
-            wallet_type=self.wallet_type,
+            wallet_type=wallet_type,
             wallet_label=selected.get('label', '') or f"{selected['address'][:8]}...{selected['address'][-4:]}",
         )
         confirm_view.author_id = interaction.user.id
@@ -102,7 +102,6 @@ class WalletRemoveConfirmView(discord.ui.View):
         payload = {
             'discord_id': str(interaction.user.id),
             'wallet_id': self.wallet_id,
-            'wallet_type': self.wallet_type,
         }
 
         session = get_http_session()
@@ -110,13 +109,13 @@ class WalletRemoveConfirmView(discord.ui.View):
             async with session.post(url, json=payload, headers=headers) as resp:
                 body = await resp.json()
                 if resp.status == 200:
-                    msg = f"Wallet **{self.wallet_id}** ({self.wallet_label}) has been **removed** (disabled)."
+                    msg = f"Wallet **{self.wallet_id}** has been **removed**."
                     await interaction.edit_original_response(
                         embed=success_embed(message=msg),
                         view=None,
                     )
                 else:
-                    err_msg = body.get('error', 'Could not remove wallet. Please try again.')
+                    err_msg = body.get('error', 'Could not remove wallet.')
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -124,7 +123,7 @@ class WalletRemoveConfirmView(discord.ui.View):
         except Exception:
             logger.exception("Remove wallet failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="Something went wrong. Please try again later."),
+                embed=error_embed(message="An unexpected error occurred."),
                 view=None,
             )
 
@@ -149,7 +148,7 @@ class WalletRemoveView(discord.ui.View):
         self.author_id: int | None = None
         self.wallet_type = wallet_type
         self.wallets = wallets
-        self.add_item(RemovableWalletSelect(wallets, wallet_type))
+        self.add_item(RemovableWalletSelect(wallets))
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -170,14 +169,14 @@ class WalletRemoveCommand(commands.Cog):
 
         async def callback(user_data):
             active_role = user_data.get('active_role')
-            wallet_type = active_role if active_role in ('freelancer', 'client') else None
-            if not wallet_type:
+            if active_role not in ('freelancer', 'client'):
                 return error_embed(
                     message='Active role must be `freelancer` or `client` to manage wallets.'
                 )
+            wallet_type = active_role
 
             url = f"{BACKEND_URL}wallets/bot/list/"
-            params = {'discord_id': interaction.user.id, 'type': wallet_type}
+            params = {'discord_id': interaction.user.id}
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             session = get_http_session()
@@ -192,7 +191,7 @@ class WalletRemoveCommand(commands.Cog):
 
                         if not removable:
                             if wallets and all(w.get('is_default') for w in wallets):
-                                msg = 'Your **default** wallet cannot be removed. Register another, set it as default, then remove this one.'
+                                msg = 'The **default** wallet cannot be removed. Register another wallet, set it as default, then remove this one.'
                             else:
                                 msg = 'No registered wallets found. Use `/wallet register` to add one.'
                             return error_embed(message=msg)
@@ -200,9 +199,9 @@ class WalletRemoveCommand(commands.Cog):
                         embed = create_embed(
                             title="Remove a Wallet",
                             description=(
-                                f"You have **{len(removable)}** non-default wallet(s). "
+                                f"**{len(removable)}** non-default wallet(s) available. "
                                 f"Select one from the dropdown below to remove it.\n\n"
-                                f"*The default wallet cannot be removed.*"
+                                f"The default wallet cannot be removed."
                             ),
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Wallet Removal",
@@ -214,12 +213,12 @@ class WalletRemoveCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Could not load wallets. Please try again.')
+                            message=err_data.get('error', 'Failed to load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallets")
                 return error_embed(
-                    message='Something went wrong. Please try again later.'
+                    message='An unexpected error occurred.'
                 )
 
         await validate_and_respond(interaction, callback)

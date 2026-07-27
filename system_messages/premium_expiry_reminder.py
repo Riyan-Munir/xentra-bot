@@ -29,11 +29,13 @@ def build_embed(data: dict) -> discord.Embed:
     discord_id : str
         Snowflake of the target user (used by system_message_handler).
     discord_username : str
-        Display name for the greeting.
+        Discord username (fallback for the greeting).
+    display_name : str
+        Profile display name (Freelancer/Client ``username``) for the greeting.
     expires_at : str | None
         ISO-8601 timestamp of when premium expires.
     """
-    username = data.get("discord_username", "there")
+    username = data.get("display_name") or data.get("discord_username", "there")
     expires_at = data.get("expires_at")
 
     description = (
@@ -58,7 +60,7 @@ def build_embed(data: dict) -> discord.Embed:
     )
 
     return create_embed(
-        title="⏰ Premium Benefits Ending Soon",
+        title="Premium Benefits Ending Soon",
         description=description,
         color=BrandColor.WARNING,
         footer="Xentra • Premium",

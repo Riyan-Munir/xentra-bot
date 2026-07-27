@@ -109,12 +109,14 @@ class PublicPostView(discord.ui.View):
 
 async def fetch_selected_room(
     discord_id: int | str,
-    role: str,
     room_type: str = 'interview',
     headers: dict | None = None,
 ) -> dict | None:
     """
     Fetch the user's currently selected room from the backend.
+
+    The backend derives the user's role from ``user.active_role``, so the
+    bot does not need to pass it.
 
     Returns the room data dict if found, or None if not found or an error
     occurred.  Logs failures internally so callers don't need to duplicate
@@ -130,7 +132,6 @@ async def fetch_selected_room(
     url = f'{BACKEND_URL}rooms/bot/selected-room/'
     params = {
         'discord_id': str(discord_id),
-        'role': role,
         'room_type': room_type,
     }
     try:
@@ -138,14 +139,14 @@ async def fetch_selected_room(
             if resp.status == 200:
                 return await resp.json()
             logger.info(
-                'fetch_selected_room returned %s for discord_id=%s role=%s',
-                resp.status, discord_id, role,
+                'fetch_selected_room returned %s for discord_id=%s',
+                resp.status, discord_id,
             )
             return None
     except Exception:
         logger.exception(
-            'Failed to fetch selected room for discord_id=%s role=%s',
-            discord_id, role,
+            'Failed to fetch selected room for discord_id=%s',
+            discord_id,
         )
         return None
 
@@ -568,7 +569,6 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     if requires_interview_chat:
         _selected = await fetch_selected_room(
             discord_id=str(user_id),
-            role=active_role,
             room_type='interview',
             headers={'X-Webhook-Token': WEBHOOK_SECRET},
         )
@@ -582,7 +582,6 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     elif requires_job_chat:
         _selected = await fetch_selected_room(
             discord_id=str(user_id),
-            role=active_role,
             room_type='job',
             headers={'X-Webhook-Token': WEBHOOK_SECRET},
         )

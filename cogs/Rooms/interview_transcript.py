@@ -142,7 +142,6 @@ class InterviewTranscript(commands.Cog):
             log_url = f'{BACKEND_URL}rooms/bot/transcript/'
             log_payload = {
                 'discord_id': str(interaction.user.id),
-                'role': active_role,
                 'room_id': room_id,
             }
 

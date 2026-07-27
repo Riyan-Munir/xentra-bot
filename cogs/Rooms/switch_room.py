@@ -109,7 +109,6 @@ class SwitchRoomSetupView(discord.ui.View):
         url = f"{BACKEND_URL}rooms/bot/active-rooms/"
         params = {
             "discord_id": str(interaction.user.id),
-            "role": self.user_data.get("active_role", "client"),
             "page_size": 100,  # fetch a large batch for the dropdown
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -281,7 +280,6 @@ class RoomPickerView(discord.ui.View):
         url = f"{BACKEND_URL}rooms/bot/switch-room/"
         payload = {
             "discord_id": str(self.discord_id),
-            "role": self.user_data.get("active_role", "client"),
             "room_type": "interview",
             "room_id": self.selected_room_id,
         }

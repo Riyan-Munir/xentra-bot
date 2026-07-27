@@ -336,12 +336,10 @@ class RatingSelectView(discord.ui.View):
 
         session = get_http_session()
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
-        active_role = self.user_data.get('active_role', '')
 
         # POST to backend to save feedback
         save_payload = {
             'discord_id': str(interaction.user.id),
-            'role': active_role,
             'room_id': self.room_data.get('room_id', ''),
             'feedback': self.feedback_text,
             'rating': self._selected_rating,
@@ -426,14 +424,12 @@ class InterviewFeedback(commands.Cog):
         """Submit feedback about a closed interview room."""
 
         async def callback(user_data: dict):
-            active_role = user_data.get('active_role')
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             discord_id = str(interaction.user.id)
 
             # ── 1. Fetch closed rooms without feedback ────────────────
             params = {
                 'discord_id': discord_id,
-                'role': active_role,
             }
 
             session = get_http_session()

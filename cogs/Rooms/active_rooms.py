@@ -110,7 +110,6 @@ class ActiveRoomsSetupView(discord.ui.View):
         url = f"{BACKEND_URL}rooms/bot/active-rooms/"
         params = {
             "discord_id": str(interaction.user.id),
-            "role": self.user_data.get("active_role", "client"),
             "page": 1,
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -190,7 +189,6 @@ class ActiveRoomsPaginationView(PaginationView):
         url = f"{BACKEND_URL}rooms/bot/active-rooms/"
         params = {
             "discord_id": str(interaction.user.id),
-            "role": self.user_data.get("active_role", "client"),
             "page": new_page,
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}

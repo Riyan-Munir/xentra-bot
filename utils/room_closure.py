@@ -51,6 +51,7 @@ from utils.http import get_http_session
 from utils.transcript_generator import generate_transcript
 from utils.pdf_compressor import compress_pdf
 from utils.failed_delivery import log_failed_delivery
+from system_messages.room_closure import build_embed as build_closure_embed
 
 logger = logging.getLogger('bot.utils.room_closure')
 
@@ -122,15 +123,16 @@ async def send_room_closure_and_transcript(
     freelancer_avatar_url = transcript_data.get('freelancer_avatar_url')
 
     # ── 4. Send closure notification to both parties ─────────────────
-    closure_desc = (
-        f'Your interview room **{room_id}** has been concluded.'
-        f'\n\nThank you for using Xentra to facilitate your agreement. '
-        f'The signed Job Agreement has been delivered to both parties.'
-        f'\n\nPlease submit your feedback about the interview process '
-        f'using `/interview_feedback` (coming soon).'
-    )
-
-    closure_embed = info_embed(message=closure_desc)
+    closure_payload = {
+        'room_id': room_id,
+        'closure_type': closure_type,
+        'agreement_id': agreement_id,
+        'leave_reason': leave_reason,
+        'left_by': left_by,
+        'client_name': client_name,
+        'freelancer_name': freelancer_name,
+    }
+    closure_embed = build_closure_embed(closure_payload)
 
     for did, display_name in [
         (client_discord_id, client_name),

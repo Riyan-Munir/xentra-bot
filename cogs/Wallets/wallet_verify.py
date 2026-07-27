@@ -27,10 +27,9 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
         style=discord.TextStyle.long,
     )
 
-    def __init__(self, wallet_id: str, wallet_type: str, challenge_msg: str):
+    def __init__(self, wallet_id: str, challenge_msg: str):
         super().__init__(timeout=300)
         self.wallet_id = wallet_id
-        self.wallet_type = wallet_type
         self.challenge_msg = challenge_msg
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
@@ -53,7 +52,6 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
                 modal_class=VerifySignatureModal,
                 modal_kwargs={
                     'wallet_id': self.wallet_id,
-                    'wallet_type': self.wallet_type,
                     'challenge_msg': self.challenge_msg,
                 },
                 ephemeral=True,
@@ -72,7 +70,6 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
         payload = {
             'discord_id': str(interaction.user.id),
             'wallet_id': self.wallet_id,
-            'wallet_type': self.wallet_type,
             'signature': raw_sig,
         }
 
@@ -85,13 +82,13 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
                     wallet_id = w.get('id', self.wallet_id)
                     is_default = w.get('is_default', False)
                     default_text = ' and set as your **default**' if is_default else ''
-                    msg = f"Wallet **{wallet_id}** verified successfully{default_text}!"
+                    msg = f"Wallet **{wallet_id}** verified{default_text}!"
                     await interaction.edit_original_response(
                         embed=success_embed(message=msg),
                         view=None,
                     )
                 else:
-                    err_msg = body.get('error', 'Could not verify wallet. Please try again.')
+                    err_msg = body.get('error', 'Could not verify wallet.')
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -99,7 +96,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
         except Exception:
             logger.exception("Wallet verify failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="Something went wrong. Please try again later."),
+                embed=error_embed(message="An unexpected error occurred."),
                 view=None,
             )
 
@@ -110,8 +107,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
 class UnverifiedWalletSelect(discord.ui.Select):
     """Dropdown listing unverified wallets to verify."""
 
-    def __init__(self, wallets: list[dict], wallet_type: str):
-        self.wallet_type = wallet_type
+    def __init__(self, wallets: list[dict]):
         options = []
         for w in wallets:
             addr = w['address']
@@ -133,6 +129,7 @@ class UnverifiedWalletSelect(discord.ui.Select):
             return
         view: WalletVerifyView = self.view  # type: ignore
         wallet_id = self.values[0]
+        wallet_type = view.wallet_type
 
         # Find the selected wallet in stored list
         selected = next((w for w in view.wallets if w['id'] == wallet_id), None)
@@ -155,7 +152,6 @@ class UnverifiedWalletSelect(discord.ui.Select):
         payload = {
             'discord_id': str(interaction.user.id),
             'wallet_id': wallet_id,
-            'wallet_type': self.wallet_type,
         }
 
         session = get_http_session()
@@ -191,7 +187,6 @@ class UnverifiedWalletSelect(discord.ui.Select):
                             return
                         modal = VerifySignatureModal(
                             wallet_id=wallet_id,
-                            wallet_type=self.wallet_type,
                             challenge_msg=token,
                         )
                         await inter.response.send_modal(modal)
@@ -215,7 +210,7 @@ class UnverifiedWalletSelect(discord.ui.Select):
 
                     await interaction.edit_original_response(embed=embed, view=view)
                 else:
-                    err_msg = body.get('error', 'Could not generate challenge. Please try again.')
+                    err_msg = body.get('error', 'Could not generate challenge.')
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -223,7 +218,7 @@ class UnverifiedWalletSelect(discord.ui.Select):
         except Exception:
             logger.exception("Generate challenge failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="Something went wrong. Please try again later."),
+                embed=error_embed(message="An unexpected error occurred."),
                 view=None,
             )
 
@@ -236,7 +231,7 @@ class WalletVerifyView(discord.ui.View):
         self.author_id: int | None = None
         self.wallets = wallets
         self.wallet_type = wallet_type
-        self.add_item(UnverifiedWalletSelect(wallets, wallet_type))
+        self.add_item(UnverifiedWalletSelect(wallets))
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -260,14 +255,14 @@ class WalletVerifyCommand(commands.Cog):
 
         async def callback(user_data):
             active_role = user_data.get('active_role')
-            wallet_type = active_role if active_role in ('freelancer', 'client') else None
-            if not wallet_type:
+            if active_role not in ('freelancer', 'client'):
                 return error_embed(
                     message='Active role must be `freelancer` or `client` to manage wallets.'
                 )
+            wallet_type = active_role
 
             url = f"{BACKEND_URL}wallets/bot/list/"
-            params = {'discord_id': interaction.user.id, 'type': wallet_type}
+            params = {'discord_id': interaction.user.id}
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             session = get_http_session()
@@ -281,18 +276,18 @@ class WalletVerifyCommand(commands.Cog):
                         if not unverified:
                             all_verified = all(w.get('is_verified') for w in wallets) if wallets else False
                             if all_verified:
-                                msg = 'All your wallets are already **verified**. Use `/wallet list` to view them.'
+                                msg = 'All wallets are already **verified**. Use `/wallet list` to view them.'
                             else:
-                                msg = 'No unverified wallets found. Use `/wallet register` to add a new one.'
+                                msg = 'No unverified wallets found. Use `/wallet register` to add one.'
                             return error_embed(message=msg)
 
                         embed = create_embed(
                             title="Verify a Wallet",
                             description=(
-                                f"You have **{len(unverified)}** unverified wallet(s). "
+                                f"**{len(unverified)}** unverified wallet(s) found. "
                                 f"Select one from the dropdown below to verify it.\n\n"
-                                f"The first verified wallet will automatically be set as your "
-                                f"**default**."
+                                f"The first verified wallet will automatically be set as "
+                                f"the **default**."
                             ),
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Wallet Verification",
@@ -304,12 +299,12 @@ class WalletVerifyCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Could not load wallets. Please try again.')
+                            message=err_data.get('error', 'Failed to load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallets")
                 return error_embed(
-                    message='Something went wrong. Please try again later.'
+                    message='An unexpected error occurred.'
                 )
         await validate_and_respond(interaction, callback)
 

@@ -285,7 +285,6 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         url = f'{BACKEND_URL}rooms/bot/save-milestones/'
         payload = {
             'discord_id': str(interaction.user.id),
-            'role': 'freelancer',
             'room_id': self.room_data.get('room_id', ''),
             'milestones': self.accumulated,
         }
@@ -458,7 +457,6 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
         url = f'{BACKEND_URL}rooms/bot/update-milestone/'
         payload = {
             'discord_id': str(interaction.user.id),
-            'role': 'freelancer',
             'room_id': self.room_data.get('room_id', ''),
             'milestone_id': self.milestone_id,
             'title': title,
@@ -588,7 +586,6 @@ class InterviewMilestoneDeleteView(discord.ui.View):
         url = f'{BACKEND_URL}rooms/bot/delete-milestone/'
         payload = {
             'discord_id': str(btn_interaction.user.id),
-            'role': 'freelancer',
             'room_id': self.room_data.get('room_id', ''),
             'milestone_id': self.milestone_id,
         }
@@ -899,7 +896,6 @@ class InterviewMilestone(commands.Cog):
             check_url = f'{BACKEND_URL}rooms/bot/check-agreement-budget/'
             params = {
                 'discord_id': str(interaction.user.id),
-                'role': active_role,
                 'room_id': room_id,
             }
 

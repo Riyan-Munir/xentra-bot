@@ -134,7 +134,6 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
 
         session = get_http_session()
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
-        active_role = self.user_data.get('active_role', '')
         room_data = self.room_data
 
         # 1. If parameters provided, verify they exist in the room
@@ -170,7 +169,6 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         # 2. Save complaint via backend
         save_payload = {
             'discord_id': str(interaction.user.id),
-            'role': active_role,
             'room_id': room_data.get('room_id', ''),
             'complaint_data': complaint_text,
         }
@@ -269,7 +267,6 @@ class InterviewComplain(commands.Cog):
             return
 
         async def callback(user_data: dict):
-            active_role = user_data.get('active_role')
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             # ── 1. Use auto-fetched selected room ─────────────────────────

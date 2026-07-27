@@ -129,7 +129,6 @@ class InterviewReview(commands.Cog):
             url = f'{BACKEND_URL}rooms/bot/review-agreement/'
             params = {
                 'discord_id': str(interaction.user.id),
-                'role': active_role,
                 'room_id': room_id,
             }
 

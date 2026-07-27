@@ -49,7 +49,6 @@ class LeaveConfirmView(discord.ui.View):
         self,
         room_id: str,
         job_title: str,
-        role: str,
         user_data: dict,
         room_data: dict,
         headers: dict,
@@ -57,7 +56,6 @@ class LeaveConfirmView(discord.ui.View):
         super().__init__(timeout=120)
         self.room_id = room_id
         self.job_title = job_title
-        self.role = role
         self.user_data = user_data
         self.room_data = room_data
         self.headers = headers
@@ -101,7 +99,6 @@ class LeaveConfirmView(discord.ui.View):
         modal = LeaveReasonModal(
             room_id=self.room_id,
             job_title=self.job_title,
-            role=self.role,
             user_data=self.user_data,
             room_data=self.room_data,
             headers=self.headers,
@@ -133,7 +130,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         self,
         room_id: str,
         job_title: str,
-        role: str,
         user_data: dict,
         room_data: dict,
         headers: dict,
@@ -142,7 +138,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         super().__init__(timeout=300)
         self.room_id = room_id
         self.job_title = job_title
-        self.role = role
         self.user_data = user_data
         self.room_data = room_data
         self.headers = headers
@@ -166,10 +161,11 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         is_dm = interaction.guild is None
         session = get_http_session()
 
+        active_role = self.user_data.get('active_role', '')
+
         # ── Call backend to persist leave + close room ──────────────
         payload = {
             'discord_id': str(interaction.user.id),
-            'role': self.role,
             'room_id': self.room_id,
             'reason': reason_text,
         }
@@ -207,7 +203,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         other_name = leave_data.get('other_name', 'The other party')
 
         # ── Determine sender display name ────────────────────────────
-        if self.role == 'client':
+        if active_role == 'client':
             sender_name = self.room_data.get('client_name', 'Client')
         else:
             sender_name = self.room_data.get('freelancer_name', 'Freelancer')
@@ -268,7 +264,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                     headers=self.headers,
                     closure_type='leave',
                     leave_reason=reason_text,
-                    left_by=self.role,
+                    left_by=active_role,
                 )
             except KeyboardInterrupt:
                 logger.warning('Room closure task interrupted by shutdown')
@@ -318,7 +314,6 @@ class InterviewLeave(commands.Cog):
         """Leave the selected interview room."""
 
         async def callback(user_data: dict):
-            active_role = user_data.get('active_role')
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             room_data = user_data['_selected_room']
@@ -345,7 +340,6 @@ class InterviewLeave(commands.Cog):
             view = LeaveConfirmView(
                 room_id=room_id,
                 job_title=job_title,
-                role=active_role,
                 user_data=user_data,
                 room_data=room_data,
                 headers=headers,

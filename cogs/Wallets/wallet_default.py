@@ -15,8 +15,7 @@ logger = logging.getLogger('bot.wallets.default')
 class NonDefaultWalletSelect(discord.ui.Select):
     """Dropdown of non-default wallets to set as default."""
 
-    def __init__(self, wallets: list[dict], wallet_type: str):
-        self.wallet_type = wallet_type
+    def __init__(self, wallets: list[dict]):
         options = []
         for w in wallets:
             addr = w['address']
@@ -38,6 +37,7 @@ class NonDefaultWalletSelect(discord.ui.Select):
             return
         view: WalletDefaultView = self.view  # type: ignore
         wallet_id = self.values[0]
+        wallet_type = view.wallet_type
 
         await interaction.response.defer()
         await interaction.edit_original_response(
@@ -50,7 +50,6 @@ class NonDefaultWalletSelect(discord.ui.Select):
         payload = {
             'discord_id': str(interaction.user.id),
             'wallet_id': wallet_id,
-            'wallet_type': self.wallet_type,
         }
 
         session = get_http_session()
@@ -60,13 +59,13 @@ class NonDefaultWalletSelect(discord.ui.Select):
                 if resp.status == 200:
                     w = body.get('wallet', body)
                     new_default_id = w.get('id', wallet_id)
-                    msg = f"Wallet **{new_default_id}** is now your **default** wallet."
+                    msg = f"Wallet **{new_default_id}** is now the **default** wallet."
                     await interaction.edit_original_response(
                         embed=success_embed(message=msg),
                         view=None,
                     )
                 else:
-                    err_msg = body.get('error', 'Could not set default wallet. Please try again.')
+                    err_msg = body.get('error', 'Could not set default wallet.')
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -74,7 +73,7 @@ class NonDefaultWalletSelect(discord.ui.Select):
         except Exception:
             logger.exception("Set default wallet failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="Something went wrong. Please try again later."),
+                embed=error_embed(message="An unexpected error occurred."),
                 view=None,
             )
 
@@ -87,7 +86,7 @@ class WalletDefaultView(discord.ui.View):
         self.author_id: int | None = None
         self.wallet_type = wallet_type
         self.wallets = wallets
-        self.add_item(NonDefaultWalletSelect(wallets, wallet_type))
+        self.add_item(NonDefaultWalletSelect(wallets))
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -108,14 +107,14 @@ class WalletDefaultCommand(commands.Cog):
 
         async def callback(user_data):
             active_role = user_data.get('active_role')
-            wallet_type = active_role if active_role in ('freelancer', 'client') else None
-            if not wallet_type:
+            if active_role not in ('freelancer', 'client'):
                 return error_embed(
                     message='Active role must be `freelancer` or `client` to manage wallets.'
                 )
+            wallet_type = active_role
 
             url = f"{BACKEND_URL}wallets/bot/list/"
-            params = {'discord_id': interaction.user.id, 'type': wallet_type}
+            params = {'discord_id': interaction.user.id}
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             session = get_http_session()
@@ -132,16 +131,16 @@ class WalletDefaultCommand(commands.Cog):
                             if not wallets:
                                 msg = 'No registered wallets found. Use `/wallet register` to add one.'
                             elif all(w.get('is_default') for w in wallets if w.get('is_verified')):
-                                msg = 'Your only verified wallet is already your default.'
+                                msg = 'The only verified wallet is already the default.'
                             else:
-                                msg = 'No available wallets to set as default. Verify unverified wallets first with `/wallet verify`.'
+                                msg = 'No available wallets to set as default. Verify unverified wallets with `/wallet verify`.'
                             return error_embed(message=msg)
 
                         embed = create_embed(
                             title="Set Default Wallet",
                             description=(
-                                f"You have **{len(available)}** non-default wallet(s) available. "
-                                f"Select one from the dropdown below to set it as your default."
+                                f"**{len(available)}** non-default wallet(s) available. "
+                                f"Select one from the dropdown below to set it as the default."
                             ),
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Default Wallet",
@@ -153,12 +152,12 @@ class WalletDefaultCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Could not load wallets. Please try again.')
+                            message=err_data.get('error', 'Failed to load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallets")
                 return error_embed(
-                    message='Something went wrong. Please try again later.'
+                    message='An unexpected error occurred.'
                 )
 
         await validate_and_respond(interaction, callback)

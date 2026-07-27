@@ -109,7 +109,6 @@ class SelectedRoomSetupView(discord.ui.View):
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
         room = await fetch_selected_room(
             discord_id=interaction.user.id,
-            role=self.user_data.get("active_role", "client"),
             room_type="interview",
             headers=headers,
         )
