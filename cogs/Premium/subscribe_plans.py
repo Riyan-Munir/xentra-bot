@@ -102,16 +102,18 @@ class PlanDetailView(discord.ui.View):
                     data = await resp.json()
                     callback_token = data.get('callback_token')
                     remaining = data.get('callback_token_remaining_seconds')
+                    payment_id = data.get('payment_id', '')
 
                     plan_name = self.plan.get('tier_display') or self.plan.get('tier', '')
                     amount = data.get('amount') or self.plan.get('effective_price') or self.plan.get('price', '0')
 
                     description = (
-                        f'**Plan**: {plan_name}\n'
+                        f'**Payment ID**: `{payment_id}`\n\n'
+                        f'**Plan**: {plan_name}\n\n'
                         f'**Amount**: `${amount}` USDT\n'
                     )
                     if self.target_user_id:
-                        description += f'**Gift for**: {self.target_user_id}\n'
+                        description += f'\n**Gift for**: {self.target_user_id}\n'
 
                     payment_link = f'{FRONTEND_URL}/payment/{callback_token}'
 
