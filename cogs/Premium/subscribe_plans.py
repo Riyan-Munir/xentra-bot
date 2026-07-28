@@ -150,16 +150,15 @@ class PlanDetailView(discord.ui.View):
                         seconds = remaining % 60
                         time_info = f'\nRemaining: **{minutes}m {seconds}s**'
 
-                    embed = warning_embed(
+                    embed = info_embed(
                         message=(
                             f'You already have a pending payment (**{existing_id}**).\n'
                             f'Plan: {existing_plan} | Amount: `${existing_amount}`{time_info}\n\n'
                             'Please complete the following payment first. You can cancel it '
                             'from the Xentra dashboard if needed.'
-                        ),
-                        title='Pending Payment Exists',
+                        )
                     )
-                    await interaction.edit_original_response(embed=embed, view=self)
+                    await interaction.edit_original_response(embed=embed, view=None)
 
                 elif resp.status == 400:
                     try:
