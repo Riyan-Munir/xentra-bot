@@ -119,6 +119,8 @@ class SubscribeHistoryCommand(commands.Cog):
     @app_commands.checks.cooldown(2, 10, key=lambda i: i.user.id)
     async def subscribe_history(self, interaction: discord.Interaction):
         async def callback(user_data):
+            # discord_id isn't echoed by the backend, so inject it here
+            user_data['discord_id'] = str(interaction.user.id)
             url = f"{BACKEND_URL}premium/bot/history/"
             params = {
                 'discord_id': user_data['discord_id'],

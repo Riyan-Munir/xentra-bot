@@ -185,6 +185,8 @@ class SubscribePlansCommand(commands.Cog):
         user_id: Optional[str] = None,
     ):
         async def callback(user_data):
+            # discord_id isn't echoed by the backend, so inject it here
+            user_data['discord_id'] = str(interaction.user.id)
             url = f"{BACKEND_URL}premium/bot/plans/"
             params = {'discord_id': user_data['discord_id']}
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}

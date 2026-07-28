@@ -26,6 +26,8 @@ class SubscribeStatusCommand(commands.Cog):
     @app_commands.checks.cooldown(2, 10, key=lambda i: i.user.id)
     async def subscribe_status(self, interaction: discord.Interaction):
         async def callback(user_data):
+            # discord_id isn't echoed by the backend, so inject it here
+            user_data['discord_id'] = str(interaction.user.id)
             url = f"{BACKEND_URL}premium/bot/active/"
             params = {'discord_id': user_data['discord_id']}
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
