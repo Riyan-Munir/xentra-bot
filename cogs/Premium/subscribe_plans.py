@@ -119,14 +119,14 @@ class PlanDetailView(discord.ui.View):
                     if remaining is not None:
                         minutes = remaining // 60
                         seconds = remaining % 60
-                        time_info = f'\n\n⏱ This payment link expires in **{minutes}m {seconds}s**.'
+                        time_info = f'\n\nThis payment link expires in **{minutes}m {seconds}s**.'
 
                     embed = create_embed(
-                        title='\u2705 Pending Payment Created',
+                        title='Pending Payment Created',
                         description=(
                             f'{description}\n'
                             f'\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\n'
-                            f'\U0001f517 **Xentra Payment**: [Click here to pay]({payment_link})\n'
+                            f'**Xentra Payment**: [Click here to pay]({payment_link})\n'
                             f'You will be redirected to the Xentra payment page to complete the transaction.{time_info}'
                         ),
                         color=BrandColor.SUCCESS,
@@ -146,7 +146,7 @@ class PlanDetailView(discord.ui.View):
                     if remaining is not None:
                         minutes = remaining // 60
                         seconds = remaining % 60
-                        time_info = f'\n\u23f1 Remaining: **{minutes}m {seconds}s**'
+                        time_info = f'\nRemaining: **{minutes}m {seconds}s**'
 
                     embed = warning_embed(
                         message=(
