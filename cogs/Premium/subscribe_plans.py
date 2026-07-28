@@ -6,9 +6,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import BACKEND_URL, WEBHOOK_SECRET
+from config import BACKEND_URL, FRONTEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
-from utils.embeds import BrandColor, create_embed, error_embed, info_embed
+from utils.embeds import BrandColor, create_embed, error_embed, info_embed, success_embed, warning_embed
 from utils.http import get_http_session
 from utils.role_selector import ProfileRoleView
 from utils.userid_resolver import resolve_user_id
@@ -46,19 +46,21 @@ class PlanSelect(discord.ui.Select):
         selected_id = self.values[0]
         plan = next((p for p in self.plans if str(p.get('id', '')) == selected_id), None)
         if not plan:
-            await interaction.response.send_message(
-                embed=error_embed('Selected plan not found.'), ephemeral=True,
+            # Edit the existing message instead of sending a new ephemeral
+            await interaction.response.edit_message(
+                embed=error_embed('Selected plan not found.'), view=None,
             )
             return
         await self.view.show_plan_detail(interaction, plan)
 
 
 class PlanDetailView(discord.ui.View):
-    """View showing selected plan detail with back/close buttons."""
+    """View showing selected plan detail with subscribe/close buttons."""
 
-    def __init__(self, plans: list[dict], target_user_id: Optional[str] = None, user_data: Optional[dict] = None) -> None:
+    def __init__(self, plan: dict, plans: list[dict], target_user_id: Optional[str] = None, user_data: Optional[dict] = None) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self.plan = plan
         self.plans = plans
         self.target_user_id = target_user_id
         self.user_data = user_data or {}
@@ -66,14 +68,122 @@ class PlanDetailView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label='\u2190 Back to Plans', style=discord.ButtonStyle.gray)
-    async def back_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+    @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.green)
+    async def subscribe_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
-        embed = self._build_plans_embed(self.plans)
-        view = PlansView(self.plans, target_user_id=self.target_user_id, user_data=self.user_data)
-        view.author_id = interaction.user.id
-        await interaction.response.edit_message(embed=embed, view=view)
+
+        await interaction.response.defer()
+
+        plan_id = self.plan.get('id')
+        discord_id = self.user_data.get('discord_id')
+        if not discord_id or not plan_id:
+            await interaction.edit_original_response(
+                embed=error_embed('Missing user or plan information. Please try again.'),
+                view=None,
+            )
+            return
+
+        # Build request payload
+        payload = {
+            'discord_id': discord_id,
+            'plan_id': plan_id,
+        }
+        if self.target_user_id:
+            payload['giftee_system_id'] = self.target_user_id
+
+        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+        session = get_http_session()
+        url = f"{BACKEND_URL}premium/bot/create-payment/"
+
+        try:
+            async with session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 201:
+                    data = await resp.json()
+                    callback_token = data.get('callback_token')
+                    remaining = data.get('callback_token_remaining_seconds')
+
+                    plan_name = self.plan.get('tier_display') or self.plan.get('tier', '')
+                    amount = data.get('amount') or self.plan.get('effective_price') or self.plan.get('price', '0')
+
+                    description = (
+                        f'**Plan**: {plan_name}\n'
+                        f'**Amount**: `${amount}` USDT\n'
+                    )
+                    if self.target_user_id:
+                        description += f'**Gift for**: {self.target_user_id}\n'
+
+                    payment_link = f'{FRONTEND_URL}/payment/{callback_token}'
+
+                    time_info = ''
+                    if remaining is not None:
+                        minutes = remaining // 60
+                        seconds = remaining % 60
+                        time_info = f'\n\n⏱ This payment link expires in **{minutes}m {seconds}s**.'
+
+                    embed = create_embed(
+                        title='\u2705 Pending Payment Created',
+                        description=(
+                            f'{description}\n'
+                            f'\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\n'
+                            f'\U0001f517 **Xentra Payment**: [Click here to pay]({payment_link})\n'
+                            f'You will be redirected to the Xentra payment page to complete the transaction.{time_info}'
+                        ),
+                        color=BrandColor.SUCCESS,
+                        footer='Xentra \u2022 Payment Pending',
+                    )
+                    self.stop()
+                    await interaction.edit_original_response(embed=embed, view=None)
+
+                elif resp.status == 409:
+                    data = await resp.json()
+                    existing_id = data.get('existing_payment_id', 'Unknown')
+                    existing_plan = data.get('existing_plan_name', '')
+                    existing_amount = data.get('existing_amount', '')
+                    remaining = data.get('existing_token_remaining_seconds')
+
+                    time_info = ''
+                    if remaining is not None:
+                        minutes = remaining // 60
+                        seconds = remaining % 60
+                        time_info = f'\n\u23f1 Remaining: **{minutes}m {seconds}s**'
+
+                    embed = warning_embed(
+                        message=(
+                            f'You already have a pending payment (**{existing_id}**).\n'
+                            f'Plan: {existing_plan} | Amount: `${existing_amount}`{time_info}\n\n'
+                            'Please complete the following payment first. You can cancel it '
+                            'from the Xentra dashboard if needed.'
+                        ),
+                        title='Pending Payment Exists',
+                    )
+                    await interaction.edit_original_response(embed=embed, view=self)
+
+                elif resp.status == 400:
+                    try:
+                        err = await resp.json()
+                        msg = err.get('error', 'Failed to create payment.')
+                    except Exception:
+                        msg = 'Failed to create payment.'
+                    await interaction.edit_original_response(
+                        embed=error_embed(msg), view=None,
+                    )
+
+                else:
+                    try:
+                        err = await resp.json()
+                        msg = err.get('error', 'An unexpected error occurred.')
+                    except Exception:
+                        msg = 'An unexpected error occurred. Please try again later.'
+                    await interaction.edit_original_response(
+                        embed=error_embed(msg), view=None,
+                    )
+        except Exception:
+            logger.exception("Failed to create premium payment from bot")
+            await interaction.edit_original_response(
+                embed=error_embed("An unexpected error occurred. Please try again later."),
+                view=None,
+            )
 
     @discord.ui.button(label='Close', style=discord.ButtonStyle.red)
     async def close_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
@@ -154,18 +264,9 @@ class PlansView(discord.ui.View):
         embed.add_field(name='Duration', value=f'{duration} days', inline=True)
         embed.add_field(name='Billing', value=interval, inline=True)
 
-        view = PlanDetailView(self.plans, target_user_id=self.target_user_id, user_data=self.user_data)
+        view = PlanDetailView(plan, self.plans, target_user_id=self.target_user_id, user_data=self.user_data)
         view.author_id = interaction.user.id
         await interaction.response.edit_message(embed=embed, view=view)
-
-    @discord.ui.button(label='\u2190 Back', style=discord.ButtonStyle.gray, row=2)
-    async def back_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
-        if not is_author(interaction, self):
-            return
-        self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed('Plans browsing cancelled.'), view=None,
-        )
 
 
 class SubscribePlansCommand(commands.Cog):
@@ -187,7 +288,7 @@ class SubscribePlansCommand(commands.Cog):
         async def _fetch_plans(discord_id: str, role: str | None = None) -> tuple[list[dict] | None, str | None]:
             """Fetch plans from the backend, optionally filtered by role.
 
-            Returns (plans_list, error_msg) — one of which is None.
+            Returns (plans_list, error_msg) \u2014 one of which is None.
             """
             url = f"{BACKEND_URL}premium/bot/plans/"
             params = {'discord_id': discord_id}
@@ -251,8 +352,7 @@ class SubscribePlansCommand(commands.Cog):
                     description=(
                         f'You are browsing plans to gift to **{gift_result.original}** '
                         f'(**{role_label}**).\n\n'
-                        'Select a plan below to view details and purchase via the '
-                        'Xentra web dashboard.'
+                        'Select a plan below to view details and subscribe.'
                     ),
                     color=BrandColor.PRIMARY,
                     footer='Xentra \u2022 Gift Subscription',
@@ -292,8 +392,7 @@ class SubscribePlansCommand(commands.Cog):
                                     description=(
                                         f'You are browsing plans to gift to **{display_id}** '
                                         f'(**{role_label}**).\n\n'
-                                        'Select a plan below to view details and purchase '
-                                        'via the Xentra web dashboard.'
+                                        'Select a plan below to view details and subscribe.'
                                     ),
                                     color=BrandColor.PRIMARY,
                                     footer='Xentra \u2022 Gift Subscription',

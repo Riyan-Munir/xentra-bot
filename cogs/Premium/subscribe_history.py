@@ -24,7 +24,7 @@ class HistoryPaginationView(PaginationView):
         self._page_data: list[dict] = []
 
     async def change_page(self, interaction: discord.Interaction, new_page: int):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         embed = loading_embed("Fetching subscription history\u2026")
         await interaction.edit_original_response(embed=embed, view=None)
 
