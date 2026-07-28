@@ -34,6 +34,9 @@ class HistoryPaginationView(PaginationView):
             'page': new_page,
             'page_size': HISTORY_PAGE_SIZE,
         }
+        role = self.user_data.get('active_role')
+        if role in ('freelancer', 'client'):
+            params['role'] = role
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         session = get_http_session()
         try:
@@ -127,6 +130,10 @@ class SubscribeHistoryCommand(commands.Cog):
                 'page': 1,
                 'page_size': HISTORY_PAGE_SIZE,
             }
+            # Only show history for the user's active role
+            role = user_data.get('active_role')
+            if role in ('freelancer', 'client'):
+                params['role'] = role
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             try:

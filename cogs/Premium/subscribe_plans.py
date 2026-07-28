@@ -184,11 +184,15 @@ class SubscribePlansCommand(commands.Cog):
         interaction: discord.Interaction,
         user_id: Optional[str] = None,
     ):
-        async def callback(user_data):
-            # discord_id isn't echoed by the backend, so inject it here
-            user_data['discord_id'] = str(interaction.user.id)
+        async def _fetch_plans(discord_id: str, role: str | None = None) -> tuple[list[dict] | None, str | None]:
+            """Fetch plans from the backend, optionally filtered by role.
+
+            Returns (plans_list, error_msg) — one of which is None.
+            """
             url = f"{BACKEND_URL}premium/bot/plans/"
-            params = {'discord_id': user_data['discord_id']}
+            params = {'discord_id': discord_id}
+            if role:
+                params['role'] = role
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             try:
@@ -196,35 +200,56 @@ class SubscribePlansCommand(commands.Cog):
                     if resp.status != 200:
                         try:
                             err = await resp.json()
-                            msg = err.get('error', 'Failed to fetch plans.')
+                            return None, err.get('error', 'Failed to fetch plans.')
                         except Exception:
-                            msg = 'Failed to fetch plans.'
-                        return error_embed(msg)
+                            return None, 'Failed to fetch plans.'
                     data = await resp.json()
             except Exception:
                 logger.exception("Failed to fetch premium plans")
-                return error_embed("An unexpected error occurred. Please try again later.")
+                return None, "An unexpected error occurred. Please try again later."
 
             plans = data.get('plans', [])
             if not plans:
-                return error_embed('No subscription plans are currently available.')
+                return None, 'No subscription plans are currently available.'
+            return plans, None
 
-            # If no user_id is provided, show the plans list directly
+        async def callback(user_data):
+            # discord_id isn't echoed by the backend, so inject it here
+            user_data['discord_id'] = str(interaction.user.id)
+
+            # ── Determine role for plan filtering ─────────────────────
+            # Self (no user_id) → use active_role from user_data
+            # System-ID gift → role is encoded in the prefix
+            # Premium-ID gift → role unknown yet → no filter
+            gift_result = None
+            role_for_plans = None
+            if not user_id:
+                role_for_plans = user_data.get('active_role')
+            else:
+                gift_result = resolve_user_id(user_id)
+                if gift_result.is_system:
+                    role_for_plans = gift_result.role
+
+            # ── Fetch plans ────────────────────────────────────────────
+            plans, err = await _fetch_plans(user_data['discord_id'], role_for_plans)
+            if err:
+                return error_embed(err)
+
+            # ── Self: no user_id → show plans for own role ─────────────
             if not user_id:
                 embed = PlanDetailView._build_plans_embed(plans)
                 view = PlansView(plans, user_data=user_data)
                 view.author_id = interaction.user.id
                 return embed, view
 
-            # ── user_id provided → gifting flow ──────────────────────────
-            result = resolve_user_id(user_id)
-            if result.is_system:
+            # ── user_id provided → gifting flow ────────────────────────
+            if gift_result.is_system:
                 # System ID (FRL_/CLI_/SER_) — role is known
-                role_label = result.role.replace('_', ' ').title()
+                role_label = gift_result.role.replace('_', ' ').title()
                 embed = create_embed(
                     title='Gift Subscription',
                     description=(
-                        f'You are browsing plans to gift to **{result.original}** '
+                        f'You are browsing plans to gift to **{gift_result.original}** '
                         f'(**{role_label}**).\n\n'
                         'Select a plan below to view details and purchase via the '
                         'Xentra web dashboard.'
@@ -232,23 +257,32 @@ class SubscribePlansCommand(commands.Cog):
                     color=BrandColor.PRIMARY,
                     footer='Xentra \u2022 Gift Subscription',
                 )
-                view = PlansView(plans, target_user_id=result.original, user_data=user_data)
+                view = PlansView(plans, target_user_id=gift_result.original, user_data=user_data)
                 view.author_id = interaction.user.id
                 return embed, view
             else:
                 # Premium ID — needs role selection via ProfileRoleView
                 async def premium_gift_callback(inter, role, identifier, view):
                     """Called after user selects a role for the premium ID."""
+                    # Fetch plans filtered to the selected gift role
+                    role_plans, fetch_err = await _fetch_plans(user_data['discord_id'], role)
+                    if fetch_err or not role_plans:
+                        await inter.response.edit_message(
+                            embed=error_embed(fetch_err or 'No plans available for this role.'),
+                            view=None,
+                        )
+                        return
+
                     resolve_url = f"{BACKEND_URL}users/resolve-id/"
                     packet = BotPacketFactory.create_packet(
                         packet_type="user_resolve_id",
                         data={'raw_id': f"{role}:{identifier}"},
                         provider="bot",
                     )
-                    headers = {'X-Webhook-Token': WEBHOOK_SECRET}
-                    session = get_http_session()
+                    hdrs = {'X-Webhook-Token': WEBHOOK_SECRET}
+                    sess = get_http_session()
                     try:
-                        async with session.post(resolve_url, json=packet.to_dict(), headers=headers) as resp:
+                        async with sess.post(resolve_url, json=packet.to_dict(), headers=hdrs) as resp:
                             if resp.status == 200:
                                 res = await resp.json()
                                 display_id = res.get('canonical_id', identifier)
@@ -265,16 +299,16 @@ class SubscribePlansCommand(commands.Cog):
                                     footer='Xentra \u2022 Gift Subscription',
                                 )
                                 plans_view = PlansView(
-                                    plans, target_user_id=display_id, user_data=user_data,
+                                    role_plans, target_user_id=display_id, user_data=user_data,
                                 )
                                 plans_view.author_id = inter.user.id
                                 await inter.response.edit_message(
                                     embed=embed, view=plans_view,
                                 )
                             else:
-                                err = await resp.json()
+                                err_resp = await resp.json()
                                 err_embed = error_embed(
-                                    err.get('error', 'This ID is not valid for the selected role.')
+                                    err_resp.get('error', 'This ID is not valid for the selected role.')
                                 )
                                 await inter.response.edit_message(
                                     embed=err_embed, view=None,
@@ -286,7 +320,7 @@ class SubscribePlansCommand(commands.Cog):
                         )
 
                 role_view = ProfileRoleView(
-                    result.normalized,
+                    gift_result.normalized,
                     premium_gift_callback,
                     user_data,
                 )
@@ -294,7 +328,7 @@ class SubscribePlansCommand(commands.Cog):
                 embed = create_embed(
                     title='Role Selection Required',
                     description=(
-                        f'The ID **{result.original}** is a custom Premium ID. '
+                        f'The ID **{gift_result.original}** is a custom Premium ID. '
                         'Please select the target role perspective for gifting:'
                     ),
                     color=BrandColor.PRIMARY,

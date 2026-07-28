@@ -30,6 +30,10 @@ class SubscribeStatusCommand(commands.Cog):
             user_data['discord_id'] = str(interaction.user.id)
             url = f"{BACKEND_URL}premium/bot/active/"
             params = {'discord_id': user_data['discord_id']}
+            # Only show status for the user's active role
+            role = user_data.get('active_role')
+            if role in ('freelancer', 'client'):
+                params['role'] = role
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             try:
