@@ -45,7 +45,7 @@ class JobBudgetFilterSelect(discord.ui.Select):
             discord.SelectOption(label="Medium", value="medium"),
             discord.SelectOption(label="High", value="high")
         ]
-        super().__init__(placeholder="Select Budget (Default: Any)", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Select Budget", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
@@ -62,7 +62,7 @@ class JobOrderFilterSelect(discord.ui.Select):
             discord.SelectOption(label="Lowest Pay", value="budget_max_asc"),
             discord.SelectOption(label="Soonest Deadline", value="deadline")
         ]
-        super().__init__(placeholder="Sort By (Default: Newest)", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Sort By", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
@@ -90,7 +90,7 @@ class JobsListFilterView(discord.ui.View):
         send_btn.callback = self.on_send
         self.add_item(send_btn)
         
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, row=3)
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary, row=3)
         cancel_btn.callback = self.on_cancel
         self.add_item(cancel_btn)
 
@@ -135,14 +135,14 @@ class JobsListFilterView(discord.ui.View):
         try:
             session = get_http_session()
             async with session.get(url, params=params, headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         data = await resp.json()
                         total_count = data['count']
                         jobs_list = data['results']
                         
                         if total_count == 0:
                             await interaction.edit_original_response(
-                                embed=error_embed(message="No jobs match your search filters."),
+                                embed=info_embed(message="No jobs match the search filters."),
                                 view=None,
                             )
                             return
@@ -159,13 +159,13 @@ class JobsListFilterView(discord.ui.View):
                     else:
                         err_data = await resp.json()
                         await interaction.edit_original_response(
-                            embed=error_embed(message=err_data.get('error', 'Could not load jobs. Please try again.')),
+                            embed=error_embed(message=err_data.get('error', 'Could not load jobs.')),
                             view=None,
                         )
         except Exception as e:
             logger.error(f"Error querying jobs/bot/list/: {e}")
             await interaction.edit_original_response(
-                embed=error_embed(message="Something went wrong. Please try again."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
 
@@ -174,6 +174,7 @@ class JobsDiscoverPaginationView(PaginationView):
     def __init__(self, jobs_data, current_page, total_count, user_data, category="", budget_level="", sort_by="", featured=None):
         total_pages = (total_count + 4) // 5
         super().__init__(current_page=current_page, total_pages=total_pages, user_data=user_data)
+        self.author_id = None
         self.jobs = jobs_data
         self.total_count = total_count
         self.category = category
@@ -182,6 +183,8 @@ class JobsDiscoverPaginationView(PaginationView):
         self.featured = featured
     
     async def change_page(self, interaction: discord.Interaction, new_page):
+        if not is_author(interaction, self):
+            return
         url = f"{BACKEND_URL}jobs/bot/list/"
         params = {
             'discord_id': interaction.user.id,
@@ -203,16 +206,16 @@ class JobsDiscoverPaginationView(PaginationView):
         try:
             session = get_http_session()
             async with session.get(url, params=params, headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         data = await resp.json()
                         self.jobs = data['results']
                         self.current_page = new_page
                         await self.update_message(interaction)
                     else:
-                        await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=self)
+                        await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=self)
         except Exception as e:
             logger.error(f"Error querying jobs/bot/list/: {e}")
-            await interaction.response.edit_message(embed=error_embed(message="Something went wrong. Please try again."), view=self)
+            await interaction.response.edit_message(embed=error_embed(message="The service is temporarily unavailable."), view=self)
     
     def build_embed(self):
         # Premium Styling Detection
@@ -255,6 +258,8 @@ class JobsDiscoverPaginationView(PaginationView):
 
 
 class JobsList(commands.Cog):
+    """``/jobs_list``, Discover and filter job opportunities."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -287,13 +292,13 @@ class JobsList(commands.Cog):
                 try:
                     session = get_http_session()
                     async with session.get(url, params=params, headers=headers) as resp:
-                        if resp.status == 200:
+                        if resp.status in (200, 201):
                             data = await resp.json()
                             total_count = data['count']
                             jobs_list = data['results']
 
                             if total_count == 0:
-                                return error_embed(message="No jobs posted in this server yet.")
+                                return info_embed(message="No jobs posted by Clients of this server.")
 
                             view = JobsDiscoverPaginationView(
                                 jobs_list, 1, total_count, user_data,
@@ -306,19 +311,19 @@ class JobsList(commands.Cog):
                             return embed, view
                         else:
                             err_data = await resp.json()
-                            return error_embed(message=err_data.get('error', 'Could not load jobs. Please try again.'))
+                            return error_embed(message=err_data.get('error', 'Could not load jobs.'))
                 except Exception as e:
                     logger.error(f"Error querying jobs/bot/list/: {e}")
-                    return error_embed(message="Something went wrong. Please try again.")
+                    return error_embed(message="The service is temporarily unavailable.")
 
             # Freelancer Flow: Interactive search filters configuration
             embed = create_embed(
                 title="Discover Jobs",
                 description=(
                     "**Configure Filters**: Use the dropdowns below to narrow down your search.\n"
-                    "**Category**: Filter by job type (Default: All Categories).\n"
-                    "**Budget**: Filter by budget tier (Default: Any Budget).\n"
-                    "**Sort By**: Choose your preferred ordering (Default: Newest First).\n\n"
+                    "**Category**: Filter by job type.\n"
+                    "**Budget**: Filter by budget tier.\n"
+                    "**Sort By**: Choose your preferred ordering.\n\n"
                     + (f"**Featured Mode**: Showing only featured jobs.\n" if featured else "")
                 ),
                 color=BrandColor.PREMIUM if featured else BrandColor.PRIMARY,

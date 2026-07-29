@@ -83,7 +83,7 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
             # Re-open the same modal via retry button
             view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
             await interaction.response.edit_message(
-                embed=error_embed(message='Please enter a valid number (1-10).'),
+                embed=error_embed(message='Enter a valid number (1-10).'),
                 view=view,
             )
             return
@@ -211,7 +211,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             return
 
         if budget <= 0:
-            await self._fail(interaction, 'Budget must be greater than zero.',
+            await self._fail(interaction, 'Budget must be a valid number.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
@@ -295,7 +295,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                 if resp.status != 200:
                     await interaction.response.edit_message(
                         embed=error_embed(
-                            message='Could not save milestones. Please try again.',
+                            message='Could not save milestones.',
                         ),
                         view=None,
                     )
@@ -345,7 +345,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             logger.exception('Failed to save milestones to backend')
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message='The service is temporarily unavailable. Please try again later.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -444,7 +444,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
 
         if budget <= 0:
             await interaction.response.edit_message(
-                embed=error_embed(message='Budget must be greater than zero.'),
+                embed=error_embed(message='Budget must be a valid number.'),
                 view=None,
             )
             return
@@ -474,7 +474,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                 if resp.status != 200:
                     await interaction.response.edit_message(
                         embed=error_embed(
-                            message=body.get('error', 'Failed to update milestone.'),
+                            message=body.get('error', 'Could not update milestone.'),
                         ),
                         view=None,
                     )
@@ -519,7 +519,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
             logger.exception('Failed to update milestone')
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message='Could not update milestone due to a system error.',
+                    message='Could not update milestone.',
                 ),
                 view=None,
             )
@@ -596,7 +596,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                 if resp.status != 200:
                     await btn_interaction.response.edit_message(
                         embed=error_embed(
-                            message=body.get('error', 'Failed to delete milestone.'),
+                            message=body.get('error', 'Could not delete milestone.'),
                         ),
                         view=None,
                     )
@@ -641,7 +641,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
             logger.exception('Failed to delete milestone')
             await btn_interaction.response.edit_message(
                 embed=error_embed(
-                    message='Could not delete milestone due to a system error.',
+                    message='Could not delete milestone.',
                 ),
                 view=None,
             )
@@ -725,7 +725,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
         )
         if not milestone_data:
             await interaction.response.edit_message(
-                embed=error_embed(message='Milestone not found.'),
+                embed=error_embed(message='Could not found milestone.'),
                 view=None,
             )
             return
@@ -769,7 +769,7 @@ class InterviewMilestoneActionView(discord.ui.View):
             discord.SelectOption(
                 label='Add Milestone',
                 value='add',
-                description='Add a new milestone (max 10 total)',
+                description='Add a new milestone (max 10)',
             ),
         ]
         if milestones:
@@ -784,7 +784,7 @@ class InterviewMilestoneActionView(discord.ui.View):
                 discord.SelectOption(
                     label='Delete Milestone',
                     value='delete',
-                    description='Remove a milestone and re-order',
+                    description='Remove a milestone',
                 ),
             )
 
@@ -874,7 +874,7 @@ class InterviewMilestone(commands.Cog):
 
     @app_commands.command(
         name='interview_milestone',
-        description='Manage milestones for the job in the selected interview room.',
+        description='...',
     )
     @app_commands.checks.cooldown(1, 15, key=lambda i: i.user.id)
     async def interview_milestone(
@@ -904,7 +904,7 @@ class InterviewMilestone(commands.Cog):
                     body = await resp.json()
                     if resp.status != 200:
                         return error_embed(
-                            message=body.get('error', 'Failed to check agreement.'),
+                            message=body.get('error', 'Could not check agreement.'),
                         )
 
                     if not body.get('has_budget'):
@@ -917,7 +917,7 @@ class InterviewMilestone(commands.Cog):
             except Exception:
                 logger.exception('Failed to check agreement budget')
                 return error_embed(
-                    message='Unable to reach the backend service. Please try again later.',
+                    message='The service is temporarily unavailable.',
                 )
 
             # ── 3a. CASE B, Milestones exist → show action view ────────────

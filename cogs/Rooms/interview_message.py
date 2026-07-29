@@ -298,7 +298,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message='File upload timed out. Press **Attach** again to retry.'
+                    message='File upload timed out.'
                 ),
                 ephemeral=True,
             )
@@ -311,9 +311,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message=f'Too many files (max {MAX_ATTACHMENTS}). '
-                    f'You tried to add {len(file_msg.attachments)} but only '
-                    f'{MAX_ATTACHMENTS - len(self.attachments)} slot(s) remain.'
+                    message=f'Too many files (max {MAX_ATTACHMENTS}).'
                 ),
                 ephemeral=True,
             )
@@ -326,9 +324,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message=f'Combined file size exceeds {MAX_TOTAL_SIZE_MB} MB '
-                    f'({total_size / (1024 * 1024):.1f} MB). '
-                    f'Please select smaller files.'
+                    message=f'Total file size exceeds {MAX_TOTAL_SIZE_MB} MB. '
                 ),
                 ephemeral=True,
             )
@@ -437,7 +433,7 @@ class InterviewMessageConfirmView(discord.ui.View):
         if not receiver_discord_id:
             await _edit_msg_done(
                 self,
-                error_embed(message='Could not determine the receiver. Please try again.'),
+                error_embed(message='Could not determine the receiver.'),
             )
             self.stop()
             return
@@ -478,7 +474,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                     err_msg = err_data.get('error', 'Unknown error')
                     await _edit_msg_done(
                         self,
-                        error_embed(message=f'Failed to save message: {err_msg}'),
+                        error_embed(message=f'Could not save the message.'),
                     )
                     self.stop()
                     return
@@ -489,8 +485,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await _edit_msg_done(
                 self,
                 error_embed(
-                    message='Could not save the message due to a system error. '
-                    'Please try again later.',
+                    message='Could not save the message. ',
                 ),
             )
             self.stop()
@@ -648,13 +643,13 @@ class InterviewMessage(commands.Cog):
                             return error_embed(
                                 message=err_data.get(
                                     'error',
-                                    f'Message ID `{message_id}` not found in this room.',
+                                    f'Could not found Message ID `{message_id}` in this room.',
                                 ),
                             )
                 except Exception:
                     logger.exception('Failed to verify message reference')
                     return error_embed(
-                        message='Could not verify the message reference. Please try again.',
+                        message='Could not verify the message reference.',
                     )
 
             # Merge profile display name into user_data

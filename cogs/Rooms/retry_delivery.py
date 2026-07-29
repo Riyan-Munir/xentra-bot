@@ -64,18 +64,18 @@ class InterviewDelivery(commands.Cog):
                     if resp.status != 200:
                         err_data = await resp.json()
                         return error_embed(
-                            message='Could not check pending deliveries. Please try again.',
+                            message='Could not check pending deliveries.',
                         )
                     data = await resp.json()
             except Exception:
                 logger.exception('Failed to fetch pending deliveries')
-                return error_embed(message='The service is temporarily unavailable. Please try again later.')
+                return error_embed(message='The service is temporarily unavailable.')
 
             pending = data.get('pending', [])
 
             if not pending:
                 return success_embed(
-                    message='All system messages delivered successfully.',
+                    message='All room messages delivered successfully.',
                 )
 
             # ── 2. Re-attempt each delivery ─────────────────────────────

@@ -118,14 +118,14 @@ class AgreementConfirmView(discord.ui.View):
         except Exception:
             logger.exception('Failed to reach accept-agreement endpoint')
             await interaction.edit_original_response(
-                embed=error_embed('Unable to reach the backend service. Please try again later.'),
+                embed=error_embed('The service is temporarily unavailable.'),
                 view=None,
             )
             return
 
         if body.get('status') == 'error':
             await interaction.edit_original_response(
-                embed=error_embed(body.get('message', 'Failed to sign the agreement.')),
+                embed=error_embed(body.get('message', 'Could not sign the agreement.')),
                 view=None,
             )
             return
@@ -420,7 +420,7 @@ class InterviewAgreement(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach process-agreement endpoint')
                 return error_embed(
-                    message='Unable to reach the backend service. Please try again later.',
+                    message='The service is temporarily unavailable.',
                 )
 
             # ── 3. Handle error codes with role-aware messages ──────────

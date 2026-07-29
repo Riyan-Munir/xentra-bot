@@ -6,7 +6,7 @@ import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import (
-    BrandColor, create_embed, error_embed, success_embed, info_embed, loading_embed,
+    BrandColor, create_embed, error_embed, success_embed, info_embed,
 )
 
 logger = logging.getLogger('bot.wallets.remove')
@@ -92,11 +92,6 @@ class WalletRemoveConfirmView(discord.ui.View):
         await interaction.response.defer()
         await self._disable_all()
 
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Removing wallet..."),
-            view=self,
-        )
-
         url = f"{BACKEND_URL}wallets/bot/disable/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         payload = {
@@ -123,7 +118,7 @@ class WalletRemoveConfirmView(discord.ui.View):
         except Exception:
             logger.exception("Remove wallet failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="An unexpected error occurred."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
 
@@ -154,7 +149,7 @@ class WalletRemoveView(discord.ui.View):
         self.stop()
 
 
-class WalletRemoveCommand(commands.Cog):
+class WalletRemove(commands.Cog):
     """``/wallet remove``, Remove a registered wallet (default wallet cannot be removed)."""
 
     def __init__(self, bot):
@@ -213,16 +208,16 @@ class WalletRemoveCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Failed to load wallets.')
+                            message=err_data.get('error', 'Could not load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallets")
                 return error_embed(
-                    message='An unexpected error occurred.'
+                    message='The service is temporarily unavailable.'
                 )
 
         await validate_and_respond(interaction, callback)
 
 
 async def setup(bot):
-    await bot.add_cog(WalletRemoveCommand(bot))
+    await bot.add_cog(WalletRemove(bot))

@@ -138,7 +138,7 @@ class InterviewReview(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach review-agreement endpoint')
                 return error_embed(
-                    message='The service is temporarily unavailable. Please try again later.',
+                    message='The service is temporarily unavailable.',
                 )
 
             # ── 3. Handle error codes with role-aware messages ──────────
@@ -159,7 +159,7 @@ class InterviewReview(commands.Cog):
                     await self._notify_other_party(
                         body, room_id, job_title,
                         f'Requested review of Job Agreement. Requires {client_name} '
-                        f'to set the final budget via `/interview_budget`.',
+                        f'to set the final budget via `/interview budget`.',
                         interaction.client,
                         session, headers,
                     )
@@ -186,7 +186,7 @@ class InterviewReview(commands.Cog):
                     if is_freelancer:
                         return error_embed(
                             message='No milestones have been configured yet. '
-                            'Use `/interview_milestone` to create them and re-run this command.',
+                            'Use `/interview milestone` to create them.',
                         )
                     else:
                         return error_embed(
@@ -209,7 +209,7 @@ class InterviewReview(commands.Cog):
                         return error_embed(
                             message=f'Total milestone budget (${total}) does not match the '
                             f'final budget (${final_budget}). '
-                            f'Use `/interview_milestone` to adjust milestone budgets.',
+                            f'Use `/interview milestone` to adjust milestone budgets.',
                         )
                     else:
                         return error_embed(
@@ -236,7 +236,7 @@ class InterviewReview(commands.Cog):
                     else:
                         return error_embed(
                             message=f'Milestone deadlines contain ordering conflicts. '
-                            f'**{freelancer_name}** has been notified.',
+                            f'A notification has been sent to **{freelancer_name}**.',
                         )
 
                 # JOB_DEADLINE_EXCEEDED, last milestone past job deadline
@@ -247,24 +247,24 @@ class InterviewReview(commands.Cog):
                         return error_embed(
                             message=f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
                             f'job deadline (`{job_deadline}`). '
-                            f'Use `/interview_milestone` to adjust milestone deadlines.',
+                            f'Use `/interview milestone` to adjust milestone deadlines.',
                         )
                     else:
                         return error_embed(
                             message=f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
                             f'job deadline (`{job_deadline}`). '
-                            f'**{body.get("freelancer_name", "Freelancer")}** has been notified.',
+                            f'A notification has been sent to **{body.get("freelancer_name", "Freelancer")}**.',
                         )
 
                 # Fallback for unknown error codes
                 return error_embed(
-                    message=body.get('message', 'Failed to review the agreement.'),
+                    message=body.get('message', 'Could not review the agreement.'),
                 )
 
             # ── 4. Success, notify other party, return simple success ──
             if body.get('status') != 'ok':
                 return error_embed(
-                    message='Unexpected server response. Please try again.',
+                    message='The service is temporarily unavailable.',
                 )
 
             msg_id = body.get('msg_id', '')
@@ -336,7 +336,7 @@ class InterviewReview(commands.Cog):
                     # At least return the success embed
                     return success_embed(
                         'Review request has been submitted. '
-                        'Could not send the PDF file, please check your DM settings.',
+                        'Could not send the PDF file, check your DM settings.',
                     )
 
                 # ── 6. Log PDF delivery as a system message ──────────────

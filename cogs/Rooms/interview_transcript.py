@@ -122,9 +122,8 @@ class InterviewTranscript(commands.Cog):
             if not is_premium:
                 return error_embed(
                     'On-demand transcript generation is a **Premium** feature.\n\n'
-                    'Upgrade to Premium to generate transcripts of your interview '
-                    'chat at any time. Free-tier users automatically receive a '
-                    'transcript when the interview room is closed.',
+                    'Free-tier users automatically receive a transcript '
+                    'when the interview room is closed.',
                 )
 
             room_data = user_data['_selected_room']
@@ -159,12 +158,12 @@ class InterviewTranscript(commands.Cog):
                             resp.status, body.get('error', ''),
                         )
                         return error_embed(
-                            'Could not log the transcript request. Please try again.',
+                            'Could not log the transcript request.',
                         )
             except Exception:
                 logger.exception('Failed to reach transcript logging endpoint')
                 return error_embed(
-                    'The service is temporarily unavailable. Please try again later.',
+                    'The service is temporarily unavailable.',
                 )
 
             # ── 4. Log "Room Transcript" BEFORE fetching data ─────────────
@@ -322,8 +321,7 @@ class InterviewTranscript(commands.Cog):
             # ── 6. Return instant "request received" message ──────────────
             return info_embed(
                 'Your transcript request has been received and will be '
-                'processed shortly. You will receive the PDF document via '
-                'DM once it is ready.',
+                'processed shortly.',
             )
 
         await validate_and_respond(interaction, callback)

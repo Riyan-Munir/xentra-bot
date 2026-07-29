@@ -13,7 +13,7 @@ from utils.http import get_http_session
 logger = logging.getLogger(__name__)
 
 
-class SubscribeStatusCommand(commands.Cog):
+class SubscribeStatus(commands.Cog):
     """``/subscribe status``, Check subscription status."""
 
     def __init__(self, bot):
@@ -41,14 +41,14 @@ class SubscribeStatusCommand(commands.Cog):
                     if resp.status != 200:
                         try:
                             err = await resp.json()
-                            msg = err.get('error', 'Failed to fetch subscription status.')
+                            msg = err.get('error', 'Could not fetch subscription status.')
                         except Exception:
-                            msg = 'Failed to fetch subscription status.'
+                            msg = 'Could not fetch subscription status.'
                         return error_embed(msg)
                     data = await resp.json()
             except Exception:
-                logger.exception("Failed to fetch premium status")
-                return error_embed("An unexpected error occurred. Please try again later.")
+                logger.exception("Could not fetch premium status")
+                return error_embed("Could not fetch subscription status.")
 
             has_premium = data.get('has_active_premium', False)
             tier = data.get('tier')
@@ -120,4 +120,4 @@ class SubscribeStatusCommand(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(SubscribeStatusCommand(bot))
+    await bot.add_cog(SubscribeStatus(bot))

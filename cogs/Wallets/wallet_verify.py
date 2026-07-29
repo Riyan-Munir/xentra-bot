@@ -6,7 +6,7 @@ import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import (
-    BrandColor, create_embed, error_embed, success_embed, info_embed, loading_embed,
+    BrandColor, create_embed, error_embed, success_embed, info_embed,
 )
 from utils.retry import validation_fail, contains_security_threat
 
@@ -60,11 +60,6 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
 
         await interaction.response.defer()
 
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Verifying your wallet..."),
-            view=None,
-        )
-
         url = f"{BACKEND_URL}wallets/bot/verify/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         payload = {
@@ -96,7 +91,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
         except Exception:
             logger.exception("Wallet verify failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="An unexpected error occurred."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
 
@@ -140,12 +135,7 @@ class UnverifiedWalletSelect(discord.ui.Select):
             )
             return
 
-        # Show loading
         await interaction.response.defer()
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Generating verification challenge..."),
-            view=None,
-        )
 
         challenge_url = f"{BACKEND_URL}wallets/bot/challenge/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
@@ -218,7 +208,7 @@ class UnverifiedWalletSelect(discord.ui.Select):
         except Exception:
             logger.exception("Generate challenge failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="An unexpected error occurred."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
 
@@ -240,7 +230,7 @@ class WalletVerifyView(discord.ui.View):
 # ── Main Command ─────────────────────────────────────────────────────
 
 
-class WalletVerifyCommand(commands.Cog):
+class WalletVerify(commands.Cog):
     """``/wallet verify``, Verify a registered wallet by signing a challenge."""
 
     def __init__(self, bot):
@@ -299,15 +289,15 @@ class WalletVerifyCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Failed to load wallets.')
+                            message=err_data.get('error', 'Could not load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallets")
                 return error_embed(
-                    message='An unexpected error occurred.'
+                    message='The service is temporarily unavailable.'
                 )
         await validate_and_respond(interaction, callback)
 
 
 async def setup(bot):
-    await bot.add_cog(WalletVerifyCommand(bot))
+    await bot.add_cog(WalletVerify(bot))

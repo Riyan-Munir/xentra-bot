@@ -49,7 +49,7 @@ class InterviewBudget(commands.Cog):
 
             # --- budget validation ---
             if budget < 50:
-                return error_embed('Least budget must be $50.')
+                return error_embed('Budget could not be less than 50$.')
 
             room_data = user_data['_selected_room']
 
@@ -102,12 +102,12 @@ class InterviewBudget(commands.Cog):
                             f'**{room_data.get("job_title", "")}**.'
                         )
                     return error_embed(
-                        body.get('error', 'Failed to set budget.')
+                        body.get('error', 'Could not set the budget.')
                     )
             except Exception as e:
                 logger.exception('Error setting budget: %s', e)
                 return error_embed(
-                    'Unable to reach the backend service right now. Please try again later.'
+                    'The service is temporarily unavailable.'
                 )
 
         await validate_and_respond(interaction, callback)

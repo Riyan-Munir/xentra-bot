@@ -14,6 +14,8 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.profile_mgmt')
 
 class UserProfile(commands.Cog):
+    """``/user_profile``, Display user identity profiles."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -144,7 +146,8 @@ class UserProfile(commands.Cog):
             title=f"{role_label} Identity Profile",
             description=f"Identity details for **{name}** (@{discord_name})",
             color=BrandColor.PREMIUM if is_premium else BrandColor.PRIMARY,
-            thumbnail=avatar_url
+            thumbnail=avatar_url,
+            footer='Xentra • User Profile',
         )
         
         if role == 'freelancer':
@@ -167,7 +170,6 @@ class UserProfile(commands.Cog):
             details = f"> **Tier**: `{premium_status}`"
         
         embed.add_field(name="Profile Parameters", value=details, inline=False)
-        embed.set_footer(text='Xentra • User Profile')
         return embed
 
 async def setup(bot):

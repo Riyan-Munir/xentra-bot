@@ -124,7 +124,7 @@ class ActiveRoomsSetupView(discord.ui.View):
 
                     if total_count == 0:
                         embed = error_embed(
-                            message="No active interview rooms found for your account."
+                            message="Could not found any active interview."
                         )
                         await interaction.edit_original_response(embed=embed, view=None)
                         return
@@ -155,7 +155,7 @@ class ActiveRoomsSetupView(discord.ui.View):
             logger.error(f"Error fetching active rooms: {e}")
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Something went wrong. Please try again."
+                    message="The service is temporarily unavailable."
                 ),
                 view=None,
             )
@@ -203,12 +203,12 @@ class ActiveRoomsPaginationView(PaginationView):
                     await self.update_message(interaction)
                 else:
                     await interaction.response.edit_message(
-                        embed=error_embed(message="Could not load this page."),
+                        embed=error_embed(message="The service is temporarily unavailable."),
                     )
         except Exception as e:
             logger.error(f"Error fetching active rooms page: {e}")
             await interaction.response.edit_message(
-                embed=error_embed(message="Something went wrong. Please try again."),
+                embed=error_embed(message="The service is temporarily unavailable."),
             )
 
     def build_embed(self) -> discord.Embed:
@@ -223,7 +223,7 @@ class ActiveRoomsPaginationView(PaginationView):
         )
 
         if not self.rooms:
-            embed.description = "No active interview rooms found."
+            embed.description = "Could not found any active interview rooms."
             return embed
 
         for room in self.rooms:
@@ -265,7 +265,7 @@ class ActiveRooms(commands.Cog):
     async def cog_load(self) -> None:
         sync_cog_commands(self)
 
-    @app_commands.command(name="active_rooms", description="Display active rooms.")
+    @app_commands.command(name="active_rooms", description="...")
     @app_commands.checks.cooldown(2, 10, key=lambda i: i.user.id)
     async def active_rooms(self, interaction: discord.Interaction) -> None:
         async def callback(user_data: dict) -> tuple:

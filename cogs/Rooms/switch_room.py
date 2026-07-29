@@ -31,12 +31,12 @@ class SwitchRoomTypeSelect(discord.ui.Select):
             discord.SelectOption(
                 label="Interview Room",
                 value="interview",
-                description="Switch your selected interview room",
+                description="Switch selected interview room",
             ),
             discord.SelectOption(
                 label="Job Room",
                 value="job",
-                description="Switch your selected job discussion room",
+                description="Switch selected job room",
             ),
         ]
         super().__init__(
@@ -123,8 +123,7 @@ class SwitchRoomSetupView(discord.ui.View):
                     if not rooms_list:
                         await interaction.edit_original_response(
                             embed=error_embed(
-                                message="No active interview rooms found. "
-                                "Use `/create_room` to create one first."
+                                message="Could not found active interview rooms."
                             ),
                             view=None,
                         )
@@ -140,8 +139,7 @@ class SwitchRoomSetupView(discord.ui.View):
                     embed = create_embed(
                         title="Switch Selected Room",
                         description=(
-                            "**Select an active interview room** from the dropdown below "
-                            "to set it as your selected room for messages."
+                            "Select an interview room for messages."
                         ),
                         color=BrandColor.PRIMARY,
                         footer="Xentra • Room System",
@@ -162,7 +160,7 @@ class SwitchRoomSetupView(discord.ui.View):
             logger.error(f"Error fetching active rooms for switch: {e}")
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Something went wrong. Please try again."
+                    message="The service is temporarily unavailable."
                 ),
                 view=None,
             )
@@ -267,7 +265,7 @@ class RoomPickerView(discord.ui.View):
 
         if not self.selected_room_id or self.selected_room_id == "none":
             await interaction.response.edit_message(
-                embed=error_embed(message="Please select a valid room first."),
+                embed=error_embed(message="Select a valid room first."),
             )
             return
 
@@ -309,7 +307,7 @@ class RoomPickerView(discord.ui.View):
             logger.error(f"Error switching room: {e}")
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Something went wrong. Please try again."
+                    message="The service is temporarily unavailable."
                 ),
                 view=None,
             )
@@ -327,17 +325,16 @@ class SwitchRoom(commands.Cog):
     async def cog_load(self) -> None:
         sync_cog_commands(self)
 
-    @app_commands.command(name="switch_room", description="Switch selected room for chat.")
+    @app_commands.command(name="switch_room", description="...")
     @app_commands.checks.cooldown(2, 10, key=lambda i: i.user.id)
     async def switch_room(self, interaction: discord.Interaction) -> None:
         async def callback(user_data: dict) -> tuple:
             embed = create_embed(
                 title="Switch Room",
                 description=(
-                    "**Select a room type** to switch your active room.\n"
-                    "• **Interview Room**, Pick from your active interview rooms.\n"
+                    "**Select a room type** to switch active room.\n"
+                    "• **Interview Room**, Pick from active interview rooms.\n"
                     "• **Job Room**, Not yet implemented.\n\n"
-                    "Press **Submit** to continue or **Cancel** to abort."
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Room System",

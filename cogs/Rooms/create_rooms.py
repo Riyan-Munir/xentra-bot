@@ -158,7 +158,7 @@ class CreateRoomSetupView(discord.ui.View):
 
 
 class ExtraRoomConfirmView(discord.ui.View):
-    """Confirm whether the client wants to burn an extra room."""
+    """Confirm whether the client wants to use a room token."""
 
     def __init__(self, extra_count: int) -> None:
         super().__init__(timeout=120)
@@ -166,7 +166,7 @@ class ExtraRoomConfirmView(discord.ui.View):
         self.use_extra: bool = False
 
         confirm = discord.ui.Button(
-            label=f"Yes, use extra room ({extra_count} left)",
+            label=f"Yes, use a room token ({extra_count} left)",
             style=discord.ButtonStyle.primary,
         )
         confirm.callback = self._on_confirm
@@ -604,7 +604,7 @@ class CreateRooms(commands.Cog):
                 description=(
                     "> **Interview Room**, Interview a freelancer for a job "
                     "application.\n"
-                    "> **Job Room**, Complete a job with an assigned freelancer."
+                    "> **Job Room**, Complete a job with agreed freelancer."
                 ),
                 color=BrandColor.PRIMARY,
             )
@@ -643,10 +643,10 @@ class CreateRooms(commands.Cog):
             confirm_embed = create_embed(
                 title="Monthly Limit Reached",
                 description=(
-                    "You have reached your monthly interview-room limit. "
-                    f"You have **{extra_count}** extra room"
+                    "You have used all your room tokens for this month. "
+                    f"You have **{extra_count}** room token"
                     f"{'s' if extra_count != 1 else ''} remaining.\n\n"
-                    "Would you like to use an extra room to proceed?"
+                    "Would you like to use a purchased room token for this room?"
                 ),
                 color=BrandColor.WARNING,
             )
@@ -663,8 +663,7 @@ class CreateRooms(commands.Cog):
         else:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Monthly interview-room limit reached. "
-                    "Upgrade your plan to increase room capacity.",
+                    message="Monthly room token quota exhausted.",
                 ),
             )
             return
@@ -679,8 +678,7 @@ class CreateRooms(commands.Cog):
         if not jobs:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="No open jobs with pending applications found. "
-                    "Post a job and wait for applications before creating a room.",
+                    message="Could not found any posted jobs. ",
                 ),
             )
             return
@@ -711,7 +709,7 @@ class CreateRooms(commands.Cog):
         if not applications:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="No pending applications found for this job.",
+                    message="Could not found pending applications for this job.",
                 ),
             )
             return
@@ -753,7 +751,7 @@ class CreateRooms(commands.Cog):
         if not freelancer_dm_ok:
             await interaction.edit_original_response(
                 embed=dm_blocked_embed(
-                    attempted_action="the room invitation",
+                    attempted_action="Room invitation",
                     receiver_name=app_view.selected_freelancer_name,
                 ),
             )
@@ -772,8 +770,8 @@ class CreateRooms(commands.Cog):
         if not client_dm_ok:
             await interaction.edit_original_response(
                 embed=dm_blocked_embed(
-                    attempted_action="the room invitation",
-                    receiver_name="you",
+                    attempted_action="Room invitation",
+                    receiver_name=app_view.selected_client_name,
                 ),
             )
             return
@@ -1028,7 +1026,7 @@ class CreateRooms(commands.Cog):
         except Exception:
             logger.exception("Quota check failed")
             return error_embed(
-                message="Could not verify room quota. Please try again later.",
+                message="Could not verify room quota.",
             )
 
     async def _fetch_client_jobs(
@@ -1049,12 +1047,12 @@ class CreateRooms(commands.Cog):
                 if resp.status == 200:
                     return data
                 return error_embed(
-                    message=data.get("error", "Could not fetch your jobs."),
+                    message=data.get("error", "Could not load the jobs."),
                 )
         except Exception:
             logger.exception("Fetch client jobs failed")
             return error_embed(
-                message="Could not fetch your jobs. Please try again later.",
+                message="Could not load the jobs.",
             )
 
     async def _fetch_applications(
@@ -1078,12 +1076,12 @@ class CreateRooms(commands.Cog):
                 if resp.status == 200:
                     return data
                 return error_embed(
-                    message=data.get("error", "Could not fetch applications."),
+                    message=data.get("error", "Could not load the applications."),
                 )
         except Exception:
             logger.exception("Fetch applications failed")
             return error_embed(
-                message="Could not fetch applications. Please try again later.",
+                message="Could not load the applications.",
             )
 
     async def _create_room(
@@ -1120,7 +1118,7 @@ class CreateRooms(commands.Cog):
         except Exception:
             logger.exception("Create room failed")
             return error_embed(
-                message="Could not create interview room. Please try again later.",
+                message="Could not create interview room.",
             )
 
 

@@ -4,9 +4,9 @@ from discord import app_commands
 from utils.http import get_http_session
 import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import validate_and_respond, sync_cog_commands
+from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.pagination import PaginationView
-from utils.embeds import success_embed, create_embed, BrandColor, error_embed, loading_embed
+from utils.embeds import success_embed, create_embed, BrandColor, error_embed, info_embed, loading_embed
 from packet_templates.factory import BotPacketFactory
 
 logger = logging.getLogger('bot.profile_mgmt')
@@ -18,6 +18,7 @@ class MembersListView(PaginationView):
         self.page_size = 5
         total_pages = max(1, (len(entries) + self.page_size - 1) // self.page_size)
         super().__init__(current_page=1, total_pages=total_pages, user_data=viewer_data)
+        self.author_id = None
         self._member_current = 0
         self.update_buttons()
 
@@ -26,7 +27,7 @@ class MembersListView(PaginationView):
         if self.total_pages > 1:
             prev = discord.ui.Button(
                 label='Previous',
-                style=discord.ButtonStyle.gray,
+                style=discord.ButtonStyle.secondary,
                 disabled=self._member_current <= 0,
             )
             prev.callback = self.prev_page
@@ -34,22 +35,26 @@ class MembersListView(PaginationView):
 
             nxt = discord.ui.Button(
                 label='Next',
-                style=discord.ButtonStyle.gray,
+                style=discord.ButtonStyle.secondary,
                 disabled=self._member_current >= self.total_pages - 1,
             )
             nxt.callback = self.next_page
             self.add_item(nxt)
 
-        close = discord.ui.Button(label='Close', style=discord.ButtonStyle.red)
+        close = discord.ui.Button(label='Close', style=discord.ButtonStyle.secondary)
         close.callback = self.close_view
         self.add_item(close)
         # Admin broadcast button, imported already via PaginationView base
 
     async def prev_page(self, interaction: discord.Interaction):
+        if not is_author(interaction, self):
+            return
         self._member_current -= 1
         await self.update_message(interaction)
 
     async def next_page(self, interaction: discord.Interaction):
+        if not is_author(interaction, self):
+            return
         self._member_current += 1
         await self.update_message(interaction)
 
@@ -86,6 +91,8 @@ class MembersListView(PaginationView):
         return embed
 
 class MembersList(commands.Cog):
+    """``/members_list``, List registered members in the server."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -144,13 +151,13 @@ class MembersList(commands.Cog):
             try:
                 session = get_http_session()
                 async with session.get(url, params=params, headers=headers) as resp:
-                        if resp.status != 200:
+                        if resp.status not in (200, 201):
                             data = await resp.json()
-                            return error_embed(message="Could not load the members list. Please try again.")
+                            return error_embed(message="Could not load the members list.")
                         data = await resp.json()
             except Exception as e:
                 logger.error(f"Error fetching members list: {e}")
-                return error_embed(message="Something went wrong. Please try again.")
+                return error_embed(message="The service is temporarily unavailable.")
 
             # Build sequence based on what we're showing
             # If any param is true, show only true ones; if no true params, show non-false ones; if no params passed, show all

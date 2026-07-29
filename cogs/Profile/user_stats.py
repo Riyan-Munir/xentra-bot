@@ -14,6 +14,8 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.profile_mgmt')
 
 class UserStats(commands.Cog):
+    """``/user_stats``, Display user performance statistics."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -143,7 +145,8 @@ class UserStats(commands.Cog):
             title=f"{role_label} Stats",
             description=f"Performance stats for **{name}** (@{discord_name})",
             color=BrandColor.PREMIUM if is_premium else BrandColor.PRIMARY,
-            thumbnail=avatar_url
+            thumbnail=avatar_url,
+            footer='Xentra • User Statistics',
         )
 
         details = (
@@ -154,7 +157,6 @@ class UserStats(commands.Cog):
             f"> **Completed Jobs**: `{jobs_finished}` finished"
         )
         embed.add_field(name="Performance Parameters", value=details, inline=False)
-        embed.set_footer(text='Xentra • User Statistics')
 
         return embed
 

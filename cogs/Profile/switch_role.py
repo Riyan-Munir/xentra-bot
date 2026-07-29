@@ -11,6 +11,8 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.profile.switch_role')
 
 class SwitchRole(commands.Cog):
+    """``/switch_role``, Switch user active role perspective."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -31,13 +33,13 @@ class SwitchRole(commands.Cog):
             embed = create_embed(
                 title="Identity Switcher",
                 description="Select a role to update your dashboard permissions.",
-                color=BrandColor.PRIMARY
+                color=BrandColor.PRIMARY,
+                footer="Xentra • Role Switcher"
             )
             
             current_display = f"**{current.replace('_', ' ').title()}**"
             
             embed.add_field(name="Active Perspective", value=current_display, inline=False)
-            embed.set_footer(text='Xentra • Role Switcher')
             
             view = SwitchRoleView(interaction.user.id, roles, current)
             view.author_id = interaction.user.id
@@ -51,15 +53,19 @@ class SwitchRoleView(discord.ui.View):
         self.author_id: int | None = None
         self.user_id = user_id
         self.selected_role = current_role
+        self._done = False
         self.add_item(RoleSelect(roles, current_role))
 
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label="Update Role", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Update Role", style=discord.ButtonStyle.primary)
     async def update_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         url = f"{BACKEND_URL}users/bot/{self.user_id}/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         packet = BotPacketFactory.create_packet(
@@ -71,7 +77,7 @@ class SwitchRoleView(discord.ui.View):
         try:
             session = get_http_session()
             async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         embed = success_embed(
                             message=f"Active role switched to **{self.selected_role.replace('_', ' ').title()}**."
                         )
@@ -82,10 +88,10 @@ class SwitchRoleView(discord.ui.View):
                         await interaction.followup.send(embed=err, ephemeral=True)
         except Exception as e:
             logger.error(f"Error updating role: {e}")
-            err = error_embed(message="Something went wrong. Please try again.")
+            err = error_embed(message="The service is temporarily unavailable.")
             await interaction.followup.send(embed=err, ephemeral=True)
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return

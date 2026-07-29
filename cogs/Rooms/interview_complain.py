@@ -125,7 +125,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         if not complaint_text:
             await interaction.response.defer()
             await self._edit_done(
-                error_embed(message='Complaint text cannot be empty.'),
+                error_embed(message='Complaint text could not be empty.'),
             )
             return
 
@@ -161,7 +161,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 logger.exception('Failed to verify room reference')
                 await self._edit_done(
                     error_embed(
-                        message='Unable to verify the reference ID. Please try again later.'
+                        message='Could not verify the reference ID.'
                     ),
                 )
                 return
@@ -185,7 +185,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
             ) as resp:
                 if resp.status != 200:
                     err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Failed to save complaint.')
+                    err_msg = err_data.get('error', 'Could not save the complaint.')
                     await self._edit_done(
                         error_embed(message=err_msg),
                     )
@@ -196,8 +196,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
             logger.exception('Failed to save complaint to backend')
             await self._edit_done(
                 error_embed(
-                    message='Could not save the complaint due to a system error. '
-                    'Please try again later.',
+                    message='Could not save the complaint.',
                 ),
             )
             return
@@ -236,7 +235,7 @@ class InterviewComplain(commands.Cog):
 
     @app_commands.command(
         name='interview_complain',
-        description='Submit a complaint in the selected interview room.',
+        description='...',
     )
     @app_commands.checks.cooldown(1, 30, key=lambda i: i.user.id)
     async def interview_complain(
@@ -259,8 +258,7 @@ class InterviewComplain(commands.Cog):
             await interaction.response.send_message(
                 embed=error_embed(
                     message='You can link a complaint to either a **message** or a '
-                    'previous **complaint**, but not both. Please use only one of the '
-                    '`message_id` or `complain_id` parameters.'
+                    'previous **complaint**, but not both.'
                 ),
                 ephemeral=True,
             )

@@ -462,8 +462,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                             logger.warning(f"Backend returned {resp.status} for user lookup: {err_text[:200]}")
                             await interaction.followup.send(
                                 embed=error_embed(
-                                    "The backend service returned an error. "
-                                    "Please try again later or contact support."
+                                    "The service is temporarily unavailable."
                                 ),
                                 ephemeral=True,
                             )
@@ -472,7 +471,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                 logger.error(f"Backend error: {e}")
                 await interaction.followup.send(
                     embed=error_embed(
-                        "The service is temporarily unavailable. Please try again later."
+                        "The service is temporarily unavailable."
                     ),
                     ephemeral=True,
                 )

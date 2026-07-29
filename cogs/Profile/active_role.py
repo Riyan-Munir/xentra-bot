@@ -10,6 +10,8 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.profile.active_role')
 
 class ActiveRole(commands.Cog):
+    """``/active_role``, Display active role perspective."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -27,7 +29,8 @@ class ActiveRole(commands.Cog):
             embed = create_embed(
                 title="Active Identity",
                 color=BrandColor.PRIMARY,
-                thumbnail=interaction.user.display_avatar.url
+                thumbnail=interaction.user.display_avatar.url,
+                footer="Xentra • Active Role"
             )
             
             embed.add_field(
@@ -36,7 +39,6 @@ class ActiveRole(commands.Cog):
                 inline=True
             )
             
-            embed.set_footer(text='Xentra • Active Role')
             return embed
         
         await validate_and_respond(interaction, build_active_embed)

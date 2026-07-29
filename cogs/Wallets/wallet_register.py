@@ -6,7 +6,7 @@ import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import (
-    BrandColor, create_embed, error_embed, success_embed, info_embed, loading_embed,
+    BrandColor, create_embed, error_embed, success_embed, info_embed,
 )
 from utils.retry import validation_fail, contains_security_threat
 
@@ -67,12 +67,6 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
         # All validation passed → defer
         await interaction.response.defer()
 
-        # Show loading
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Registering your wallet..."),
-            view=None,
-        )
-
         # API call
         url = f"{BACKEND_URL}wallets/bot/register/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
@@ -106,7 +100,7 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
         except Exception:
             logger.exception("Wallet register failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="An unexpected error occurred."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
 
@@ -150,7 +144,7 @@ class WalletRegisterView(discord.ui.View):
         )
 
 
-class WalletRegisterCommand(commands.Cog):
+class WalletRegister(commands.Cog):
     """``/wallet register``, Register a new wallet address."""
 
     def __init__(self, bot):
@@ -182,4 +176,4 @@ class WalletRegisterCommand(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(WalletRegisterCommand(bot))
+    await bot.add_cog(WalletRegister(bot))

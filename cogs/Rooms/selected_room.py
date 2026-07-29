@@ -118,7 +118,7 @@ class SelectedRoomSetupView(discord.ui.View):
                 title="Selected Room for Messages",
                 description=(
                     f"This is the interview room currently selected "
-                    f"as your active room."
+                    f"as active room for messages."
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Room System",
@@ -159,8 +159,7 @@ class SelectedRoomSetupView(discord.ui.View):
         else:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="No selected interview room found. "
-                    "Use `/switch_room` to select one.",
+                    message="Could not found selected interview room.",
                 ),
                 view=None,
             )
@@ -178,17 +177,16 @@ class SelectedRoom(commands.Cog):
     async def cog_load(self) -> None:
         sync_cog_commands(self)
 
-    @app_commands.command(name="selected_room", description="Display selected room for chat.")
+    @app_commands.command(name="selected_room", description="...")
     @app_commands.checks.cooldown(3, 10, key=lambda i: i.user.id)
     async def selected_room(self, interaction: discord.Interaction) -> None:
         async def callback(user_data: dict) -> tuple:
             embed = create_embed(
                 title="Selected Room",
                 description=(
-                    "**Select a room type** to view your selected room.\n"
-                    "• **Interview Room**, Show your selected interview room.\n"
+                    "**Select a room type** to view selected room.\n"
+                    "• **Interview Room**, Show selected interview room.\n"
                     "• **Job Room**, Not yet implemented.\n\n"
-                    "Press **Submit** to continue or **Cancel** to abort."
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Room System",

@@ -39,20 +39,24 @@ class AllowExecutionView(discord.ui.View):
         self.identifier = identifier
         self.callback_func = callback_func
         self.selected_role = None
+        self._done = False
         self.add_item(AllowExecutionSelect(identifier))
 
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label="Send Request", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Send Request", style=discord.ButtonStyle.primary)
     async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         if not self.selected_role:
-            return await interaction.response.edit_message(embed=error_embed(message="Please select a role from the dropdown first."), view=self)
+            return await interaction.response.edit_message(embed=error_embed(message="Select a role first."), view=self)
         await self.callback_func(interaction, self.selected_role, self.identifier, self)
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -62,6 +66,8 @@ class AllowExecutionView(discord.ui.View):
 
 
 class AllowExecution(commands.Cog):
+    """``/allow_execution``, Grant bot command execution permission to a user."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -83,18 +89,18 @@ class AllowExecution(commands.Cog):
 
             session = get_http_session()
             async with session.post(resolve_url, json=packet.to_dict(), headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         res = await resp.json()
                         embed = await do_allow(inter, res['role'], res['canonical_id'])
                         await inter.response.edit_message(content=None, embed=embed, view=None)
                     else:
                         err = await resp.json()
-                        err_embed = error_embed(message=err.get('error', 'This ID is not valid for the selected role.'))
+                        err_embed = error_embed(message=err.get('error', 'Provided ID is not valid for the selected role.'))
                         await inter.response.edit_message(content=None, embed=err_embed, view=None)
 
         async def do_allow(inter, role, canonical_id):
             if not inter.guild_id:
-                return error_embed(message="This command can only be run inside a server.")
+                return error_embed(message="This command can only be executed inside a server.")
 
             url = f"{BACKEND_URL}guilds/allow-execution/"
             packet = BotPacketFactory.create_packet(
@@ -112,7 +118,7 @@ class AllowExecution(commands.Cog):
 
             session = get_http_session()
             async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         data = await resp.json()
                         # Fire-and-forget analytics event for allow action
                         AnalyticsCollector.log_admin_action(
@@ -149,19 +155,20 @@ class AllowExecution(commands.Cog):
 
                 session = get_http_session()
                 async with session.post(resolve_url, json=packet.to_dict(), headers=headers) as resp:
-                        if resp.status == 200:
+                        if resp.status in (200, 201):
                             res = await resp.json()
                             return await do_allow(interaction, res['role'], res['canonical_id'])
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'No user found with that ID.'))
+                            return error_embed(message=err.get('error', 'No user found with provided ID.'))
             else:
                 view = AllowExecutionView(result.normalized, premium_role_callback, user_data)
                 view.author_id = interaction.user.id
                 embed = create_embed(
                     title="Role Selection Required",
                     description=f"The ID **{result.original}** is a custom Premium ID. Please select the target role perspective:",
-                    color=BrandColor.ACCENT
+                    color=BrandColor.ACCENT,
+                    footer="Xentra • Select role to proceed"
                 )
                 return embed, view
 

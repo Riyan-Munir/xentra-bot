@@ -4,7 +4,9 @@ from discord import app_commands
 from utils.command_handler import validate_and_respond, sync_cog_commands
 from utils.embeds import create_embed, BrandColor, loading_embed
 
-class RegisterCommand(commands.Cog):
+class Register(commands.Cog):
+    """``/register``, Register a new Xentra account."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -32,4 +34,4 @@ class RegisterCommand(commands.Cog):
         await validate_and_respond(interaction, build_register_embed)
 
 async def setup(bot):
-    await bot.add_cog(RegisterCommand(bot))
+    await bot.add_cog(Register(bot))

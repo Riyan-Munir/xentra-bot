@@ -5,8 +5,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import validate_and_respond, sync_cog_commands
-from utils.embeds import BrandColor, create_embed, error_embed, loading_embed
+from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
+from utils.embeds import BrandColor, create_embed, error_embed, info_embed
 from utils.http import get_http_session
 from utils.pagination import PaginationView
 
@@ -20,13 +20,14 @@ class HistoryPaginationView(PaginationView):
 
     def __init__(self, user_data, current_page, total_pages, total_count):
         super().__init__(current_page, total_pages, user_data)
+        self.author_id = None
         self.total_count = total_count
         self._page_data: list[dict] = []
 
     async def change_page(self, interaction: discord.Interaction, new_page: int):
+        if not is_author(interaction, self):
+            return
         await interaction.response.defer()
-        embed = loading_embed("Fetching subscription history\u2026")
-        await interaction.edit_original_response(embed=embed, view=None)
 
         url = f"{BACKEND_URL}premium/bot/history/"
         params = {
@@ -41,21 +42,22 @@ class HistoryPaginationView(PaginationView):
         session = get_http_session()
         try:
             async with session.get(url, params=params, headers=headers) as resp:
-                if resp.status != 200:
+                if resp.status in (200, 201):
+                    data = await resp.json()
+                else:
                     try:
                         err = await resp.json()
-                        msg = err.get('error', 'Failed to fetch history.')
+                        msg = err.get('error', 'Could not fetch history.')
                     except Exception:
-                        msg = 'Failed to fetch history.'
+                        msg = 'Could not fetch history.'
                     await interaction.edit_original_response(
                         embed=error_embed(msg), view=self,
                     )
                     return
-                data = await resp.json()
         except Exception:
             logger.exception("Failed to fetch premium history page %s", new_page)
             await interaction.edit_original_response(
-                embed=error_embed("Could not load this page. Please try again."), view=self,
+                embed=error_embed("Could not load this page."), view=self,
             )
             return
 
@@ -109,7 +111,7 @@ class HistoryPaginationView(PaginationView):
         return embed
 
 
-class SubscribeHistoryCommand(commands.Cog):
+class SubscribeHistory(commands.Cog):
     """``/subscribe history``, View subscription history."""
 
     def __init__(self, bot):
@@ -138,17 +140,18 @@ class SubscribeHistoryCommand(commands.Cog):
             session = get_http_session()
             try:
                 async with session.get(url, params=params, headers=headers) as resp:
-                    if resp.status != 200:
+                    if resp.status in (200, 201):
+                        data = await resp.json()
+                    else:
                         try:
                             err = await resp.json()
-                            msg = err.get('error', 'Failed to fetch history.')
+                            msg = err.get('error', 'Could not fetch history.')
                         except Exception:
-                            msg = 'Failed to fetch history.'
+                            msg = 'Could not fetch history.'
                         return error_embed(msg)
-                    data = await resp.json()
             except Exception:
-                logger.exception("Failed to fetch premium history")
-                return error_embed("An unexpected error occurred. Please try again later.")
+                logger.exception("Could not fetch premium history")
+                return error_embed("Could not fetch history.")
 
             total_count = data.get('count', 0)
             total_pages = max(1, (total_count + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE)
@@ -166,7 +169,7 @@ class SubscribeHistoryCommand(commands.Cog):
 
             if total_pages <= 1 and len(results) == 0:
                 if total_count == 0:
-                    return error_embed('No subscription purchases found.')
+                    return info_embed('No subscription purchases found.')
                 return embed
 
             view.update_buttons(embed)
@@ -176,4 +179,4 @@ class SubscribeHistoryCommand(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(SubscribeHistoryCommand(bot))
+    await bot.add_cog(SubscribeHistory(bot))

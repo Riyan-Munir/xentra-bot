@@ -9,7 +9,7 @@ from utils.embeds import create_embed, BrandColor, error_embed
 
 logger = logging.getLogger('bot.wallets.list')
 
-class WalletListCommand(commands.Cog):
+class WalletList(commands.Cog):
     """``/wallet list``, View all your registered wallets."""
 
     def __init__(self, bot):
@@ -71,16 +71,16 @@ class WalletListCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Failed to load wallets.')
+                            message=err_data.get('error', 'Could not load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallet list")
                 return error_embed(
-                    message='An unexpected error occurred.'
+                    message='The service is temporarily unavailable.'
                 )
 
         await validate_and_respond(interaction, callback)
 
 
 async def setup(bot):
-    await bot.add_cog(WalletListCommand(bot))
+    await bot.add_cog(WalletList(bot))

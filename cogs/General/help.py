@@ -6,7 +6,9 @@ import os
 from utils.command_handler import validate_and_respond, sync_cog_commands
 from utils.embeds import create_embed, BrandColor, error_embed, loading_embed
 
-class HelpCommand(commands.Cog):
+class Help(commands.Cog):
+    """``/help``, Display available slash commands for your active role."""
+
     def __init__(self, bot):
         self.bot = bot
         self.commands_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'commands.json')
@@ -74,4 +76,4 @@ class HelpCommand(commands.Cog):
         await validate_and_respond(interaction, build_help_embed)
 
 async def setup(bot):
-    await bot.add_cog(HelpCommand(bot))
+    await bot.add_cog(Help(bot))

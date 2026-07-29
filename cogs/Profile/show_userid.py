@@ -11,6 +11,8 @@ logger = logging.getLogger('bot.profile.show_userid')
 
 
 class ShowUserID(commands.Cog):
+    """``/show_userid``, Display user system profile IDs."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -34,9 +36,9 @@ class ShowUserID(commands.Cog):
             embed = create_embed(
                 title="Identity Registry",
                 description=f"Registered roles for **{target_user}**:",
-                color=BrandColor.PRIMARY
+                color=BrandColor.PRIMARY,
+                footer="Xentra • Identity Registry"
             )
-            embed.set_footer(text='Xentra • Identity Registry')
             
             role_map = {
                 'freelancer': 'Freelancer ID',

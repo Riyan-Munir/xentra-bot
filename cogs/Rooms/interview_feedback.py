@@ -126,7 +126,7 @@ class FeedbackStartView(discord.ui.View):
 
         if not selected_id or selected_id == 'none':
             await interaction.response.send_message(
-                embed=error_embed(message='Please select a valid room first.'),
+                embed=error_embed(message='Select a valid room first.'),
                 ephemeral=True,
             )
             return
@@ -140,7 +140,7 @@ class FeedbackStartView(discord.ui.View):
 
         if not room_data:
             await interaction.response.send_message(
-                embed=error_embed(message='Selected room data not found.'),
+                embed=error_embed(message='Could not found selected room data.'),
                 ephemeral=True,
             )
             return
@@ -222,7 +222,6 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
                 interaction,
                 message=(
                     f'Feedback exceeds 100 words ({word_count} words). '
-                    'Please shorten it.'
                 ),
                 modal_class=FeedbackModal,
                 modal_kwargs={
@@ -353,7 +352,7 @@ class RatingSelectView(discord.ui.View):
             ) as resp:
                 if resp.status != 200:
                     err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Failed to save feedback.')
+                    err_msg = err_data.get('error', 'Could not save the feedback.')
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -365,8 +364,7 @@ class RatingSelectView(discord.ui.View):
             logger.exception('Failed to save feedback to backend')
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message='Could not save the feedback due to a system error. '
-                    'Please try again later.',
+                    message='Could not save the feedback.',
                 ),
                 view=None,
             )
@@ -414,7 +412,7 @@ class InterviewFeedback(commands.Cog):
 
     @app_commands.command(
         name='interview_feedback',
-        description='Submit feedback about interview room.',
+        description='...',
     )
     @app_commands.checks.cooldown(1, 30, key=lambda i: i.user.id)
     async def interview_feedback(
@@ -448,13 +446,12 @@ class InterviewFeedback(commands.Cog):
             except Exception:
                 logger.exception('Failed to fetch closed rooms')
                 return error_embed(
-                    message='Could not fetch closed rooms due to a system error. '
-                    'Please try again later.',
+                    message='Could not load closed rooms.',
                 ), None
 
             if not rooms:
                 return error_embed(
-                    message='No closed rooms found that need your feedback.',
+                    message='No closed rooms found that need feedback.',
                 ), None
 
             # ── 2. Show room selection view ────────────────────────

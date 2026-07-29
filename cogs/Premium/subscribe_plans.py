@@ -68,7 +68,7 @@ class PlanDetailView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.green)
+    @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.primary)
     async def subscribe_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -79,7 +79,7 @@ class PlanDetailView(discord.ui.View):
         discord_id = self.user_data.get('discord_id')
         if not discord_id or not plan_id:
             await interaction.edit_original_response(
-                embed=error_embed('Missing user or plan information. Please try again.'),
+                embed=error_embed('Missing user or plan information.'),
                 view=None,
             )
             return
@@ -98,7 +98,7 @@ class PlanDetailView(discord.ui.View):
 
         try:
             async with session.post(url, json=payload, headers=headers) as resp:
-                if resp.status == 201:
+                if resp.status in (200, 201):
                     data = await resp.json()
                     callback_token = data.get('callback_token')
                     remaining = data.get('callback_token_remaining_seconds')
@@ -163,9 +163,9 @@ class PlanDetailView(discord.ui.View):
                 elif resp.status == 400:
                     try:
                         err = await resp.json()
-                        msg = err.get('error', 'Failed to create payment.')
+                        msg = err.get('error', 'Could not create payment.')
                     except Exception:
-                        msg = 'Failed to create payment.'
+                        msg = 'Could not create payment.'
                     await interaction.edit_original_response(
                         embed=error_embed(msg), view=None,
                     )
@@ -173,20 +173,20 @@ class PlanDetailView(discord.ui.View):
                 else:
                     try:
                         err = await resp.json()
-                        msg = err.get('error', 'An unexpected error occurred.')
+                        msg = err.get('error', 'Could not create payment.')
                     except Exception:
-                        msg = 'An unexpected error occurred. Please try again later.'
+                        msg = 'Could not create payment.'
                     await interaction.edit_original_response(
                         embed=error_embed(msg), view=None,
                     )
         except Exception:
-            logger.exception("Failed to create premium payment from bot")
+            logger.exception("Could not create premium payment from bot")
             await interaction.edit_original_response(
-                embed=error_embed("An unexpected error occurred. Please try again later."),
+                embed=error_embed("Could not create payment."),
                 view=None,
             )
 
-    @discord.ui.button(label='Close', style=discord.ButtonStyle.red)
+    @discord.ui.button(label='Close', style=discord.ButtonStyle.secondary)
     async def close_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -270,7 +270,7 @@ class PlansView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=view)
 
 
-class SubscribePlansCommand(commands.Cog):
+class SubscribePlans(commands.Cog):
     """``/subscribe plans``, Browse subscription plans."""
 
     def __init__(self, bot):
@@ -299,16 +299,17 @@ class SubscribePlansCommand(commands.Cog):
             session = get_http_session()
             try:
                 async with session.get(url, params=params, headers=headers) as resp:
-                    if resp.status != 200:
+                    if resp.status in (200, 201):
+                        data = await resp.json()
+                    else:
                         try:
                             err = await resp.json()
-                            return None, err.get('error', 'Failed to fetch plans.')
+                            return None, err.get('error', 'Could not fetch plans.')
                         except Exception:
-                            return None, 'Failed to fetch plans.'
-                    data = await resp.json()
+                            return None, 'Could not fetch plans.'
             except Exception:
-                logger.exception("Failed to fetch premium plans")
-                return None, "An unexpected error occurred. Please try again later."
+                logger.exception("Could not fetch premium plans")
+                return None, "Could not fetch plans."
 
             plans = data.get('plans', [])
             if not plans:
@@ -330,6 +331,20 @@ class SubscribePlansCommand(commands.Cog):
             else:
                 gift_result = resolve_user_id(user_id)
                 if gift_result.is_system:
+                    # ── Server admin ID check ────────────────────────
+                    # Gifting premium to a server admin ID doesn't make sense
+                    if gift_result.role == 'server_admin':
+                        return error_embed(
+                            "Server admin IDs cannot be used for gifting."
+                        )
+                    # ── Self-gift check (system IDs) ─────────────────
+                    # Compare the target ID against the user's own profile IDs
+                    if user_data.get('role_ids'):
+                        for _role_name, role_info in user_data['role_ids'].items():
+                            if role_info.get('id') == gift_result.normalized:
+                                return error_embed(
+                                    "You cannot gift premium to yourself or your other profiles."
+                                )
                     role_for_plans = gift_result.role
 
             # ── Fetch plans ────────────────────────────────────────────
@@ -384,7 +399,7 @@ class SubscribePlansCommand(commands.Cog):
                     sess = get_http_session()
                     try:
                         async with sess.post(resolve_url, json=packet.to_dict(), headers=hdrs) as resp:
-                            if resp.status == 200:
+                            if resp.status in (200, 201):
                                 res = await resp.json()
                                 display_id = res.get('canonical_id', identifier)
                                 role_label = res.get('role', role).replace('_', ' ').title()
@@ -414,9 +429,9 @@ class SubscribePlansCommand(commands.Cog):
                                     embed=err_embed, view=None,
                                 )
                     except Exception:
-                        logger.exception("Failed to resolve premium ID for gifting")
+                        logger.exception("Could not resolve premium ID for gifting")
                         await inter.response.edit_message(
-                            embed=error_embed("An unexpected error occurred."), view=None,
+                            embed=error_embed("The service is temporarily unavailable."), view=None,
                         )
 
                 role_view = ProfileRoleView(
@@ -440,4 +455,4 @@ class SubscribePlansCommand(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(SubscribePlansCommand(bot))
+    await bot.add_cog(SubscribePlans(bot))

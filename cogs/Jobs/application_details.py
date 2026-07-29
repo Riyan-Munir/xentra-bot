@@ -11,7 +11,7 @@ from packet_templates.factory import BotPacketFactory
 logger = logging.getLogger('bot.job_mgmt')
 
 
-class ApplicationDetailsCommand(commands.Cog):
+class ApplicationDetails(commands.Cog):
     """``/application details``, Display application details."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -20,7 +20,7 @@ class ApplicationDetailsCommand(commands.Cog):
     async def cog_load(self) -> None:
         sync_cog_commands(self)
 
-    @app_commands.command(name="application_details", description="Display application details.")
+    @app_commands.command(name="application_details", description="...")
     @app_commands.checks.cooldown(3, 10, key=lambda i: i.user.id)
     async def application_details(
         self,
@@ -42,7 +42,7 @@ class ApplicationDetailsCommand(commands.Cog):
             session = get_http_session()
             try:
                 async with session.get(url, params=params, headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         data = await resp.json()
 
                         embed = create_embed(
@@ -76,17 +76,17 @@ class ApplicationDetailsCommand(commands.Cog):
                         return error_embed(
                             message=err_data.get(
                                 "error",
-                                "Could not load application details. Please try again.",
+                                "Could not load application details.",
                             )
                         )
             except Exception as e:
                 logger.error(f"Error fetching application details: {e}")
                 return error_embed(
-                    message="Something went wrong fetching application details. Please try again."
+                    message="The service is temporarily unavailable."
                 )
 
         await validate_and_respond(interaction, callback)
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(ApplicationDetailsCommand(bot))
+    await bot.add_cog(ApplicationDetails(bot))

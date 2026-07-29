@@ -257,7 +257,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                     res_data = await resp.json()
                     if resp.status == 200:
                         embed = success_embed(
-                            message=f"Your job has been posted successfully under ID: `{res_data.get('job_id')}`.\n\nFreelancers can now discover and apply for this job.",
+                            message=f"Your job has been posted successfully.\nFreelancers can now discover and apply for this job.",
                         )
                         embed.add_field(name="Job ID", value=f"`{res_data.get('job_id')}`", inline=True)
                         embed.add_field(name="Title", value=self.job_title.value, inline=True)
@@ -282,7 +282,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
         except Exception as e:
             logger.error(f"Error posting job: {e}")
             await interaction.followup.send(
-                embed=error_embed(message="Something went wrong posting your job. Please try again."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 ephemeral=True
             )
 
@@ -325,7 +325,7 @@ class JobPostSetupView(discord.ui.View):
         next_btn.callback = self.on_next
         self.add_item(next_btn)
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, row=row_num)
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary, row=row_num)
         cancel_btn.callback = self.on_cancel
         self.add_item(cancel_btn)
 
@@ -351,10 +351,10 @@ class JobPostSetupView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.category:
-            await interaction.response.send_message(embed=error_embed(message="Please select a category first."), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(message="Select a category first."), ephemeral=True)
             return
         if not self.experience_level:
-            await interaction.response.send_message(embed=error_embed(message="Please select an experience level first."), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(message="Select an experience level first."), ephemeral=True)
             return
 
         modal = JobPostDetailsModal(
@@ -369,6 +369,8 @@ class JobPostSetupView(discord.ui.View):
 
 
 class PostJob(commands.Cog):
+    """``/post_job``, Post a new job listing."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -392,7 +394,7 @@ class PostJob(commands.Cog):
             session = get_http_session()
             async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
                     res_data = await resp.json()
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         is_premium = res_data.get('is_premium', False)
                         embed = create_embed(
                             title="Post a Job",
@@ -401,13 +403,14 @@ class PostJob(commands.Cog):
                                 f"**Details**: Click the configured button to fill in the title, description, skills, and budget range.\n"
                                 f"**Constraint**: Description must be between 50 and 800 words."
                             ),
-                            color=BrandColor.PRIMARY
+                            color=BrandColor.PRIMARY,
+                            footer="Xentra • Configure options and click Next"
                         )
                         view = JobPostSetupView(is_premium)
                         view.author_id = interaction.user.id
                         return embed, view
                     else:
-                        return error_embed(message=res_data.get('error', "**You** are not eligible to post jobs."))
+                        return error_embed(message=res_data.get('error', "You are not eligible to post jobs."))
 
         await validate_and_respond(interaction, post_job_callback)
 

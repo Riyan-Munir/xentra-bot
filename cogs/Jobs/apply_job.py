@@ -112,7 +112,7 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
                     res_data = await resp.json()
                     if resp.status in (200, 201):
                         await interaction.followup.send(
-                            embed=success_embed(message="Job application submitted successfully!"),
+                            embed=success_embed(message="Job application submitted successfully."),
                             ephemeral=True
                         )
                         # Fire-and-forget analytics event for job application
@@ -135,7 +135,7 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
         except Exception as e:
             logger.error(f"Error submitting job application: {e}")
             await interaction.followup.send(
-                embed=error_embed(message="Something went wrong. Please try again."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 ephemeral=True
             )
 
@@ -171,11 +171,11 @@ class ApplyJobPreflightView(discord.ui.View):
         except Exception as e:
             logger.error(f"Error sending modal: {e}")
             if not interaction.response.is_done():
-                await interaction.response.send_message("Something went wrong. Please try again.", ephemeral=True)
+                await interaction.response.send_message("The service is temporarily unavailable.", ephemeral=True)
             else:
-                await interaction.followup.send(embed=error_embed(message="Something went wrong. Please try again."), ephemeral=True)
+                await interaction.followup.send(embed=error_embed(message="The service is temporarily unavailable."), ephemeral=True)
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -187,6 +187,8 @@ class ApplyJobPreflightView(discord.ui.View):
 
 
 class ApplyJob(commands.Cog):
+    """``/apply_job``, Apply for an open job listing."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -213,7 +215,7 @@ class ApplyJob(commands.Cog):
             session = get_http_session()
             async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
                     res_data = await resp.json()
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         embed = create_embed(
                             title="Job Application Preflight",
                             description=(
@@ -221,15 +223,15 @@ class ApplyJob(commands.Cog):
                                 f"**Target Job ID**: `{job_id}`\n"
                                 "**Constraint**: Proposals must be between 50 and 300 words."
                             ),
-                            color=BrandColor.PRIMARY
+                            color=BrandColor.PRIMARY,
+                            footer="Xentra • Verify eligibility and input constraints before submitting."
                         )
-                        embed.set_footer(text="Xentra • Verify eligibility and input constraints before submitting.")
                         budget_min = res_data.get('budget_min')
                         view = ApplyJobPreflightView(job_id, budget_min)
                         view.author_id = interaction.user.id
                         return embed, view
                     else:
-                        return error_embed(message=res_data.get('error', "**You** are not eligible for this job."))
+                        return error_embed(message=res_data.get('error', "You are not eligible for this job."))
 
         await validate_and_respond(interaction, apply_callback)
 

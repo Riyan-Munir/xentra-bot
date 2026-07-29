@@ -76,6 +76,7 @@ class PortfolioPaginationView(PaginationView):
             description=self.portfolio.get('description', "Professional freelancer portfolio.") + page_info,
             color=embed_color,
             thumbnail=avatar_url,
+            footer='Xentra • Portfolio Showcase',
         )
         
         if self.is_premium:
@@ -124,10 +125,11 @@ class PortfolioPaginationView(PaginationView):
         else:
             embed.add_field(name="Projects Showcase", value="> No projects showcased yet.", inline=False)
         
-        embed.set_footer(text='Xentra • Portfolio Showcase')
         return embed
 
 class ViewPortfolio(commands.Cog):
+    """``/view_portfolio``, View freelancer portfolio showcase."""
+
     def __init__(self, bot):
         self.bot = bot
 

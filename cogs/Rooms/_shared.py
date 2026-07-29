@@ -37,7 +37,7 @@ class RoomTypeSelect(discord.ui.Select):
             discord.SelectOption(
                 label="Job Room",
                 value="job",
-                description="Complete a job with an assigned freelancer",
+                description="Complete a job with an agreed freelancer",
             ),
         ]
         super().__init__(
@@ -48,5 +48,5 @@ class RoomTypeSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        self.view.room_type = self.values[0]  # type: ignore[union-attr]
+        self.view.room_type = self.values[0]
         await interaction.response.defer()

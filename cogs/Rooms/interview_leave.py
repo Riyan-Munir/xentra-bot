@@ -121,7 +121,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
     reason = discord.ui.TextInput(
         label='Reason',
         style=discord.TextStyle.paragraph,
-        placeholder='Please describe why you are leaving this interview room…',
+        placeholder='Describe why you are leaving this interview room…',
         required=True,
         max_length=2000,
     )
@@ -148,7 +148,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         if not reason_text:
             try:
                 await interaction.response.edit_message(
-                    embed=error_embed(message='Reason cannot be empty. Please provide a reason for leaving.'),
+                    embed=error_embed(message='Reason could not be empty.'),
                     view=None,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):
@@ -190,8 +190,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             logger.exception('Failed to call room-leave backend')
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message='Could not process room leave due to a system error. '
-                    'Please try again later.',
+                    message='Could not process room leave.',
                 ),
                 view=None,
             )
@@ -277,7 +276,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         # Edit the original message (from the Proceed view) to show the error
         try:
             await self.original_interaction.edit_original_response(
-                embed=error_embed(message='An unexpected error occurred. Please try again.'),
+                embed=error_embed(message='The service is temporarily unavailable.'),
                 view=None,
             )
         except Exception:
@@ -304,7 +303,7 @@ class InterviewLeave(commands.Cog):
 
     @app_commands.command(
         name='interview_leave',
-        description='Leave the interview room.',
+        description='...',
     )
     @app_commands.checks.cooldown(1, 30, key=lambda i: i.user.id)
     async def interview_leave(

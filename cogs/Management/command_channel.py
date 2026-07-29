@@ -11,7 +11,9 @@ from packet_templates.factory import BotPacketFactory
 
 logger = logging.getLogger('bot.command_channel')
 
-class CommandChannelCog(commands.Cog):
+class CommandChannel(commands.Cog):
+    """``/command_channel``, Configure designated bot command channel for a server."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -26,17 +28,17 @@ class CommandChannelCog(commands.Cog):
             # 1. Clean the channel_id to extract digits
             digits = re.findall(r"\d+", channel_id)
             if not digits:
-                return error_embed(message="Invalid channel ID. Use a channel ID or mention (e.g. #channel).")
+                return error_embed(message="Invalid channel ID. Enter valid channel ID or mention (e.g. #channel).")
             
             clean_id = int(digits[0])
             
             # 2. Verify channel exists in this guild
             target_channel = interaction.guild.get_channel(clean_id)
             if not target_channel:
-                return error_embed(message="The channel provided does not exist in this server.")
+                return error_embed(message="Provided channel does not exist in this server.")
                 
             if not isinstance(target_channel, discord.TextChannel):
-                return error_embed(message="The command channel must be a text channel.")
+                return error_embed(message="Command channel must be a text channel.")
 
             # 3. Call backend to update configuration
             url = f"{BACKEND_URL}guilds/bot-management/"
@@ -53,18 +55,18 @@ class CommandChannelCog(commands.Cog):
             try:
                 session = get_http_session()
                 async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
-                        if resp.status == 200:
+                        if resp.status in (200, 201):
                             return success_embed(
                                 message=f"Command channel successfully configured to {target_channel.mention}."
                             )
                         else:
                             res_data = await resp.json()
-                            return error_embed(message=res_data.get('error', "Failed to configure command channel."))
+                            return error_embed(message=res_data.get('error', "Could not configure command channel."))
             except Exception as e:
                 logger.error(f"Error configuring command channel: {e}")
-                return error_embed(message="Something went wrong. Please try again.")
+                return error_embed(message="The service is temporarily unavailable.")
 
         await validate_and_respond(interaction, build_embed)
 
 async def setup(bot):
-    await bot.add_cog(CommandChannelCog(bot))
+    await bot.add_cog(CommandChannel(bot))

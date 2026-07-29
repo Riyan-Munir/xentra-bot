@@ -6,7 +6,7 @@ import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import (
-    BrandColor, create_embed, error_embed, success_embed, info_embed, loading_embed,
+    BrandColor, create_embed, error_embed, success_embed, info_embed,
 )
 
 logger = logging.getLogger('bot.wallets.default')
@@ -40,10 +40,6 @@ class NonDefaultWalletSelect(discord.ui.Select):
         wallet_type = view.wallet_type
 
         await interaction.response.defer()
-        await interaction.edit_original_response(
-            embed=loading_embed(description="Setting default wallet..."),
-            view=None,
-        )
 
         url = f"{BACKEND_URL}wallets/bot/set-default/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
@@ -73,7 +69,7 @@ class NonDefaultWalletSelect(discord.ui.Select):
         except Exception:
             logger.exception("Set default wallet failed")
             await interaction.edit_original_response(
-                embed=error_embed(message="An unexpected error occurred."),
+                embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
 
@@ -92,7 +88,7 @@ class WalletDefaultView(discord.ui.View):
         self.stop()
 
 
-class WalletDefaultCommand(commands.Cog):
+class WalletDefault(commands.Cog):
     """``/wallet default``, Set a different wallet as your default wallet."""
 
     def __init__(self, bot):
@@ -152,16 +148,16 @@ class WalletDefaultCommand(commands.Cog):
                     else:
                         err_data = await resp.json()
                         return error_embed(
-                            message=err_data.get('error', 'Failed to load wallets.')
+                            message=err_data.get('error', 'Could not load wallets.')
                         )
             except Exception:
                 logger.exception("Failed to fetch wallets")
                 return error_embed(
-                    message='An unexpected error occurred.'
+                    message='The service is temporarily unavailable.'
                 )
 
         await validate_and_respond(interaction, callback)
 
 
 async def setup(bot):
-    await bot.add_cog(WalletDefaultCommand(bot))
+    await bot.add_cog(WalletDefault(bot))

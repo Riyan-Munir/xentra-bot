@@ -4,15 +4,17 @@ from discord import app_commands
 from utils.http import get_http_session
 import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import validate_and_respond, add_admin_post_button, sync_cog_commands
-from utils.embeds import success_embed, create_embed, BrandColor, error_embed, loading_embed
+from utils.command_handler import validate_and_respond, add_admin_post_button, sync_cog_commands, is_author
+from utils.embeds import success_embed, create_embed, BrandColor, error_embed, info_embed, loading_embed
 from utils.pagination import PaginationView
 from utils.userid_resolver import resolve_user_id
 from packet_templates.factory import BotPacketFactory
 
 logger = logging.getLogger('bot.job_mgmt')
 
-class AppliedJobsCommand(commands.Cog):
+class AppliedJobs(commands.Cog):
+    """``/applied_jobs``, View jobs you have applied for."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -27,7 +29,7 @@ class AppliedJobsCommand(commands.Cog):
             active_role = user_data.get('active_role')
             if active_role == 'server_admin' and not user_id:
                 return error_embed(
-                    message='As a Server Admin, please provide a **Freelancer User ID** via `user_id` to view their applied jobs.'
+                    message='Provide a Freelancer ID.'
                 )
 
             url = f"{BACKEND_URL}jobs/bot/applied/"
@@ -39,6 +41,12 @@ class AppliedJobsCommand(commands.Cog):
             normalized_user_id = None
             if user_id:
                 result = resolve_user_id(user_id)
+                # ── Strict prefix check ──────────────────────────────
+                # applied_jobs only accepts FREELANCER IDs
+                if result.is_system and result.prefix != 'FRL':
+                    return error_embed(
+                        message="Provide a valid Freelancer ID."
+                    )
                 # Use backend resolution for all ID types (handles premium/custom IDs)
                 resolve_url = f"{BACKEND_URL}users/resolve-id/"
                 packet = BotPacketFactory.create_packet(
@@ -49,7 +57,7 @@ class AppliedJobsCommand(commands.Cog):
                 resolve_headers = {'X-Webhook-Token': WEBHOOK_SECRET}
                 session = get_http_session()
                 async with session.post(resolve_url, json=packet.to_dict(), headers=resolve_headers) as resp:
-                        if resp.status == 200:
+                        if resp.status in (200, 201):
                             res = await resp.json()
                             normalized_user_id = res['canonical_id']
                         else:
@@ -60,13 +68,13 @@ class AppliedJobsCommand(commands.Cog):
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             session = get_http_session()
             async with session.get(url, params=params, headers=headers) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):
                         data = await resp.json()
                         total_count = data['count']
                         apps_list = data['results']
                         
                         if total_count == 0:
-                            return error_embed(message="No applications found.")
+                            return info_embed(message="No applications found.")
                             
                         view = ApplicationsPaginationView(apps_list, 1, total_count, user_data, target_user_id=normalized_user_id)
                         view.author_id = interaction.user.id
@@ -74,7 +82,7 @@ class AppliedJobsCommand(commands.Cog):
                         return view.build_embed(), view
                     else:
                         err_data = await resp.json()
-                        return error_embed(message=err_data.get('error', 'Could not load applications. Please try again.'))
+                        return error_embed(message=err_data.get('error', 'Could not load applications.'))
         
         await validate_and_respond(interaction, apps_callback)
 
@@ -82,11 +90,14 @@ class ApplicationsPaginationView(PaginationView):
     def __init__(self, apps_data, current_page, total_count, user_data, target_user_id=None):
         total_pages = (total_count + 4) // 5
         super().__init__(current_page=current_page, total_pages=total_pages, user_data=user_data)
+        self.author_id = None
         self.apps = apps_data
         self.total_count = total_count
         self.target_user_id = target_user_id
 
     async def change_page(self, interaction: discord.Interaction, new_page):
+        if not is_author(interaction, self):
+            return
         url = f"{BACKEND_URL}jobs/bot/applied/"
         params = {
             'discord_id': interaction.user.id,
@@ -101,13 +112,13 @@ class ApplicationsPaginationView(PaginationView):
         
         session = get_http_session()
         async with session.get(url, params=params, headers=headers) as resp:
-                if resp.status == 200:
+                if resp.status in (200, 201):
                     data = await resp.json()
                     self.apps = data['results']
                     self.current_page = new_page
                     await self.update_message(interaction)
                 else:
-                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=self)
+                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=self)
 
     def build_embed(self):
         title = "Freelancer Applied Jobs"
@@ -120,7 +131,8 @@ class ApplicationsPaginationView(PaginationView):
         embed = create_embed(
             title=title,
             description=f"Showing active applications (Page {self.current_page}/{self.total_pages})",
-            color=embed_color
+            color=embed_color,
+            footer=f"Xentra • Total Applications: {self.total_count}"
         )
 
         if not self.apps:
@@ -148,8 +160,7 @@ class ApplicationsPaginationView(PaginationView):
                 inline=False
             )
 
-        embed.set_footer(text=f"Xentra • Total Applications: {self.total_count}")
         return embed
 
 async def setup(bot):
-    await bot.add_cog(AppliedJobsCommand(bot))
+    await bot.add_cog(AppliedJobs(bot))

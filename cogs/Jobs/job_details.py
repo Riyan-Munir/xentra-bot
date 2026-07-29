@@ -10,7 +10,9 @@ from utils.http import get_http_session
 
 logger = logging.getLogger('bot.job_mgmt')
 
-class JobDetailsCommand(commands.Cog):
+class JobDetails(commands.Cog):
+    """``/job_details``, Display full details for a job listing."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -33,7 +35,7 @@ class JobDetailsCommand(commands.Cog):
             
             session = get_http_session()
             async with session.get(url, params=params, headers=headers) as resp:
-                if resp.status == 200:
+                if resp.status in (200, 201):
                     job = await resp.json()
                     
                     is_featured = job.get('is_featured', False)
@@ -76,9 +78,9 @@ class JobDetailsCommand(commands.Cog):
                     return embed, final_view
                 else:
                     err_data = await resp.json()
-                    return error_embed(message=err_data.get('error', 'Could not load job details. Please try again.'))
+                    return error_embed(message=err_data.get('error', 'Could not load job details.'))
         
         await validate_and_respond(interaction, details_callback)
 
 async def setup(bot):
-    await bot.add_cog(JobDetailsCommand(bot))
+    await bot.add_cog(JobDetails(bot))
