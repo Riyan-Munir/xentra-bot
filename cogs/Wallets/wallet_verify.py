@@ -123,11 +123,57 @@ class UnverifiedWalletSelect(discord.ui.Select):
         if not is_author(interaction, self.view):
             return
         view: WalletVerifyView = self.view  # type: ignore
-        wallet_id = self.values[0]
-        wallet_type = view.wallet_type
+        view._selected_wallet_id = self.values[0]
+        await interaction.response.defer()
+
+
+class WalletVerifyView(discord.ui.View):
+    """View that lists unverified wallets for selection with Proceed/← Back."""
+
+    def __init__(self, wallets: list[dict], wallet_type: str) -> None:
+        super().__init__(timeout=120)
+        self.author_id: int | None = None
+        self._done = False
+        self.wallets = wallets
+        self.wallet_type = wallet_type
+        self._selected_wallet_id: str | None = None
+        self.add_item(UnverifiedWalletSelect(wallets))
+
+        proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        back = discord.ui.Button(label='← Back', style=discord.ButtonStyle.secondary, row=1)
+        back.callback = self._on_back
+        self.add_item(back)
+
+    async def on_timeout(self) -> None:
+        self.stop()
+
+    async def _on_back(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        self.stop()
+        await interaction.response.edit_message(
+            embed=info_embed(message='Wallet verification cancelled.'),
+            view=None,
+        )
+
+    async def _on_proceed(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        if self._done:
+            return
+        self._done = True
+        wallet_id = self._selected_wallet_id or (self.children[0].values[0] if isinstance(self.children[0], UnverifiedWalletSelect) and self.children[0].values else None)
+        if not wallet_id:
+            await interaction.response.edit_message(
+                embed=error_embed(message='Select a wallet first.'), view=self,
+            )
+            return
 
         # Find the selected wallet in stored list
-        selected = next((w for w in view.wallets if w['id'] == wallet_id), None)
+        selected = next((w for w in self.wallets if w['id'] == wallet_id), None)
         if not selected:
             await interaction.response.edit_message(
                 embed=error_embed(message='Selected wallet not found.'),
@@ -163,17 +209,17 @@ class UnverifiedWalletSelect(discord.ui.Select):
                             f"After signing, click **Submit Signature** to complete verification."
                         ),
                         color=BrandColor.PRIMARY,
-                        footer="Xentra • Wallet Verification",
+                        footer="Xentra • Wallets",
                     )
 
-                    view.clear_items()
+                    self.clear_items()
                     submit_btn = discord.ui.Button(
                         label="Submit Signature",
                         style=discord.ButtonStyle.success,
                     )
 
                     async def submit_btn_cb(inter: discord.Interaction) -> None:
-                        if not is_author(inter, view):
+                        if not is_author(inter, self):
                             return
                         modal = VerifySignatureModal(
                             wallet_id=wallet_id,
@@ -182,23 +228,23 @@ class UnverifiedWalletSelect(discord.ui.Select):
                         await inter.response.send_modal(modal)
 
                     submit_btn.callback = submit_btn_cb
-                    view.add_item(submit_btn)
+                    self.add_item(submit_btn)
 
                     cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
 
                     async def cancel_btn_cb(inter: discord.Interaction) -> None:
-                        if not is_author(inter, view):
+                        if not is_author(inter, self):
                             return
-                        view.stop()
+                        self.stop()
                         await inter.response.edit_message(
                             embed=info_embed(message='Wallet verification cancelled.'),
                             view=None,
                         )
 
                     cancel_btn.callback = cancel_btn_cb
-                    view.add_item(cancel_btn)
+                    self.add_item(cancel_btn)
 
-                    await interaction.edit_original_response(embed=embed, view=view)
+                    await interaction.edit_original_response(embed=embed, view=self)
                 else:
                     err_msg = body.get('error', 'Could not generate challenge.')
                     await interaction.edit_original_response(
@@ -211,20 +257,6 @@ class UnverifiedWalletSelect(discord.ui.Select):
                 embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
-
-
-class WalletVerifyView(discord.ui.View):
-    """View that lists unverified wallets for selection."""
-
-    def __init__(self, wallets: list[dict], wallet_type: str) -> None:
-        super().__init__(timeout=120)
-        self.author_id: int | None = None
-        self.wallets = wallets
-        self.wallet_type = wallet_type
-        self.add_item(UnverifiedWalletSelect(wallets))
-
-    async def on_timeout(self) -> None:
-        self.stop()
 
 
 # ── Main Command ─────────────────────────────────────────────────────
@@ -280,7 +312,7 @@ class WalletVerify(commands.Cog):
                                 f"the **default**."
                             ),
                             color=BrandColor.PRIMARY,
-                            footer="Xentra • Wallet Verification",
+                            footer="Xentra • Wallets",
                         )
 
                         view = WalletVerifyView(unverified, wallet_type)

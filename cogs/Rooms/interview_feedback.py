@@ -109,7 +109,7 @@ class FeedbackStartView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label='Write Feedback', style=discord.ButtonStyle.primary)
+    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.success)
     async def write_feedback(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -125,9 +125,9 @@ class FeedbackStartView(discord.ui.View):
                 break
 
         if not selected_id or selected_id == 'none':
-            await interaction.response.send_message(
+            await interaction.response.edit_message(
                 embed=error_embed(message='Select a valid room first.'),
-                ephemeral=True,
+                view=self,
             )
             return
 
@@ -139,21 +139,23 @@ class FeedbackStartView(discord.ui.View):
                 break
 
         if not room_data:
-            await interaction.response.send_message(
-                embed=error_embed(message='Could not found selected room data.'),
-                ephemeral=True,
+            await interaction.response.edit_message(
+                embed=error_embed(message='Could not find selected room data.'),
+                view=self,
             )
             return
 
         modal = FeedbackModal(
             user_data=self.user_data,
             room_data=room_data,
+            rooms=self.rooms,
+            closed_rooms_data=self.closed_rooms_data,
         )
         modal._original_interaction = self._original_interaction
         await interaction.response.send_modal(modal)
         self.stop()
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -175,9 +177,9 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
     """Modal that collects feedback text. Room already selected before opening."""
 
     feedback = discord.ui.TextInput(
-        label='Feedback (max 100 words)',
+        label='Feedback',
         style=discord.TextStyle.paragraph,
-        placeholder='Describe your experience in this interview room…',
+        placeholder='Describe your experience (max 100 words)',
         required=True,
         max_length=2000,
     )
@@ -186,10 +188,14 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
         self,
         user_data: dict,
         room_data: dict,
+        rooms: list,
+        closed_rooms_data: list,
     ) -> None:
         super().__init__(timeout=300)
         self.user_data = user_data
         self.room_data = room_data
+        self.rooms = rooms
+        self.closed_rooms_data = closed_rooms_data
         self._original_interaction: discord.Interaction | None = None
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
@@ -241,6 +247,8 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
             room_data=self.room_data,
             feedback_text=feedback_text,
             original_interaction=self._original_interaction,
+            rooms=self.rooms,
+            closed_rooms_data=self.closed_rooms_data,
         )
         view.author_id = interaction.user.id
 
@@ -253,7 +261,7 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
                 f'**Job:** {self.room_data.get("job_title", "")}'
             ),
             color=BrandColor.PRIMARY,
-            footer='Xentra • Room Feedback',
+            footer='Xentra • Rooms',
         )
 
         await interaction.edit_original_response(
@@ -290,7 +298,7 @@ class RatingSelect(discord.ui.Select):
 
 
 class RatingSelectView(discord.ui.View):
-    """View with rating dropdown and Submit/Cancel buttons."""
+    """View with rating dropdown and Submit/← Back buttons."""
 
     def __init__(
         self,
@@ -298,13 +306,18 @@ class RatingSelectView(discord.ui.View):
         room_data: dict,
         feedback_text: str,
         original_interaction: discord.Interaction,
+        rooms: list,
+        closed_rooms_data: list,
     ) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self._done = False
         self.user_data = user_data
         self.room_data = room_data
         self.feedback_text = feedback_text
         self._original_interaction = original_interaction
+        self.rooms = rooms
+        self.closed_rooms_data = closed_rooms_data
         self._selected_rating: int = 3  # default
 
         self.add_item(RatingSelect())
@@ -322,6 +335,9 @@ class RatingSelectView(discord.ui.View):
     ) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
 
         # Read selected rating from dropdown
         for child in self.children:
@@ -383,17 +399,30 @@ class RatingSelectView(discord.ui.View):
             view=None,
         )
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='← Back', style=discord.ButtonStyle.secondary)
     async def cancel(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
         if not is_author(interaction, self):
             return
-        self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message='Feedback cancelled.'),
-            view=None,
+        # Go back to FeedbackStartView (room selection)
+        start_view = FeedbackStartView(
+            user_data=self.user_data,
+            rooms=self.rooms,
+            closed_rooms_data=self.closed_rooms_data,
         )
+        start_view.author_id = interaction.user.id
+        start_view._original_interaction = self._original_interaction
+        embed = create_embed(
+            title='Submit Interview Feedback',
+            description=(
+                'Select a closed interview room to leave feedback.\n\n'
+                f'**Job:** {self.room_data.get("job_title", "")}'
+            ),
+            color=BrandColor.PRIMARY,
+            footer='Xentra • Rooms',
+        )
+        await interaction.response.edit_message(embed=embed, view=start_view)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -439,7 +468,7 @@ class InterviewFeedback(commands.Cog):
                 ) as resp:
                     if resp.status != 200:
                         err_data = await resp.json()
-                        err_msg = err_data.get('error', 'Could not fetch rooms.')
+                        err_msg = err_data.get('error', 'Could not load rooms.')
                         return error_embed(message=err_msg), None
                     data = await resp.json()
                     rooms = data.get('rooms', [])
@@ -458,11 +487,11 @@ class InterviewFeedback(commands.Cog):
             embed = create_embed(
                 title='Interview Feedback',
                 description=(
-                    'Please select a closed interview room to submit feedback for.\n\n'
-                    f'You have **{len(rooms)}** room(s) awaiting feedback.'
+                    '> Please select a closed interview room to submit feedback for.\n\n'
+                    f'> You have **{len(rooms)}** room(s) awaiting feedback.'
                 ),
                 color=BrandColor.PRIMARY,
-                footer='Xentra • Room Feedback',
+                footer='Xentra • Rooms',
             )
 
             view = FeedbackStartView(

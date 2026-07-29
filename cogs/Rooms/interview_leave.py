@@ -76,7 +76,7 @@ class LeaveConfirmView(discord.ui.View):
         await self._disable_all()
         self.stop()
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(self, interaction: discord.Interaction, _btn: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -89,7 +89,7 @@ class LeaveConfirmView(discord.ui.View):
             view=None,
         )
 
-    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.danger)
+    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.success)
     async def proceed(self, interaction: discord.Interaction, _btn: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -148,7 +148,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         if not reason_text:
             try:
                 await interaction.response.edit_message(
-                    embed=error_embed(message='Reason could not be empty.'),
+                    embed=error_embed(message='Reason cannot be empty.'),
                     view=None,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):
@@ -324,16 +324,16 @@ class InterviewLeave(commands.Cog):
             confirm_embed = create_embed(
                 title='Leave Interview Room',
                 description=(
-                    f'Are you sure you want to leave room **`{room_id}`**?\n\n'
-                    'This action **cannot be undone**. Leaving will:\n'
-                    '• Close the interview room permanently\n'
-                    '• Generate and deliver a transcript to both parties\n'
-                    '• Notify the other party with your reason\n\n'
-                    'If you\'re unsure, click **Cancel**. '
+                    f'> Are you sure you want to leave room **`{room_id}`**?\n\n'
+                    '> This action **cannot be undone**. Leaving will:\n'
+                    '> • Close the interview room permanently\n'
+                    '> • Generate and deliver a transcript to both parties\n'
+                    '> • Notify the other party with your reason\n\n'
+                    '> If you\'re unsure, click **Cancel**. '
                     'Otherwise, click **Proceed** to provide a reason.'
                 ),
                 color=BrandColor.PRIMARY,
-                footer='Xentra • Room System',
+                footer='Xentra • Rooms',
             )
 
             view = LeaveConfirmView(

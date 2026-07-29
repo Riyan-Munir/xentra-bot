@@ -17,14 +17,14 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
     """Modal for registering a new wallet address."""
 
     address = discord.ui.TextInput(
-        label="Wallet Address (0x..., 42 chars)",
-        placeholder="0x...",
+        label="Wallet Address",
+        placeholder="0x... (42 chars)",
         min_length=42,
         max_length=64,
     )
     label = discord.ui.TextInput(
-        label="Wallet Label (Optional, max 64 chars)",
-        placeholder="e.g. My Main Wallet",
+        label="Wallet Label",
+        placeholder="e.g. My Main Wallet (optional, max 64 chars)",
         required=False,
         max_length=64,
     )
@@ -120,7 +120,7 @@ class WalletRegisterView(discord.ui.View):
         for child in self.children:
             child.disabled = True
 
-    @discord.ui.button(label="Register Wallet", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
     async def register_btn(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -131,7 +131,7 @@ class WalletRegisterView(discord.ui.View):
         await interaction.response.send_modal(modal)
         self.stop()
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_btn(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -161,12 +161,12 @@ class WalletRegister(commands.Cog):
             embed = create_embed(
                 title="Register a Wallet",
                 description=(
-                    "Click the button below to register a new wallet address.\n\n"
-                    "After registration, you'll need to verify the wallet "
+                    "> Click the button below to register a new wallet address.\n\n"
+                    "> After registration, you'll need to verify the wallet "
                     "using `/wallet verify` to activate it."
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Wallet Registration",
+                footer="Xentra • Wallets",
             )
             view = WalletRegisterView()
             view.author_id = interaction.user.id

@@ -75,6 +75,7 @@ class JobsListFilterView(discord.ui.View):
     def __init__(self, user_data, featured=None):
         super().__init__(timeout=180)
         self.author_id: int | None = None
+        self._done = False
         self.user_data = user_data
         self.featured = featured
         self.category = "all"
@@ -86,11 +87,11 @@ class JobsListFilterView(discord.ui.View):
         self.add_item(JobOrderFilterSelect())
         
         # Action buttons
-        send_btn = discord.ui.Button(label="Search Opportunities", style=discord.ButtonStyle.primary, row=3)
+        send_btn = discord.ui.Button(label="Proceed", style=discord.ButtonStyle.success, row=3)
         send_btn.callback = self.on_send
         self.add_item(send_btn)
         
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary, row=3)
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, row=3)
         cancel_btn.callback = self.on_cancel
         self.add_item(cancel_btn)
 
@@ -109,6 +110,9 @@ class JobsListFilterView(discord.ui.View):
     async def on_send(self, interaction: discord.Interaction):
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         # Disable all UI components
         for item in self.children:
             item.disabled = True
@@ -320,14 +324,14 @@ class JobsList(commands.Cog):
             embed = create_embed(
                 title="Discover Jobs",
                 description=(
-                    "**Configure Filters**: Use the dropdowns below to narrow down your search.\n"
-                    "**Category**: Filter by job type.\n"
-                    "**Budget**: Filter by budget tier.\n"
-                    "**Sort By**: Choose your preferred ordering.\n\n"
-                    + (f"**Featured Mode**: Showing only featured jobs.\n" if featured else "")
+                    "> **Configure Filters**, Use the dropdowns below to narrow down your search.\n"
+                    "> **Category**, Filter by job type.\n"
+                    "> **Budget**, Filter by budget tier.\n"
+                    "> **Sort By**, Choose your preferred ordering.\n\n"
+                    + (f"> **Featured Mode**, Showing only featured jobs.\n" if featured else "")
                 ),
                 color=BrandColor.PREMIUM if featured else BrandColor.PRIMARY,
-                footer="Xentra • Select your filters and hit Search Opportunities"
+                footer="Xentra • Jobs"
             )
             view = JobsListFilterView(user_data, featured=featured)
             view.author_id = interaction.user.id

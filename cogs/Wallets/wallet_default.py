@@ -36,8 +36,59 @@ class NonDefaultWalletSelect(discord.ui.Select):
         if not is_author(interaction, self.view):
             return
         view: WalletDefaultView = self.view  # type: ignore
-        wallet_id = self.values[0]
-        wallet_type = view.wallet_type
+        view._selected_wallet_id = self.values[0]
+        await interaction.response.defer()
+
+
+class WalletDefaultView(discord.ui.View):
+    """View with dropdown of non-default wallets and Proceed/Cancel buttons."""
+
+    def __init__(self, wallets: list[dict], wallet_type: str) -> None:
+        super().__init__(timeout=120)
+        self.author_id: int | None = None
+        self._done = False
+        self.wallet_type = wallet_type
+        self.wallets = wallets
+        self._selected_wallet_id: str | None = None
+        self.add_item(NonDefaultWalletSelect(wallets))
+
+        proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        cancel = discord.ui.Button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
+        cancel.callback = self._on_cancel
+        self.add_item(cancel)
+
+    async def on_timeout(self) -> None:
+        self.stop()
+
+    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        self.stop()
+        await interaction.response.edit_message(
+            embed=info_embed(message='Set default wallet cancelled.'),
+            view=None,
+        )
+
+    async def _on_proceed(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        if self._done:
+            return
+        self._done = True
+        wallet_id = self._selected_wallet_id
+        if not wallet_id:
+            for child in self.children:
+                if isinstance(child, NonDefaultWalletSelect) and child.values:
+                    wallet_id = child.values[0]
+                    break
+        if not wallet_id:
+            await interaction.response.edit_message(
+                embed=error_embed(message='Select a wallet first.'), view=self,
+            )
+            return
 
         await interaction.response.defer()
 
@@ -72,20 +123,6 @@ class NonDefaultWalletSelect(discord.ui.Select):
                 embed=error_embed(message="The service is temporarily unavailable."),
                 view=None,
             )
-
-
-class WalletDefaultView(discord.ui.View):
-    """View with dropdown of non-default wallets."""
-
-    def __init__(self, wallets: list[dict], wallet_type: str) -> None:
-        super().__init__(timeout=120)
-        self.author_id: int | None = None
-        self.wallet_type = wallet_type
-        self.wallets = wallets
-        self.add_item(NonDefaultWalletSelect(wallets))
-
-    async def on_timeout(self) -> None:
-        self.stop()
 
 
 class WalletDefault(commands.Cog):
@@ -139,7 +176,7 @@ class WalletDefault(commands.Cog):
                                 f"Select one from the dropdown below to set it as the default."
                             ),
                             color=BrandColor.PRIMARY,
-                            footer="Xentra • Default Wallet",
+                            footer="Xentra • Wallets",
                         )
 
                         view = WalletDefaultView(available, wallet_type)

@@ -60,7 +60,7 @@ class ComplainStartView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label='Write Complaint', style=discord.ButtonStyle.danger)
+    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.success)
     async def write_complaint(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -77,7 +77,7 @@ class ComplainStartView(discord.ui.View):
         await interaction.response.send_modal(modal)
         self.stop()
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -274,13 +274,13 @@ class InterviewComplain(commands.Cog):
             embed = create_embed(
                 title='Interview Complaint',
                 description=(
-                    'You are about to submit a complaint in the interview chat.\n\n'
-                    f'**Room:** `{room_data.get("room_id", "")}`\n'
-                    f'**Job:** {room_data.get("job_title", "")}\n\n'
-                    'Click **Write Complaint** to compose your complaint.'
+                    '> You are about to submit a complaint in the interview chat.\n\n'
+                    f'> **Room:** `{room_data.get("room_id", "")}`\n'
+                    f'> **Job:** {room_data.get("job_title", "")}\n\n'
+                    '> Click **Write Complaint** to compose your complaint.'
                 ),
                 color=BrandColor.PRIMARY,
-                footer='Xentra • Room System',
+                footer='Xentra • Rooms',
             )
 
             view = ComplainStartView(

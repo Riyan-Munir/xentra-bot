@@ -64,7 +64,7 @@ class Help(commands.Cog):
                 title="Xentra Help Center",
                 description=f"Authorized slash commands for your active perspective: **{active_role.replace('_', ' ').title()}**",
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Help Center"
+                footer="Xentra • General"
             )
             
             for category, cmds in filtered_commands.items():

@@ -34,7 +34,7 @@ class SwitchRole(commands.Cog):
                 title="Identity Switcher",
                 description="Select a role to update your dashboard permissions.",
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Role Switcher"
+                footer="Xentra • Profile"
             )
             
             current_display = f"**{current.replace('_', ' ').title()}**"

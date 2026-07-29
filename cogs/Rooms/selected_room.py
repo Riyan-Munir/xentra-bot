@@ -53,17 +53,18 @@ class SelectedRoomTypeSelect(discord.ui.Select):
 
 
 class SelectedRoomSetupView(discord.ui.View):
-    """Initial view: room-type dropdown + Submit / Cancel."""
+    """Initial view: room-type dropdown + Proceed / Cancel."""
 
     def __init__(self, user_data: dict) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self._done = False
         self.user_data = user_data
         self.room_type: str = "interview"
 
         self.add_item(SelectedRoomTypeSelect())
 
-        submit = discord.ui.Button(label="Submit", style=discord.ButtonStyle.primary)
+        submit = discord.ui.Button(label="Proceed", style=discord.ButtonStyle.success)
         submit.callback = self._on_submit
         self.add_item(submit)
 
@@ -86,6 +87,9 @@ class SelectedRoomSetupView(discord.ui.View):
     async def _on_submit(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         is_dm = interaction.guild is None
 
         for item in self.children:
@@ -117,11 +121,11 @@ class SelectedRoomSetupView(discord.ui.View):
             embed = create_embed(
                 title="Selected Room for Messages",
                 description=(
-                    f"This is the interview room currently selected "
-                    f"as active room for messages."
+                    "> This is the interview room currently selected "
+                    "as active room for messages."
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Room System",
+                footer="Xentra • Rooms",
             )
 
             # Format the last activity timestamp
@@ -159,7 +163,7 @@ class SelectedRoomSetupView(discord.ui.View):
         else:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Could not found selected interview room.",
+                    message="Could not find selected interview room.",
                 ),
                 view=None,
             )
@@ -184,12 +188,12 @@ class SelectedRoom(commands.Cog):
             embed = create_embed(
                 title="Selected Room",
                 description=(
-                    "**Select a room type** to view selected room.\n"
-                    "• **Interview Room**, Show selected interview room.\n"
-                    "• **Job Room**, Not yet implemented.\n\n"
+                    "> **Select Room Type**, View selected room.\n"
+                    "> **Interview Room**, Show selected interview room.\n"
+                    "> **Job Room**, Not yet implemented.\n\n"
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Room System",
+                footer="Xentra • Rooms",
             )
             view = SelectedRoomSetupView(user_data)
             view.author_id = interaction.user.id

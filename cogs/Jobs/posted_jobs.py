@@ -45,7 +45,7 @@ class PostedJobs(commands.Cog):
                 # posted_jobs only accepts CLIENT IDs
                 if result.is_system and result.prefix != 'CLI':
                     return error_embed(
-                        message="Provide a valid Client ID."
+                        message="Provide a valid ID."
                     )
                 # Use backend resolution for all ID types (handles premium/custom IDs)
                 resolve_url = f"{BACKEND_URL}users/resolve-id/"

@@ -14,9 +14,9 @@ logger = logging.getLogger('bot.jobs.apply_job')
 
 class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
     proposal = discord.ui.TextInput(
-        label='Proposal Text (50-300 words)',
+        label='Proposal Text',
         style=discord.TextStyle.long,
-        placeholder='Describe why you are the best fit in exactly 50-300 words...',
+        placeholder='Describe why you are the best fit (50-300 words)',
         required=True,
         min_length=10,
         max_length=1000
@@ -111,9 +111,9 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
             async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
                     res_data = await resp.json()
                     if resp.status in (200, 201):
-                        await interaction.followup.send(
+                        await interaction.edit_original_response(
                             embed=success_embed(message="Job application submitted successfully."),
-                            ephemeral=True
+                            view=None,
                         )
                         # Fire-and-forget analytics event for job application
                         job_data = {
@@ -128,15 +128,15 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
                             discord_username=interaction.user.name,
                         )
                     else:
-                        await interaction.followup.send(
+                        await interaction.edit_original_response(
                             embed=error_embed(message=res_data.get('error', "Failed to submit application.")),
-                            ephemeral=True
+                            view=None,
                         )
         except Exception as e:
             logger.error(f"Error submitting job application: {e}")
-            await interaction.followup.send(
+            await interaction.edit_original_response(
                 embed=error_embed(message="The service is temporarily unavailable."),
-                ephemeral=True
+                view=None,
             )
 
 
@@ -153,7 +153,7 @@ class ApplyJobPreflightView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label="Submit Application", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -175,7 +175,7 @@ class ApplyJobPreflightView(discord.ui.View):
             else:
                 await interaction.followup.send(embed=error_embed(message="The service is temporarily unavailable."), ephemeral=True)
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -219,12 +219,12 @@ class ApplyJob(commands.Cog):
                         embed = create_embed(
                             title="Job Application Preflight",
                             description=(
-                                "Check the job details and click the button below to submit your proposal and bid.\n\n"
-                                f"**Target Job ID**: `{job_id}`\n"
-                                "**Constraint**: Proposals must be between 50 and 300 words."
+                                "> Check the job details and click the button below to submit your proposal and bid.\n\n"
+                                f"> **Target Job ID**: `{job_id}`\n"
+                                "> **Constraint**: Proposals must be between 50 and 300 words."
                             ),
                             color=BrandColor.PRIMARY,
-                            footer="Xentra • Verify eligibility and input constraints before submitting."
+                            footer="Xentra • Jobs"
                         )
                         budget_min = res_data.get('budget_min')
                         view = ApplyJobPreflightView(job_id, budget_min)

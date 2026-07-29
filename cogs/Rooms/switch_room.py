@@ -55,17 +55,18 @@ class SwitchRoomTypeSelect(discord.ui.Select):
 
 
 class SwitchRoomSetupView(discord.ui.View):
-    """Step 1: room-type dropdown + Submit / Cancel."""
+    """Step 1: room-type dropdown + Proceed / Cancel."""
 
     def __init__(self, user_data: dict) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self._done = False
         self.user_data = user_data
         self.room_type: str = "interview"
 
         self.add_item(SwitchRoomTypeSelect())
 
-        submit = discord.ui.Button(label="Submit", style=discord.ButtonStyle.primary)
+        submit = discord.ui.Button(label="Proceed", style=discord.ButtonStyle.success)
         submit.callback = self._on_submit
         self.add_item(submit)
 
@@ -88,6 +89,9 @@ class SwitchRoomSetupView(discord.ui.View):
     async def _on_submit(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         is_dm = interaction.guild is None
 
         for item in self.children:
@@ -123,7 +127,7 @@ class SwitchRoomSetupView(discord.ui.View):
                     if not rooms_list:
                         await interaction.edit_original_response(
                             embed=error_embed(
-                                message="Could not found active interview rooms."
+                                message="Could not find active interview rooms."
                             ),
                             view=None,
                         )
@@ -139,10 +143,10 @@ class SwitchRoomSetupView(discord.ui.View):
                     embed = create_embed(
                         title="Switch Selected Room",
                         description=(
-                            "Select an interview room for messages."
+                            "> Select an interview room for messages."
                         ),
                         color=BrandColor.PRIMARY,
-                        footer="Xentra • Room System",
+                        footer="Xentra • Rooms",
                     )
                     await interaction.edit_original_response(
                         embed=embed,
@@ -211,7 +215,7 @@ class ActiveRoomSelect(discord.ui.Select):
 
 
 class RoomPickerView(discord.ui.View):
-    """Step 2: room selection dropdown + Confirm / Cancel."""
+    """Step 2: room selection dropdown + Proceed / ← Back."""
 
     def __init__(
         self,
@@ -221,6 +225,7 @@ class RoomPickerView(discord.ui.View):
     ) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self._done = False
         self.rooms = rooms
         self.user_data = user_data
         self.discord_id = discord_id
@@ -233,13 +238,13 @@ class RoomPickerView(discord.ui.View):
         self.add_item(ActiveRoomSelect(rooms))
 
         confirm = discord.ui.Button(
-            label="Confirm Switch",
+            label="Proceed",
             style=discord.ButtonStyle.success,
         )
         confirm.callback = self._on_confirm
         self.add_item(confirm)
 
-        cancel = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        cancel = discord.ui.Button(label="\u2190 Back", style=discord.ButtonStyle.secondary)
         cancel.callback = self._on_cancel
         self.add_item(cancel)
 
@@ -261,6 +266,9 @@ class RoomPickerView(discord.ui.View):
     async def _on_confirm(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         is_dm = interaction.guild is None
 
         if not self.selected_room_id or self.selected_room_id == "none":
@@ -332,12 +340,12 @@ class SwitchRoom(commands.Cog):
             embed = create_embed(
                 title="Switch Room",
                 description=(
-                    "**Select a room type** to switch active room.\n"
-                    "• **Interview Room**, Pick from active interview rooms.\n"
-                    "• **Job Room**, Not yet implemented.\n\n"
+                    "> **Select Room Type**, Switch active room.\n"
+                    "> **Interview Room**, Pick from active interview rooms.\n"
+                    "> **Job Room**, Not yet implemented.\n\n"
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Room System",
+                footer="Xentra • Rooms",
             )
             view = SwitchRoomSetupView(user_data)
             view.author_id = interaction.user.id

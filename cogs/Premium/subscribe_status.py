@@ -41,14 +41,14 @@ class SubscribeStatus(commands.Cog):
                     if resp.status != 200:
                         try:
                             err = await resp.json()
-                            msg = err.get('error', 'Could not fetch subscription status.')
+                            msg = err.get('error', 'Could not load subscription status.')
                         except Exception:
-                            msg = 'Could not fetch subscription status.'
-                        return error_embed(msg)
+                            msg = 'Could not load subscription status.'
+                        return error_embed(message=msg)
                     data = await resp.json()
             except Exception:
-                logger.exception("Could not fetch premium status")
-                return error_embed("Could not fetch subscription status.")
+                logger.exception("Could not load premium status")
+                return error_embed(message="Could not load subscription status.")
 
             has_premium = data.get('has_active_premium', False)
             tier = data.get('tier')
@@ -61,7 +61,7 @@ class SubscribeStatus(commands.Cog):
                     title="Subscription Status",
                     description="You are currently on the **Free Tier**.",
                     color=BrandColor.PRIMARY,
-                    footer="Xentra \u2022 Subscription",
+                    footer="Xentra • Premium",
                 )
                 embed.add_field(name="Plan", value="Free", inline=True)
                 return embed
@@ -106,7 +106,7 @@ class SubscribeStatus(commands.Cog):
                 title='Premium Subscription',
                 description='You have an active **Premium** subscription!',
                 color=BrandColor.SUCCESS,
-                footer='Xentra \u2022 Premium',
+                footer='Xentra • Premium',
             )
             embed.add_field(name='Tier', value=tier_label, inline=True)
             embed.add_field(name='Billing', value=interval_label, inline=True)

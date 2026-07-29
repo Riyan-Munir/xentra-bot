@@ -43,15 +43,16 @@ class PlanSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self.view):
             return
+        view: PlansView = self.view  # type: ignore
         selected_id = self.values[0]
         plan = next((p for p in self.plans if str(p.get('id', '')) == selected_id), None)
         if not plan:
-            # Edit the existing message instead of sending a new ephemeral
             await interaction.response.edit_message(
-                embed=error_embed('Selected plan not found.'), view=None,
+                embed=error_embed(message='Selected plan not found.'), view=None,
             )
             return
-        await self.view.show_plan_detail(interaction, plan)
+        view._selected_plan = plan
+        await interaction.response.defer()
 
 
 class PlanDetailView(discord.ui.View):
@@ -60,6 +61,7 @@ class PlanDetailView(discord.ui.View):
     def __init__(self, plan: dict, plans: list[dict], target_user_id: Optional[str] = None, user_data: Optional[dict] = None) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self._done = False
         self.plan = plan
         self.plans = plans
         self.target_user_id = target_user_id
@@ -68,10 +70,13 @@ class PlanDetailView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.primary)
+    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.success)
     async def subscribe_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
 
         await interaction.response.defer()
 
@@ -79,7 +84,7 @@ class PlanDetailView(discord.ui.View):
         discord_id = self.user_data.get('discord_id')
         if not discord_id or not plan_id:
             await interaction.edit_original_response(
-                embed=error_embed('Missing user or plan information.'),
+                embed=error_embed(message='Missing user or plan information.'),
                 view=None,
             )
             return
@@ -132,7 +137,7 @@ class PlanDetailView(discord.ui.View):
                             f'You will be redirected to the Xentra payment page to complete the transaction.{time_info}'
                         ),
                         color=BrandColor.SUCCESS,
-                        footer='Xentra \u2022 Payment Pending',
+                        footer='Xentra • Premium',
                     )
                     self.stop()
                     await interaction.edit_original_response(embed=embed, view=None)
@@ -167,7 +172,7 @@ class PlanDetailView(discord.ui.View):
                     except Exception:
                         msg = 'Could not create payment.'
                     await interaction.edit_original_response(
-                        embed=error_embed(msg), view=None,
+                        embed=error_embed(message=msg), view=None,
                     )
 
                 else:
@@ -177,24 +182,28 @@ class PlanDetailView(discord.ui.View):
                     except Exception:
                         msg = 'Could not create payment.'
                     await interaction.edit_original_response(
-                        embed=error_embed(msg), view=None,
+                        embed=error_embed(message=msg), view=None,
                     )
         except Exception:
             logger.exception("Could not create premium payment from bot")
             await interaction.edit_original_response(
-                embed=error_embed("Could not create payment."),
+                embed=error_embed(message="Could not create payment."),
                 view=None,
             )
 
-    @discord.ui.button(label='Close', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='← Back', style=discord.ButtonStyle.secondary)
     async def close_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
-        self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message='Plans browsing cancelled.'),
-            view=None,
+        # Return to the plan listing
+        plans_view = PlansView(
+            plans=self.plans,
+            target_user_id=self.target_user_id,
+            user_data=self.user_data,
         )
+        plans_view.author_id = interaction.user.id
+        embed = self._build_plans_embed(self.plans)
+        await interaction.response.edit_message(embed=embed, view=plans_view)
 
     @staticmethod
     def _build_plans_embed(plans: list[dict]) -> discord.Embed:
@@ -202,7 +211,7 @@ class PlanDetailView(discord.ui.View):
             title='Premium Subscription Plans',
             description='Browse available plans. Select one to view details.',
             color=BrandColor.PRIMARY,
-            footer='Xentra \u2022 Premium Plans',
+            footer='Xentra • Premium',
         )
         for p in plans:
             tier_label = p.get('tier_display') or p.get('tier', '\u2014')
@@ -223,7 +232,7 @@ class PlanDetailView(discord.ui.View):
 
 
 class PlansView(discord.ui.View):
-    """View with plan selection dropdown and optional target user context."""
+    """View with plan selection dropdown, Proceed and Cancel buttons."""
 
     def __init__(self, plans: list[dict], target_user_id: Optional[str] = None, user_data: Optional[dict] = None) -> None:
         super().__init__(timeout=120)
@@ -231,10 +240,39 @@ class PlansView(discord.ui.View):
         self.plans = plans
         self.target_user_id = target_user_id
         self.user_data = user_data or {}
+        self._selected_plan: dict | None = None
         self.add_item(PlanSelect(plans))
+
+        proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        cancel = discord.ui.Button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
+        cancel.callback = self._on_cancel
+        self.add_item(cancel)
 
     async def on_timeout(self) -> None:
         self.stop()
+
+    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        self.stop()
+        await interaction.response.edit_message(
+            embed=info_embed(message='Plans browsing cancelled.'),
+            view=None,
+        )
+
+    async def _on_proceed(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        plan = self._selected_plan
+        if not plan:
+            await interaction.response.edit_message(
+                embed=error_embed(message='Select a plan first.'), view=self,
+            )
+            return
+        await self.show_plan_detail(interaction, plan)
 
     async def show_plan_detail(self, interaction: discord.Interaction, plan: dict) -> None:
         """Show details of a selected plan, with gift context if applicable."""
@@ -254,7 +292,7 @@ class PlansView(discord.ui.View):
             title='Plan Details',
             description='\n'.join(description_parts),
             color=BrandColor.SUCCESS,
-            footer='Xentra \u2022 Plan Details',
+            footer='Xentra • Premium',
         )
         embed.add_field(name='Price', value=f'${price}', inline=True)
         if discount and Decimal(str(original_price)) > Decimal(str(discount)):
@@ -304,12 +342,12 @@ class SubscribePlans(commands.Cog):
                     else:
                         try:
                             err = await resp.json()
-                            return None, err.get('error', 'Could not fetch plans.')
+                            return None, err.get('error', 'Could not load plans.')
                         except Exception:
-                            return None, 'Could not fetch plans.'
+                            return None, 'Could not load plans.'
             except Exception:
-                logger.exception("Could not fetch premium plans")
-                return None, "Could not fetch plans."
+                logger.exception("Could not load premium plans")
+                return None, "Could not load plans."
 
             plans = data.get('plans', [])
             if not plans:
@@ -350,7 +388,7 @@ class SubscribePlans(commands.Cog):
             # ── Fetch plans ────────────────────────────────────────────
             plans, err = await _fetch_plans(user_data['discord_id'], role_for_plans)
             if err:
-                return error_embed(err)
+                return error_embed(message=err)
 
             # ── Self: no user_id → show plans for own role ─────────────
             if not user_id:
@@ -366,12 +404,12 @@ class SubscribePlans(commands.Cog):
                 embed = create_embed(
                     title='Gift Subscription',
                     description=(
-                        f'You are browsing plans to gift to **{gift_result.original}** '
+                        f'> You are browsing plans to gift to **{gift_result.original}** '
                         f'(**{role_label}**).\n\n'
-                        'Select a plan below to view details and subscribe.'
+                        '> Select a plan below to view details and subscribe.'
                     ),
                     color=BrandColor.PRIMARY,
-                    footer='Xentra \u2022 Gift Subscription',
+                    footer='Xentra • Premium',
                 )
                 view = PlansView(plans, target_user_id=gift_result.original, user_data=user_data)
                 view.author_id = interaction.user.id
@@ -406,12 +444,12 @@ class SubscribePlans(commands.Cog):
                                 embed = create_embed(
                                     title='Gift Subscription',
                                     description=(
-                                        f'You are browsing plans to gift to **{display_id}** '
+                                        f'> You are browsing plans to gift to **{display_id}** '
                                         f'(**{role_label}**).\n\n'
-                                        'Select a plan below to view details and subscribe.'
+                                        '> Select a plan below to view details and subscribe.'
                                     ),
                                     color=BrandColor.PRIMARY,
-                                    footer='Xentra \u2022 Gift Subscription',
+                                    footer='Xentra • Premium',
                                 )
                                 plans_view = PlansView(
                                     role_plans, target_user_id=display_id, user_data=user_data,
@@ -423,7 +461,7 @@ class SubscribePlans(commands.Cog):
                             else:
                                 err_resp = await resp.json()
                                 err_embed = error_embed(
-                                    err_resp.get('error', 'This ID is not valid for the selected role.')
+                                    message=err_resp.get('error', 'This ID is not valid for the selected role.')
                                 )
                                 await inter.response.edit_message(
                                     embed=err_embed, view=None,
@@ -431,7 +469,7 @@ class SubscribePlans(commands.Cog):
                     except Exception:
                         logger.exception("Could not resolve premium ID for gifting")
                         await inter.response.edit_message(
-                            embed=error_embed("The service is temporarily unavailable."), view=None,
+                            embed=error_embed(message="The service is temporarily unavailable."), view=None,
                         )
 
                 role_view = ProfileRoleView(
@@ -443,11 +481,11 @@ class SubscribePlans(commands.Cog):
                 embed = create_embed(
                     title='Role Selection Required',
                     description=(
-                        f'The ID **{gift_result.original}** is a custom Premium ID. '
-                        'Please select the target role perspective for gifting:'
+                        f'> The ID **{gift_result.original}** is a custom Premium ID. '
+                        '> Please select the target role perspective for gifting:'
                     ),
                     color=BrandColor.PRIMARY,
-                    footer='Xentra \u2022 Role Selection',
+                    footer='Xentra • Premium',
                 )
                 return embed, role_view
 

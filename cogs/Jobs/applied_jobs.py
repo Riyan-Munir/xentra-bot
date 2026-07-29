@@ -45,7 +45,7 @@ class AppliedJobs(commands.Cog):
                 # applied_jobs only accepts FREELANCER IDs
                 if result.is_system and result.prefix != 'FRL':
                     return error_embed(
-                        message="Provide a valid Freelancer ID."
+                        message="Provide a valid ID."
                     )
                 # Use backend resolution for all ID types (handles premium/custom IDs)
                 resolve_url = f"{BACKEND_URL}users/resolve-id/"

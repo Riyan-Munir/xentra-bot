@@ -146,7 +146,7 @@ class UserStats(commands.Cog):
             description=f"Performance stats for **{name}** (@{discord_name})",
             color=BrandColor.PREMIUM if is_premium else BrandColor.PRIMARY,
             thumbnail=avatar_url,
-            footer='Xentra • User Statistics',
+            footer='Xentra • Profile',
         )
 
         details = (

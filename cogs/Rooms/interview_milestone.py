@@ -161,8 +161,8 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             default=prefill.get('budget', '') if prefill else '',
         )
         self.deadline_inp = discord.ui.TextInput(
-            label='Deadline (optional)',
-            placeholder='YYYY-MM-DD or ISO format',
+            label='Deadline',
+            placeholder='YYYY-MM-DD or ISO format (optional)',
             max_length=30,
             required=False,
             default=prefill.get('deadline', '') if prefill else '',
@@ -389,8 +389,8 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
         )
         deadline = existing_data.get('deadline') or ''
         self.deadline_inp = discord.ui.TextInput(
-            label='Deadline (optional)',
-            placeholder='YYYY-MM-DD or ISO format',
+            label='Deadline',
+            placeholder='YYYY-MM-DD or ISO format (optional)',
             max_length=30,
             required=False,
             default=deadline,
@@ -565,11 +565,16 @@ class InterviewMilestoneDeleteView(discord.ui.View):
         self,
         room_data: dict,
         milestone_id: str,
+        milestones: list[dict],
+        action: str,
     ) -> None:
         super().__init__(timeout=300)
         self.room_data = room_data
         self.milestone_id = milestone_id
+        self.milestones = milestones
+        self.action = action
         self.author_id: int | None = None
+        self._done = False
 
     async def on_timeout(self) -> None:
         """Disable all buttons on timeout to prevent stale-state abuse."""
@@ -581,6 +586,9 @@ class InterviewMilestoneDeleteView(discord.ui.View):
     async def confirm(self, btn_interaction: discord.Interaction, _btn: discord.ui.Button) -> None:
         if not is_author(btn_interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         session = get_http_session()
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         url = f'{BACKEND_URL}rooms/bot/delete-milestone/'
@@ -646,24 +654,25 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                 view=None,
             )
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='← Back', style=discord.ButtonStyle.secondary)
     async def cancel(self, btn_interaction: discord.Interaction, _btn: discord.ui.Button) -> None:
         if not is_author(btn_interaction, self):
             return
-        for item in self.children:
-            item.disabled = True
-        self.stop()
-        await btn_interaction.response.edit_message(
-            embed=info_embed(message='Delete cancelled.'),
-            view=None,
+        # Go back to milestone selection
+        select_view = InterviewMilestoneSelectView(
+            room_data=self.room_data,
+            milestones=self.milestones,
+            action=self.action,
         )
+        select_view.author_id = self.author_id
+        await btn_interaction.response.edit_message(view=select_view)
 
 
 # ── Action View (CASE B, first dropdown) ───────────────────────────────
 
 
 class InterviewMilestoneSelectView(discord.ui.View):
-    """Second step: milestone selection dropdown for Edit or Delete."""
+    """Second step: milestone selection dropdown with Proceed/← Back."""
 
     def __init__(
         self,
@@ -676,6 +685,8 @@ class InterviewMilestoneSelectView(discord.ui.View):
         self.milestones = milestones
         self.action = action
         self.author_id: int | None = None
+        self._done = False
+        self._selected_milestone_id: str | None = None
 
         options = []
         for m in milestones:
@@ -696,14 +707,21 @@ class InterviewMilestoneSelectView(discord.ui.View):
         self.milestone_select.callback = self._on_milestone_selected
         self.add_item(self.milestone_select)
 
+        proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        back = discord.ui.Button(label='← Back', style=discord.ButtonStyle.secondary, row=1)
+        back.callback = self._on_back
+        self.add_item(back)
+
     async def on_timeout(self) -> None:
         """Disable all children on timeout to prevent stale-state abuse."""
         for item in self.children:
             item.disabled = True
         self.stop()
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
-    async def cancel(self, interaction: discord.Interaction, _btn: discord.ui.Button) -> None:
+    async def _on_back(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
         """Go back to the action-selection view."""
@@ -718,14 +736,29 @@ class InterviewMilestoneSelectView(discord.ui.View):
     async def _on_milestone_selected(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
-        milestone_id = self.milestone_select.values[0]
+        self._selected_milestone_id = self.milestone_select.values[0]
+        await interaction.response.defer()
+
+    async def _on_proceed(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        if self._done:
+            return
+        self._done = True
+        milestone_id = self._selected_milestone_id or (self.milestone_select.values[0] if self.milestone_select.values else None)
+        if not milestone_id:
+            await interaction.response.edit_message(
+                embed=error_embed(message='Select a milestone first.'), view=self,
+            )
+            return
+
         milestone_data = next(
             (m for m in self.milestones if m['milestone_id'] == milestone_id),
             None,
         )
         if not milestone_data:
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not found milestone.'),
+                embed=error_embed(message='Could not find milestone.'),
                 view=None,
             )
             return
@@ -751,25 +784,29 @@ class InterviewMilestoneSelectView(discord.ui.View):
             view = InterviewMilestoneDeleteView(
                 room_data=self.room_data,
                 milestone_id=milestone_id,
+                milestones=self.milestones,
+                action=self.action,
             )
             view.author_id = self.author_id
             await interaction.response.edit_message(embed=embed, view=view)
 
 
 class InterviewMilestoneActionView(discord.ui.View):
-    """First step (CASE B): Action dropdown with Add / Edit / Delete."""
+    """First step (CASE B): Action dropdown with Proceed / Cancel."""
 
     def __init__(self, room_data: dict, milestones: list[dict]) -> None:
         super().__init__(timeout=300)
         self.room_data = room_data
         self.milestones = milestones
         self.author_id: int | None = None
+        self._done = False
+        self._selected_action: str | None = None
 
         options = [
             discord.SelectOption(
                 label='Add Milestone',
                 value='add',
-                description='Add a new milestone (max 10)',
+                description='Add a new milestone',
             ),
         ]
         if milestones:
@@ -795,14 +832,21 @@ class InterviewMilestoneActionView(discord.ui.View):
         self.action_select.callback = self._on_action
         self.add_item(self.action_select)
 
+        proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        cancel = discord.ui.Button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
+        cancel.callback = self._on_cancel
+        self.add_item(cancel)
+
     async def on_timeout(self) -> None:
         """Disable all children on timeout to prevent stale-state abuse."""
         for item in self.children:
             item.disabled = True
         self.stop()
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
-    async def cancel(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+    async def _on_cancel(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
         for item in self.children:
@@ -816,15 +860,28 @@ class InterviewMilestoneActionView(discord.ui.View):
     async def _on_action(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
-        value = self.action_select.values[0]
+        self._selected_action = self.action_select.values[0]
+        await interaction.response.defer()
+
+    async def _on_proceed(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        if self._done:
+            return
+        self._done = True
+        value = self._selected_action or (self.action_select.values[0] if self.action_select.values else None)
+        if not value:
+            await interaction.response.edit_message(
+                embed=error_embed(message='Select an action first.'), view=self,
+            )
+            return
 
         if value == 'add':
             # Check max before opening form
             if len(self.milestones) >= 10:
                 await interaction.response.edit_message(
                     embed=error_embed(
-                        message='Maximum 10 milestones already reached. '
-                        'Delete one before adding another.',
+                        message='Maximum 10 milestones already reached.',
                     ),
                     view=None,
                 )

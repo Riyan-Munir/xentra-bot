@@ -44,7 +44,7 @@ class WalletList(commands.Cog):
                             title=f"Registered Wallets",
                             description=f"**{len(wallets)}** wallet(s) found.",
                             color=BrandColor.PRIMARY,
-                            footer="Xentra • Wallet List",
+                            footer="Xentra • Wallets",
                         )
 
                         for w in wallets:

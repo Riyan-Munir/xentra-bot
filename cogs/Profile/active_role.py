@@ -30,7 +30,7 @@ class ActiveRole(commands.Cog):
                 title="Active Identity",
                 color=BrandColor.PRIMARY,
                 thumbnail=interaction.user.display_avatar.url,
-                footer="Xentra • Active Role"
+                footer="Xentra • Profile"
             )
             
             embed.add_field(

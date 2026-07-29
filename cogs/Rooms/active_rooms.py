@@ -55,17 +55,18 @@ class RoomTypeSelect(discord.ui.Select):
 
 
 class ActiveRoomsSetupView(discord.ui.View):
-    """Initial view: room-type dropdown + Submit / Cancel."""
+    """Initial view: room-type dropdown + Proceed / Cancel."""
 
     def __init__(self, user_data: dict) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
+        self._done = False
         self.user_data = user_data
         self.room_type: str = "interview"  # default
 
         self.add_item(RoomTypeSelect())
 
-        submit = discord.ui.Button(label="Submit", style=discord.ButtonStyle.primary)
+        submit = discord.ui.Button(label="Proceed", style=discord.ButtonStyle.success)
         submit.callback = self._on_submit
         self.add_item(submit)
 
@@ -88,6 +89,9 @@ class ActiveRoomsSetupView(discord.ui.View):
     async def _on_submit(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         is_dm = interaction.guild is None
 
         # Disable all UI components
@@ -124,7 +128,7 @@ class ActiveRoomsSetupView(discord.ui.View):
 
                     if total_count == 0:
                         embed = error_embed(
-                            message="Could not found any active interview."
+                            message="Could not find any active interview."
                         )
                         await interaction.edit_original_response(embed=embed, view=None)
                         return
@@ -219,11 +223,11 @@ class ActiveRoomsPaginationView(PaginationView):
                 f"**{self.total_pages}**)"
             ),
             color=BrandColor.PRIMARY,
-            footer="Xentra • Room System",
+            footer="Xentra • Rooms",
         )
 
         if not self.rooms:
-            embed.description = "Could not found any active interview rooms."
+            embed.description = "Could not find any active interview rooms."
             return embed
 
         for room in self.rooms:
@@ -272,13 +276,13 @@ class ActiveRooms(commands.Cog):
             embed = create_embed(
                 title="Active Rooms",
                 description=(
-                    "**Select a room type** to view your active rooms.\n"
-                    "• **Interview Room**, Show all open interview rooms.\n"
-                    "• **Job Room**, Not yet implemented.\n\n"
-                    "Press **Submit** to continue or **Cancel** to abort."
+                    "> **Select Room Type**, View your active rooms.\n"
+                    "> **Interview Room**, Show all open interview rooms.\n"
+                    "> **Job Room**, Not yet implemented.\n\n"
+                    "> Press **Submit** to continue or **Cancel** to abort."
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Room System",
+                footer="Xentra • Rooms",
             )
             view = ActiveRoomsSetupView(user_data)
             view.author_id = interaction.user.id

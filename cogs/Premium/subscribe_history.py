@@ -47,17 +47,17 @@ class HistoryPaginationView(PaginationView):
                 else:
                     try:
                         err = await resp.json()
-                        msg = err.get('error', 'Could not fetch history.')
+                        msg = err.get('error', 'Could not load history.')
                     except Exception:
-                        msg = 'Could not fetch history.'
+                        msg = 'Could not load history.'
                     await interaction.edit_original_response(
-                        embed=error_embed(msg), view=self,
+                        embed=error_embed(message=msg), view=self,
                     )
                     return
         except Exception:
             logger.exception("Failed to fetch premium history page %s", new_page)
             await interaction.edit_original_response(
-                embed=error_embed("Could not load this page."), view=self,
+                embed=error_embed(message="Could not load this page."), view=self,
             )
             return
 
@@ -76,7 +76,7 @@ class HistoryPaginationView(PaginationView):
                 f'(\u2022 {self.total_count} total record(s))'
             ),
             color=BrandColor.PRIMARY,
-            footer='Xentra \u2022 Subscription History',
+            footer='Xentra • Premium',
         )
         if not self._page_data:
             embed.add_field(
@@ -145,13 +145,13 @@ class SubscribeHistory(commands.Cog):
                     else:
                         try:
                             err = await resp.json()
-                            msg = err.get('error', 'Could not fetch history.')
+                            msg = err.get('error', 'Could not load history.')
                         except Exception:
-                            msg = 'Could not fetch history.'
-                        return error_embed(msg)
+                            msg = 'Could not load history.'
+                        return error_embed(message=msg)
             except Exception:
-                logger.exception("Could not fetch premium history")
-                return error_embed("Could not fetch history.")
+                logger.exception("Could not load premium history")
+                return error_embed(message="Could not load history.")
 
             total_count = data.get('count', 0)
             total_pages = max(1, (total_count + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE)

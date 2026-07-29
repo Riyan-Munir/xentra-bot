@@ -76,7 +76,7 @@ class PortfolioPaginationView(PaginationView):
             description=self.portfolio.get('description', "Professional freelancer portfolio.") + page_info,
             color=embed_color,
             thumbnail=avatar_url,
-            footer='Xentra • Portfolio Showcase',
+            footer='Xentra • Profile',
         )
         
         if self.is_premium:
@@ -142,7 +142,7 @@ class ViewPortfolio(commands.Cog):
         
         async def fetch_and_show_portfolio(inter, role, canonical_id, viewer_data):
             if role != 'freelancer':
-                return error_embed(message="This ID doesn't belong to a freelancer.")
+                return error_embed(message="This ID is not valid for the selected role.")
             
             url = f"{BACKEND_URL}profiles/bot-detail/"
             params = {'profile_id': canonical_id, 'role': 'freelancer', 'discord_id': inter.user.id}
@@ -210,7 +210,7 @@ class ViewPortfolio(commands.Cog):
             if result.is_system:
                 # Only FRL_ prefix is valid for portfolios
                 if result.prefix != 'FRL':
-                    return error_embed(message="This ID doesn't belong to a freelancer.")
+                    return error_embed(message="This ID is not valid for the selected role.")
                 packet = BotPacketFactory.create_packet(
                     packet_type="user_resolve_id",
                     data={'raw_id': result.normalized},
@@ -229,11 +229,11 @@ class ViewPortfolio(commands.Cog):
                     if resp.status == 200:
                         res = await resp.json()
                         if res['role'] != 'freelancer':
-                            return error_embed(message="This ID doesn't belong to a freelancer.")
+                            return error_embed(message="This ID is not valid for the selected role.")
                         return await fetch_and_show_portfolio(interaction, res['role'], res['canonical_id'], user_data)
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', "This ID doesn't belong to a freelancer."))
+                        return error_embed(message=err.get('error', "This ID is not valid for the selected role."))
         
         await validate_and_respond(interaction, portfolio_callback)
 

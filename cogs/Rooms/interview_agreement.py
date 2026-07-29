@@ -118,14 +118,14 @@ class AgreementConfirmView(discord.ui.View):
         except Exception:
             logger.exception('Failed to reach accept-agreement endpoint')
             await interaction.edit_original_response(
-                embed=error_embed('The service is temporarily unavailable.'),
+                embed=error_embed(message='The service is temporarily unavailable.'),
                 view=None,
             )
             return
 
         if body.get('status') == 'error':
             await interaction.edit_original_response(
-                embed=error_embed(body.get('message', 'Could not sign the agreement.')),
+                embed=error_embed(message=body.get('message', 'Could not sign the agreement.')),
                 view=None,
             )
             return
@@ -614,8 +614,8 @@ class InterviewAgreement(commands.Cog):
 
             confirm_embed = create_embed(
                 description=(
-                    'Did you accept the Job Agreement? By accepting it you are also '
-                    'agreeing to our terms and conditions.'
+                    '> Did you accept the Job Agreement? By accepting it you are also '
+                    '> agreeing to our terms and conditions.'
                 ),
                 color=BrandColor.PRIMARY,
             )

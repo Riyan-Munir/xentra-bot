@@ -45,7 +45,7 @@ class AllowExecutionView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label="Send Request", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
     async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -56,7 +56,7 @@ class AllowExecutionView(discord.ui.View):
             return await interaction.response.edit_message(embed=error_embed(message="Select a role first."), view=self)
         await self.callback_func(interaction, self.selected_role, self.identifier, self)
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -168,7 +168,7 @@ class AllowExecution(commands.Cog):
                     title="Role Selection Required",
                     description=f"The ID **{result.original}** is a custom Premium ID. Please select the target role perspective:",
                     color=BrandColor.ACCENT,
-                    footer="Xentra • Select role to proceed"
+                    footer="Xentra • Management"
                 )
                 return embed, view
 

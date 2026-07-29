@@ -22,12 +22,12 @@ class Register(commands.Cog):
             embed = create_embed(
                 title="Account Registration Gateway",
                 description=(
-                    f"**Gateway**: Initialize your digital identity via the link below.\n"
-                    f"**Authorization**: Authenticate with your Discord identity to register.\n"
-                    f"**Link**: [**Initialize Xentra Account**]({FRONTEND_URL})"
+                    "> **Gateway**, Initialize your digital identity via the link below.\n"
+                    "> **Authorization**, Authenticate with your Discord identity to register.\n"
+                    f"> **Link**, [**Initialize Xentra Account**]({FRONTEND_URL})"
                 ),
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Identity Gateway"
+                footer="Xentra • Account"
             )
             return embed
 

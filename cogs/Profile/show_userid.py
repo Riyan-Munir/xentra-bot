@@ -37,7 +37,7 @@ class ShowUserID(commands.Cog):
                 title="Identity Registry",
                 description=f"Registered roles for **{target_user}**:",
                 color=BrandColor.PRIMARY,
-                footer="Xentra • Identity Registry"
+                footer="Xentra • Profile"
             )
             
             role_map = {

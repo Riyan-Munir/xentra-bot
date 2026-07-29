@@ -147,7 +147,7 @@ class UserProfile(commands.Cog):
             description=f"Identity details for **{name}** (@{discord_name})",
             color=BrandColor.PREMIUM if is_premium else BrandColor.PRIMARY,
             thumbnail=avatar_url,
-            footer='Xentra • User Profile',
+            footer='Xentra • Profile',
         )
         
         if role == 'freelancer':

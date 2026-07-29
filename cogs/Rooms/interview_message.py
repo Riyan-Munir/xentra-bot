@@ -82,7 +82,7 @@ def _build_confirm_embed(
         title='Interview Message',
         description=desc,
         color=BrandColor.PRIMARY,
-        footer='Xentra • Room System',
+        footer='Xentra • Rooms',
     )
 
 
@@ -97,7 +97,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
     msg = discord.ui.TextInput(
         label='Message',
         style=discord.TextStyle.paragraph,
-        placeholder='Type your message here… (max 1000 words)',
+        placeholder='Type your message here (max 1000 words)',
         required=True,
         max_length=4000,
     )
@@ -180,14 +180,13 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
 
 
 class InterviewMessageConfirmView(discord.ui.View):
-    """Confirmation view: Attach / per-attachment Remove buttons / Send / Cancel.
+    """Confirmation view: Attach / per-attachment Remove buttons / Proceed / Cancel.
 
-    Row 0: Attach button to add files.
+    Row 0: Attach + Proceed + Cancel (3 buttons in one row).
     Row 1: Dynamic Remove {filename} buttons, one per attached file.
-    Row 2: Send / Cancel.
 
     When no files are attached, no Remove buttons appear.
-    On Send, the same embed is edited to a success/error state
+    On Proceed, the same embed is edited to a success/error state
     and every button is removed.
     """
 
@@ -385,17 +384,12 @@ class InterviewMessageConfirmView(discord.ui.View):
                     return
                 self.attachments.pop(i)
                 await self._refresh_embed()
-                await interaction.response.send_message(
-                    embed=success_embed(
-                        message=f'Removed **{_sanitise_filename(attach.filename)}**.'
-                    ),
-                    ephemeral=True,
-                )
+                await interaction.response.defer()
 
             button.callback = _remove_callback
             self.add_item(button)
 
-    @discord.ui.button(label='Send', style=discord.ButtonStyle.success, row=2)
+    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.success, row=0)
     async def send_msg(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -408,7 +402,7 @@ class InterviewMessageConfirmView(discord.ui.View):
         await interaction.response.defer(ephemeral=not self.is_dm)
         await self._do_send(interaction)
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger, row=2)
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger, row=0)
     async def cancel(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -643,7 +637,7 @@ class InterviewMessage(commands.Cog):
                             return error_embed(
                                 message=err_data.get(
                                     'error',
-                                    f'Could not found Message ID `{message_id}` in this room.',
+                                    f'Could not find Message ID `{message_id}` in this room.',
                                 ),
                             )
                 except Exception:
@@ -674,7 +668,7 @@ class InterviewMessage(commands.Cog):
                 title='Interview Message',
                 description='\n'.join(desc_parts),
                 color=BrandColor.PRIMARY,
-                footer='Xentra • Room System',
+                footer='Xentra • Rooms',
             )
 
             view = MessageStartView(
@@ -713,7 +707,7 @@ class MessageStartView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label='Write Message', style=discord.ButtonStyle.primary)
+    @discord.ui.button(label='Proceed', style=discord.ButtonStyle.success)
     async def write_message(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:
@@ -729,7 +723,7 @@ class MessageStartView(discord.ui.View):
         await interaction.response.send_modal(modal)
         self.stop()
 
-    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
     ) -> None:

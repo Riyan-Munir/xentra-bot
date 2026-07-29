@@ -84,16 +84,17 @@ class RoomTypeSelect(discord.ui.Select):
 
 
 class CreateRoomSetupView(discord.ui.View):
-    """Initial view: room-type dropdown + Submit / Cancel."""
+    """Initial view: room-type dropdown + Proceed / Cancel."""
 
     def __init__(self) -> None:
         super().__init__(timeout=300)
         self.author_id: int | None = None
+        self._done = False
         self.room_type: Optional[str] = None
         self.add_item(RoomTypeSelect())
 
         submit = discord.ui.Button(
-            label="Submit", style=discord.ButtonStyle.primary, row=1
+            label="Proceed", style=discord.ButtonStyle.success, row=1
         )
         submit.callback = self._on_submit
         self.add_item(submit)
@@ -114,6 +115,9 @@ class CreateRoomSetupView(discord.ui.View):
     async def _on_cancel(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
+        self._done = True
         self.stop()
         await interaction.response.edit_message(
             embed=info_embed(message="Room creation cancelled."),
@@ -123,12 +127,16 @@ class CreateRoomSetupView(discord.ui.View):
     async def _on_submit(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        if self._done:
+            return
         if not self.room_type:
-            await interaction.response.send_message(
+            await interaction.response.edit_message(
                 embed=error_embed(message="Select a room type first."),
-                ephemeral=True,
+                view=self,
             )
             return
+
+        self._done = True
 
         # Defer so we have time for backend calls
         await interaction.response.defer()
@@ -144,6 +152,7 @@ class CreateRoomSetupView(discord.ui.View):
                     message="Job room creation is not available yet. "
                     "This feature will be released in a future update.",
                 ),
+                view=None,
             )
             return
 
@@ -166,17 +175,17 @@ class ExtraRoomConfirmView(discord.ui.View):
         self.use_extra: bool = False
 
         confirm = discord.ui.Button(
-            label=f"Yes, use a room token ({extra_count} left)",
-            style=discord.ButtonStyle.primary,
+            label="Proceed",
+            style=discord.ButtonStyle.success,
         )
         confirm.callback = self._on_confirm
         self.add_item(confirm)
 
-        cancel = discord.ui.Button(
-            label="Cancel", style=discord.ButtonStyle.danger
+        back = discord.ui.Button(
+            label="\u2190 Back", style=discord.ButtonStyle.secondary
         )
-        cancel.callback = self._on_cancel
-        self.add_item(cancel)
+        back.callback = self._on_cancel
+        self.add_item(back)
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -242,16 +251,16 @@ class JobSelectView(discord.ui.View):
         self.add_item(self._job_select)
 
         confirm = discord.ui.Button(
-            label="Confirm", style=discord.ButtonStyle.primary, row=1
+            label="Proceed", style=discord.ButtonStyle.success, row=1
         )
         confirm.callback = self._on_confirm
         self.add_item(confirm)
 
-        cancel = discord.ui.Button(
-            label="Cancel", style=discord.ButtonStyle.danger, row=1
+        back = discord.ui.Button(
+            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
         )
-        cancel.callback = self._on_cancel
-        self.add_item(cancel)
+        back.callback = self._on_cancel
+        self.add_item(back)
 
     # ------------------------------------------------------------------
 
@@ -272,9 +281,9 @@ class JobSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.selected_job_id:
-            await interaction.response.send_message(
-                embed=error_embed("Select a job first."),
-                ephemeral=True,
+            await interaction.response.edit_message(
+                embed=error_embed(message="Select a job first."),
+                view=self,
             )
             return
         self.stop()
@@ -337,16 +346,16 @@ class ApplicationSelectView(discord.ui.View):
         self.add_item(self._app_select)
 
         confirm = discord.ui.Button(
-            label="Confirm", style=discord.ButtonStyle.primary, row=1
+            label="Proceed", style=discord.ButtonStyle.success, row=1
         )
         confirm.callback = self._on_confirm
         self.add_item(confirm)
 
-        cancel = discord.ui.Button(
-            label="Cancel", style=discord.ButtonStyle.danger, row=1
+        back = discord.ui.Button(
+            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
         )
-        cancel.callback = self._on_cancel
-        self.add_item(cancel)
+        back.callback = self._on_cancel
+        self.add_item(back)
 
     # ------------------------------------------------------------------
 
@@ -375,9 +384,9 @@ class ApplicationSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.selected_app_id:
-            await interaction.response.send_message(
-                embed=error_embed("Select an application first."),
-                ephemeral=True,
+            await interaction.response.edit_message(
+                embed=error_embed(message="Select an application first."),
+                view=self,
             )
             return
         self.stop()
@@ -437,16 +446,16 @@ class JobSelectView(discord.ui.View):
         self.add_item(self._job_select)
 
         confirm = discord.ui.Button(
-            label="Confirm", style=discord.ButtonStyle.primary, row=1
+            label="Proceed", style=discord.ButtonStyle.success, row=1
         )
         confirm.callback = self._on_confirm
         self.add_item(confirm)
 
-        cancel = discord.ui.Button(
-            label="Cancel", style=discord.ButtonStyle.danger, row=1
+        back = discord.ui.Button(
+            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
         )
-        cancel.callback = self._on_cancel
-        self.add_item(cancel)
+        back.callback = self._on_cancel
+        self.add_item(back)
 
     # ------------------------------------------------------------------
 
@@ -460,9 +469,9 @@ class JobSelectView(discord.ui.View):
 
     async def _on_confirm(self, interaction: discord.Interaction) -> None:
         if not self.selected_job_id:
-            await interaction.response.send_message(
-                embed=error_embed("Select a job first."),
-                ephemeral=True,
+            await interaction.response.edit_message(
+                embed=error_embed(message="Select a job first."),
+                view=self,
             )
             return
         self.stop()
@@ -522,16 +531,16 @@ class ApplicationSelectView(discord.ui.View):
         self.add_item(self._app_select)
 
         confirm = discord.ui.Button(
-            label="Confirm", style=discord.ButtonStyle.primary, row=1
+            label="Proceed", style=discord.ButtonStyle.success, row=1
         )
         confirm.callback = self._on_confirm
         self.add_item(confirm)
 
-        cancel = discord.ui.Button(
-            label="Cancel", style=discord.ButtonStyle.danger, row=1
+        back = discord.ui.Button(
+            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
         )
-        cancel.callback = self._on_cancel
-        self.add_item(cancel)
+        back.callback = self._on_cancel
+        self.add_item(back)
 
     # ------------------------------------------------------------------
 
@@ -553,9 +562,9 @@ class ApplicationSelectView(discord.ui.View):
 
     async def _on_confirm(self, interaction: discord.Interaction) -> None:
         if not self.selected_app_id:
-            await interaction.response.send_message(
-                embed=error_embed("Select an application first."),
-                ephemeral=True,
+            await interaction.response.edit_message(
+                embed=error_embed(message="Select an application first."),
+                view=self,
             )
             return
         self.stop()
@@ -608,7 +617,7 @@ class CreateRooms(commands.Cog):
                 ),
                 color=BrandColor.PRIMARY,
             )
-            embed.set_footer(text='Xentra • Room System')
+            embed.set_footer(text='Xentra • Rooms')
             view = CreateRoomSetupView()
             view.author_id = interaction.user.id
             return embed, view
@@ -643,10 +652,10 @@ class CreateRooms(commands.Cog):
             confirm_embed = create_embed(
                 title="Monthly Limit Reached",
                 description=(
-                    "You have used all your room tokens for this month. "
-                    f"You have **{extra_count}** room token"
+                    "> You have used all your room tokens for this month.\n"
+                    f"> You have **{extra_count}** room token"
                     f"{'s' if extra_count != 1 else ''} remaining.\n\n"
-                    "Would you like to use a purchased room token for this room?"
+                    "> Would you like to use a purchased room token for this room?"
                 ),
                 color=BrandColor.WARNING,
             )
@@ -678,7 +687,7 @@ class CreateRooms(commands.Cog):
         if not jobs:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Could not found any posted jobs. ",
+                    message="Could not find any posted jobs.",
                 ),
             )
             return
@@ -709,7 +718,7 @@ class CreateRooms(commands.Cog):
         if not applications:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Could not found pending applications for this job.",
+                    message="Could not find pending applications for this job.",
                 ),
             )
             return

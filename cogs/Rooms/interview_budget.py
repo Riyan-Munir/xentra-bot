@@ -49,7 +49,7 @@ class InterviewBudget(commands.Cog):
 
             # --- budget validation ---
             if budget < 50:
-                return error_embed('Budget could not be less than 50$.')
+                return error_embed(message='The minimum budget is $50.')
 
             room_data = user_data['_selected_room']
 

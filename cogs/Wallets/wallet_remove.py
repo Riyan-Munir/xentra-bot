@@ -36,43 +36,23 @@ class RemovableWalletSelect(discord.ui.Select):
         if not is_author(interaction, self.view):
             return
         view: WalletRemoveView = self.view  # type: ignore
-        wallet_id = self.values[0]
-        wallet_type = view.wallet_type
-        selected = next((w for w in view.wallets if w['id'] == wallet_id), None)
-
-        # Show confirmation view
-        confirm_view = WalletRemoveConfirmView(
-            wallet_id=wallet_id,
-            wallet_type=wallet_type,
-            wallet_label=selected.get('label', '') or f"{selected['address'][:8]}...{selected['address'][-4:]}",
-        )
-        confirm_view.author_id = interaction.user.id
-
-        embed = create_embed(
-            title="Confirm Wallet Removal",
-            description=(
-                f"Are you sure you want to remove wallet **{wallet_id}**?\n\n"
-                f"This action **cannot be undone**. The wallet will be disabled "
-                f"and removed from your account.\n\n"
-                f"*Note: Only non-default wallets can be removed.*"
-            ),
-            color=BrandColor.WARNING,
-            footer="Xentra • Wallet Removal",
-        )
-
-        await interaction.response.edit_message(embed=embed, view=confirm_view)
+        view._selected_wallet_id = self.values[0]
+        selected = next((w for w in view.wallets if w['id'] == view._selected_wallet_id), None)
+        view._selected_label = selected.get('label', '') or f"{selected['address'][:8]}...{selected['address'][-4:]}" if selected else ''
+        await interaction.response.defer()
 
 
 class WalletRemoveConfirmView(discord.ui.View):
-    """Confirmation view with Proceed and Cancel buttons."""
+    """Confirmation view with Proceed and ← Back buttons."""
 
-    def __init__(self, wallet_id: str, wallet_type: str, wallet_label: str) -> None:
+    def __init__(self, wallet_id: str, wallet_type: str, wallet_label: str, wallets: list[dict]) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
         self._done = False
         self.wallet_id = wallet_id
         self.wallet_type = wallet_type
         self.wallet_label = wallet_label
+        self.wallets = wallets
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -81,7 +61,7 @@ class WalletRemoveConfirmView(discord.ui.View):
         for child in self.children:
             child.disabled = True
 
-    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
     async def proceed(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
@@ -122,11 +102,46 @@ class WalletRemoveConfirmView(discord.ui.View):
                 view=None,
             )
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="← Back", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
         if self._done:
+            return
+        # Go back to WalletRemoveView (wallet selection)
+        back_view = WalletRemoveView(
+            wallets=self.wallets,
+            wallet_type=self.wallet_type,
+        )
+        back_view.author_id = self.author_id
+        await interaction.response.edit_message(view=back_view)
+
+
+class WalletRemoveView(discord.ui.View):
+    """View with dropdown of removable (non-default) wallets and Proceed/Cancel buttons."""
+
+    def __init__(self, wallets: list[dict], wallet_type: str) -> None:
+        super().__init__(timeout=120)
+        self.author_id: int | None = None
+        self.wallet_type = wallet_type
+        self.wallets = wallets
+        self._selected_wallet_id: str | None = None
+        self._selected_label: str = ''
+        self.add_item(RemovableWalletSelect(wallets))
+
+        proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        cancel = discord.ui.Button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
+        cancel.callback = self._on_cancel
+        self.add_item(cancel)
+
+    async def on_timeout(self) -> None:
+        self.stop()
+
+    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
             return
         self.stop()
         await interaction.response.edit_message(
@@ -134,19 +149,44 @@ class WalletRemoveConfirmView(discord.ui.View):
             view=None,
         )
 
+    async def _on_proceed(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        wallet_id = self._selected_wallet_id
+        if not wallet_id:
+            for child in self.children:
+                if isinstance(child, RemovableWalletSelect) and child.values:
+                    wallet_id = child.values[0]
+                    break
+        if not wallet_id:
+            await interaction.response.edit_message(
+                embed=error_embed(message='Select a wallet first.'), view=self,
+            )
+            return
+        selected = next((w for w in self.wallets if w['id'] == wallet_id), None)
+        label = self._selected_label or (selected.get('label', '') or f"{selected['address'][:8]}...{selected['address'][-4:]}" if selected else '')
 
-class WalletRemoveView(discord.ui.View):
-    """View with dropdown of removable (non-default) wallets."""
+        confirm_view = WalletRemoveConfirmView(
+            wallet_id=wallet_id,
+            wallet_type=self.wallet_type,
+            wallet_label=label,
+            wallets=self.wallets,
+        )
+        confirm_view.author_id = interaction.user.id
 
-    def __init__(self, wallets: list[dict], wallet_type: str) -> None:
-        super().__init__(timeout=120)
-        self.author_id: int | None = None
-        self.wallet_type = wallet_type
-        self.wallets = wallets
-        self.add_item(RemovableWalletSelect(wallets))
+        embed = create_embed(
+            title="Confirm Wallet Removal",
+            description=(
+                f"Are you sure you want to remove wallet **{wallet_id}**?\n\n"
+                f"This action **cannot be undone**. The wallet will be disabled "
+                f"and removed from your account.\n\n"
+                f"*Note: Only non-default wallets can be removed.*"
+            ),
+            color=BrandColor.WARNING,
+            footer="Xentra • Wallets",
+        )
 
-    async def on_timeout(self) -> None:
-        self.stop()
+        await interaction.response.edit_message(embed=embed, view=confirm_view)
 
 
 class WalletRemove(commands.Cog):
@@ -199,7 +239,7 @@ class WalletRemove(commands.Cog):
                                 f"The default wallet cannot be removed."
                             ),
                             color=BrandColor.PRIMARY,
-                            footer="Xentra • Wallet Removal",
+                            footer="Xentra • Wallets",
                         )
 
                         view = WalletRemoveView(removable, wallet_type)

@@ -54,7 +54,7 @@ class ApplicationDetails(commands.Cog):
                                 f"> **Proposal:**\n> {data.get('proposal', 'No proposal provided.')[:1000]}"
                             ),
                             color=BrandColor.PRIMARY,
-                            footer="Xentra • Application Details",
+                            footer="Xentra • Jobs",
                         )
 
                         if data.get('created_at'):
