@@ -1,6 +1,10 @@
 import discord
 from enum import IntEnum
 from typing import Optional
+from config import BACKEND_URL
+
+# Logo resource URL served by the backend
+XENTRA_LOGO_URL = f"{BACKEND_URL}resources/xentra_logo/image/"
 
 class BrandColor(IntEnum):
     PRIMARY = 0x6366f1   # Indigo
@@ -33,6 +37,7 @@ def create_embed(
 
     All specialized embed types (error, success, info, etc.) build on this
     pattern.  The author and footer together form the Xentra business mark.
+    If *author_icon* is not provided, the Xentra logo resource URL is used.
     """
     formatted_desc = format_description(description) if description else None
     embed = discord.Embed(
@@ -41,7 +46,9 @@ def create_embed(
         color=color.value if isinstance(color, BrandColor) else color,
     )
 
-    # Business mark: Author
+    # Business mark: Author — default icon to Xentra logo
+    if author_icon is None:
+        author_icon = XENTRA_LOGO_URL
     embed.set_author(name=author_name, icon_url=author_icon)
 
     if thumbnail:
@@ -67,7 +74,7 @@ def error_embed(message: str) -> discord.Embed:
         description=message,
         color=BrandColor.ERROR.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Error")
     return embed
 
@@ -83,7 +90,7 @@ def success_embed(message: str) -> discord.Embed:
         description=message,
         color=BrandColor.SUCCESS.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Success")
     return embed
 
@@ -99,7 +106,7 @@ def info_embed(message: str) -> discord.Embed:
         description=message,
         color=BrandColor.PRIMARY.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Information")
     return embed
 
@@ -111,7 +118,7 @@ def warning_embed(message: str, title: str = "Warning") -> discord.Embed:
         description=message,
         color=BrandColor.WARNING.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Warning")
     return embed
 
@@ -130,7 +137,7 @@ def loading_embed(
         title=f"{emoji} {description}",
         color=BrandColor.PRIMARY.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Processing")
     return embed
 
@@ -145,7 +152,7 @@ def throttled_embed(wait_seconds: float, title: str = "Too Many Requests") -> di
         ),
         color=BrandColor.WARNING.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Rate Limited")
     return embed
 
@@ -157,7 +164,7 @@ def premium_embed(message: str, title: str = "Premium Feature") -> discord.Embed
         description=message,
         color=BrandColor.PREMIUM.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Premium Feature")
     return embed
 
@@ -187,6 +194,6 @@ def dm_blocked_embed(attempted_action: str, receiver_name: str) -> discord.Embed
         ),
         color=BrandColor.ERROR.value,
     )
-    embed.set_author(name="Xentra")
+    embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
     embed.set_footer(text="Xentra • Delivery Failed")
     return embed

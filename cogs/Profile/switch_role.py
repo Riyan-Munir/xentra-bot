@@ -59,7 +59,7 @@ class SwitchRoleView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label="Update Role", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Update Role", style=discord.ButtonStyle.success)
     async def update_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_author(interaction, self):
             return
@@ -85,11 +85,11 @@ class SwitchRoleView(discord.ui.View):
                     else:
                         error_data = await resp.json()
                         err = error_embed(message=error_data.get('error', 'Failed to update role.'))
-                        await interaction.followup.send(embed=err, ephemeral=True)
+                        await interaction.followup.send(embed=err, ephemeral=not (interaction.guild is None))
         except Exception as e:
             logger.error(f"Error updating role: {e}")
             err = error_embed(message="The service is temporarily unavailable.")
-            await interaction.followup.send(embed=err, ephemeral=True)
+            await interaction.followup.send(embed=err, ephemeral=not (interaction.guild is None))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):

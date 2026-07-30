@@ -230,6 +230,7 @@ class PageCtx:
     room_id       = ""
     transcript_id = ""
     watermark_b64 = ""
+    logo_b64      = ""
 
 
 def draw_header_footer(c, doc):
@@ -397,6 +398,7 @@ def _load_image_bytes(url_or_path):
     Adds a common User-Agent so Discord CDN doesn't reject the request,
     and optionally strips SSL verification for environments where certs
     are not available (Windows).
+    Also supports base64 data URIs (``data:image/...;base64,...``).
     """
     try:
         if url_or_path.startswith(("http://", "https://")):
@@ -419,6 +421,10 @@ def _load_image_bytes(url_or_path):
                 ctx = ssl._create_unverified_context()
                 with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
                     return r.read()
+        elif url_or_path.startswith("data:image/"):
+            # Base64 data URI — decode the portion after the comma
+            _, b64_data = url_or_path.split(",", 1)
+            return base64.b64decode(b64_data)
         else:
             with open(url_or_path, "rb") as f:
                 return f.read()
@@ -731,7 +737,11 @@ class MessageFlowable(Flowable):
         if sender == "bot":
             av_bg, av_bd = AV_COLOR_BOT
             av_label     = "X"
+            # Use Xentra logo for system messages if available (via PageCtx.logo_b64 as inline image)
             av_img       = msg.get("bot_img") or msg.get("avatar_url")
+            # If no avatar URL, try to load Xentra logo from base64
+            if not av_img and PageCtx.logo_b64:
+                av_img = f"data:image/png;base64,{PageCtx.logo_b64}"
         elif sender == "freelancer":
             av_bg, av_bd = AV_COLOR_FREELANCER
             av_label     = "F"
@@ -901,6 +911,7 @@ def build_transcript_pdf(data, output_path):
     PageCtx.room_id       = data.get("room_id", "")
     PageCtx.transcript_id = data.get("transcript_id", "")
     PageCtx.watermark_b64 = data.get("watermark_b64", "")
+    PageCtx.logo_b64      = data.get("logo_b64", "")
 
     doc = XTranscriptDoc(
         output_path,

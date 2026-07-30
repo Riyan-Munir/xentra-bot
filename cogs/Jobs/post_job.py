@@ -143,7 +143,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
             try:
                 await interaction.response.send_message(
                     embed=error_embed(message=f"Description must be between 50 and 800 words. You used {word_count} words."),
-                    ephemeral=True
+                    ephemeral=not (interaction.guild is None),
                 )
             except discord.errors.NotFound:
                 pass
@@ -160,7 +160,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
             try:
                 await interaction.response.send_message(
                     embed=error_embed(message="Maximum budget must exceed minimum budget."),
-                    ephemeral=True
+                    ephemeral=not (interaction.guild is None),
                 )
             except discord.errors.NotFound:
                 pass
@@ -179,7 +179,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                     try:
                         await interaction.response.send_message(
                             embed=error_embed(message="Invalid date format. Use YYYY-MM-DD."),
-                            ephemeral=True
+                            ephemeral=not (interaction.guild is None),
                         )
                     except discord.errors.NotFound:
                         pass
@@ -193,7 +193,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                     try:
                         await interaction.response.send_message(
                             embed=error_embed(message="Invalid deadline. Enter a date (YYYY-MM-DD) or a positive number of days."),
-                            ephemeral=True
+                            ephemeral=not (interaction.guild is None),
                         )
                     except discord.errors.NotFound:
                         pass

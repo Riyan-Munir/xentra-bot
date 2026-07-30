@@ -45,7 +45,7 @@ class PortfolioPaginationView(PaginationView):
             nxt.callback = self.next_page
             self.add_item(nxt)
 
-        close = discord.ui.Button(label="Close", style=discord.ButtonStyle.red)
+        close = discord.ui.Button(label="Close", style=discord.ButtonStyle.danger)
         close.callback = self.close_view
         self.add_item(close)
 

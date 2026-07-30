@@ -207,6 +207,7 @@ class InterviewTranscript(commands.Cog):
                         'generated_on': now_str,
                         'messages': transcript_data.get('freelancer_messages', []),
                         'watermark_b64': transcript_data.get('watermark_b64', ''),
+                        'logo_b64': transcript_data.get('logo_b64', ''),
                     }
 
                     pdf_path = None

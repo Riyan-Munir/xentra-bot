@@ -126,6 +126,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
             await security_fail(
                 interaction,
                 message='The message contains prohibited content. Command terminated.',
+                ephemeral=not (interaction.guild is None),
             )
             return
 
@@ -143,6 +144,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
                     'message_id': self.message_id,
                     'prefill_msg': msg_text,
                 },
+                ephemeral=not (interaction.guild is None),
             )
             return
 
@@ -299,7 +301,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 embed=error_embed(
                     message='File upload timed out.'
                 ),
-                ephemeral=True,
+                ephemeral=not self.is_dm,
             )
             return
 
@@ -312,7 +314,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 embed=error_embed(
                     message=f'Too many files (max {MAX_ATTACHMENTS}).'
                 ),
-                ephemeral=True,
+                ephemeral=not self.is_dm,
             )
             return
 
@@ -325,7 +327,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 embed=error_embed(
                     message=f'Total file size exceeds {MAX_TOTAL_SIZE_MB} MB. '
                 ),
-                ephemeral=True,
+                ephemeral=not self.is_dm,
             )
             return
 
@@ -352,7 +354,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             embed=success_embed(
                 message=f'Added {len(file_msg.attachments)} file(s).'
             ),
-            ephemeral=True,
+            ephemeral=not self.is_dm,
         )
 
     # ── per-attachment remove buttons ────────────────────────────────
@@ -374,7 +376,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 label = label[:37] + '...'
             button = discord.ui.Button(
                 label=f'Remove {label}',
-                style=discord.ButtonStyle.primary,
+                style=discord.ButtonStyle.danger,
                 row=1,
                 custom_id=f'rm_{idx}',
             )

@@ -41,7 +41,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
             await security_fail(
                 interaction,
                 message='Input contains prohibited content. Command terminated.',
-                ephemeral=True,
+                ephemeral=not (interaction.guild is None),
             )
             return
 
@@ -54,7 +54,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
                     'wallet_id': self.wallet_id,
                     'challenge_msg': self.challenge_msg,
                 },
-                ephemeral=True,
+                ephemeral=not (interaction.guild is None),
             )
             return
 

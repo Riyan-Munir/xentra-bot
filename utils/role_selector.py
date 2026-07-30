@@ -66,7 +66,7 @@ class ProfileRoleView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    @discord.ui.button(label="Send Request", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Send Request", style=discord.ButtonStyle.success)
     async def send_button(
         self, interaction: discord.Interaction,
         button: discord.ui.Button,
@@ -75,14 +75,14 @@ class ProfileRoleView(discord.ui.View):
             return
         if not self.selected_role:
             await interaction.response.send_message(
-                "Please select a role from the dropdown first.", ephemeral=True,
+                "Please select a role from the dropdown first.", ephemeral=not (interaction.guild is None),
             )
             return
         await self.callback_func(
             interaction, self.selected_role, self.identifier, self,
         )
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_button(
         self, interaction: discord.Interaction,
         button: discord.ui.Button,

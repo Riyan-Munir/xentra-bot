@@ -400,6 +400,7 @@ class PageContext:
     agreement_id = ""
     stamp_b64 = ""
     watermark_b64 = ""
+    logo_b64 = ""
     is_signed = False
 
 
@@ -450,14 +451,44 @@ def render_title_page(c: pdfcanvas.Canvas, data):
     c.restoreState()
 
     logo_cy = PAGE_H - 70 * mm
-    c.saveState()
-    c.setStrokeColor(XENTRA_GOLD)
-    c.setLineWidth(1.3)
-    c.circle(PAGE_W / 2, logo_cy, 15 * mm, stroke=1, fill=0)
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 24)
-    c.drawCentredString(PAGE_W / 2, logo_cy - 8, "X")
-    c.restoreState()
+
+    # Try to draw Xentra logo image as a round avatar
+    logo_b64 = data.get('logo_b64', '')
+    drawn_logo = False
+    if logo_b64:
+        try:
+            from PIL import Image as PILImage
+            img_bytes = base64.b64decode(logo_b64)
+            img = PILImage.open(io.BytesIO(img_bytes)).convert("RGBA")
+            radius = 15 * mm
+            side = int(radius * 2 * 4)
+            img = img.resize((side, side), PILImage.LANCZOS)
+            c.saveState()
+            p = c.beginPath()
+            p.circle(PAGE_W / 2, logo_cy, radius)
+            c.clipPath(p, stroke=0, fill=0)
+            c.drawInlineImage(img,
+                              PAGE_W / 2 - radius, logo_cy - radius,
+                              width=radius * 2, height=radius * 2)
+            c.restoreState()
+            # Draw gold border around the clipped image
+            c.setStrokeColor(XENTRA_GOLD)
+            c.setLineWidth(1.3)
+            c.circle(PAGE_W / 2, logo_cy, radius, stroke=1, fill=0)
+            drawn_logo = True
+        except Exception:
+            pass
+
+    if not drawn_logo:
+        # Fallback: gold circle with "X" letter
+        c.saveState()
+        c.setStrokeColor(XENTRA_GOLD)
+        c.setLineWidth(1.3)
+        c.circle(PAGE_W / 2, logo_cy, 15 * mm, stroke=1, fill=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 24)
+        c.drawCentredString(PAGE_W / 2, logo_cy - 8, "X")
+        c.restoreState()
 
     c.setFillColor(XENTRA_GOLD)
     c.setFont("Helvetica-Bold", 10.5)
@@ -889,6 +920,7 @@ def build_pdf(data, output_path):
     PageContext.agreement_id = data.get("agreement_id", "")
     PageContext.stamp_b64 = data.get("stamp_b64", "")
     PageContext.watermark_b64 = data.get("watermark_b64", "")
+    PageContext.logo_b64 = data.get("logo_b64", "")
     PageContext.is_signed = data.get("is_signed", False)
 
     doc = StampingDocTemplate(

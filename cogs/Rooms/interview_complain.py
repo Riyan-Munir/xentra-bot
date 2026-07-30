@@ -255,12 +255,13 @@ class InterviewComplain(commands.Cog):
         """
         # Validate mutual exclusivity, only one of message_id / complain_id may be set
         if message_id and complain_id:
+            is_dm = interaction.guild is None
             await interaction.response.send_message(
                 embed=error_embed(
                     message='You can link a complaint to either a **message** or a '
                     'previous **complaint**, but not both.'
                 ),
-                ephemeral=True,
+                ephemeral=not is_dm,
             )
             return
 
