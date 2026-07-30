@@ -11,6 +11,7 @@ from config import (
     WEBHOOK_HOST,
     WEBHOOK_PORT,
     CLUSTER_ENABLED,
+    CLUSTER_TOTAL_SHARDS,
     AUTO_SHARD,
     SHARD_COUNT,
 )
@@ -29,8 +30,8 @@ logging.basicConfig(
 logger = logging.getLogger('bot')
 
 
-class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
-    def __init__(self):
+class Xentra(commands.AutoShardedBot if AUTO_SHARD and not CLUSTER_ENABLED else commands.Bot):
+    def __init__(self, *, shard_count=None, shard_ids=None, cluster_worker=None):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
@@ -40,7 +41,13 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
             'intents': intents,
             'help_command': None,
         }
-        if AUTO_SHARD:
+        if shard_count is not None:
+            # Cluster mode: explicit shard count from backend
+            kwargs['shard_count'] = shard_count
+            if shard_ids is not None:
+                kwargs['shard_ids'] = shard_ids
+        elif AUTO_SHARD:
+            # Legacy manual-shard mode
             kwargs['shard_count'] = SHARD_COUNT
 
         super().__init__(**kwargs)
@@ -52,12 +59,20 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
         self.http_session = aiohttp.ClientSession()
         init_http_session(self.http_session)
 
-        # ── Cluster worker (Phase 3+) ─────────────────────────────────
-        self.cluster_worker = None
-        if CLUSTER_ENABLED:
+        # ── Cluster worker ────────────────────────────────────────────
+        if cluster_worker is not None:
+            # Worker was already created and started by main()
+            self.cluster_worker = cluster_worker
+            logger.info(
+                "ClusterWorker attached, node_id=%s (pre-started)",
+                self.cluster_worker.node_id,
+            )
+        elif CLUSTER_ENABLED:
             from cluster_worker import ClusterWorker
             self.cluster_worker = ClusterWorker()
             logger.info("ClusterWorker instantiated, node_id=%s", self.cluster_worker.node_id)
+        else:
+            self.cluster_worker = None
 
         # ── Intercept tree-level errors to handle cooldown gracefully ──
         self._patch_tree_error_handler()
@@ -192,7 +207,85 @@ class Xentra(commands.AutoShardedBot if AUTO_SHARD else commands.Bot):
         await self.wait_until_ready()
 
 async def main():
-    bot = Xentra()
+    # ── Cluster bootstrap (before constructing bot) ────────────────
+    shard_count = None
+    shard_ids = None
+    cluster_worker = None
+
+    if CLUSTER_ENABLED:
+        from cluster_worker import ClusterWorker
+        cluster_worker = ClusterWorker()
+        logger.info(
+            "Cluster mode: created ClusterWorker, node_id=%s",
+            cluster_worker.node_id,
+        )
+
+        # 1. Register with backend
+        await cluster_worker.start()
+        logger.info("Cluster mode: registered and heartbeat started.")
+
+        # 2. Fetch shard config from backend
+        shard_config = await cluster_worker.get_shard_config()
+        if "error" in shard_config:
+            logger.critical(
+                "Cluster mode: failed to fetch shard config: %s",
+                shard_config["error"],
+            )
+            # Fall back to CLUSTER_TOTAL_SHARDS env var or 1
+            shard_count = CLUSTER_TOTAL_SHARDS or SHARD_COUNT
+            shard_ids = None
+            logger.warning(
+                "Cluster mode: falling back to CLUSTER_TOTAL_SHARDS=%d",
+                shard_count,
+            )
+        else:
+            total = shard_config.get("total_shards", 1)
+            assigned = shard_config.get("assigned_shard_ids", [])
+            logger.info(
+                "Cluster mode: backend reports total_shards=%d, "
+                "assigned_shard_ids=%s",
+                total,
+                assigned,
+            )
+
+            if assigned:
+                # Already have shards assigned from a previous claim
+                shard_count = total
+                shard_ids = assigned
+                logger.info(
+                    "Cluster mode: using pre-assigned shards %s of %d",
+                    shard_ids,
+                    shard_count,
+                )
+            else:
+                # Need to claim shards first
+                claim_result = await cluster_worker.claim_shards()
+                if "error" in claim_result:
+                    logger.critical(
+                        "Cluster mode: failed to claim shards: %s",
+                        claim_result["error"],
+                    )
+                    shard_count = total
+                    shard_ids = None
+                else:
+                    shard_count = total
+                    shard_ids = claim_result.get("shard_ids", [])
+                    logger.info(
+                        "Cluster mode: claimed shards %s of %d "
+                        "(from_dead=%d, unassigned=%d)",
+                        shard_ids,
+                        shard_count,
+                        claim_result.get("claimed_from_dead", 0),
+                        claim_result.get("claimed_unassigned", 0),
+                    )
+
+    # ── Construct bot with resolved shard parameters ───────────────
+    bot = Xentra(
+        shard_count=shard_count,
+        shard_ids=shard_ids,
+        cluster_worker=cluster_worker,
+    )
+
     async with bot:
         logger.info("Starting bot process...")
         bot.heartbeat_task.start()
@@ -205,9 +298,10 @@ async def main():
         except Exception as e:
             logger.warning(f"Webhook server failed to start (non-fatal): {e}")
 
-        # Start the cluster worker (no-op when CLUSTER_ENABLED=False)
-        if bot.cluster_worker:
-            await bot.cluster_worker.start()
+        # Cluster worker was already started during bootstrap, so
+        # we do NOT start it again here.  The ClusterWorker is started
+        # before the bot so that registration + shard claim happens
+        # before the Discord connection.
 
         try:
             await bot.start(DISCORD_TOKEN)

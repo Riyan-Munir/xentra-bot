@@ -321,7 +321,43 @@ class ClusterWorker:
             logger.warning("Webhook complete error: %s", exc)
         return 0
 
-    # ── Shard claiming (Phase 4+5) ───────────────────────────────────
+    # ── Shard config & claiming ──────────────────────────────────────
+
+    async def get_shard_config(self) -> Dict[str, Any]:
+        """Fetch the shard configuration from the backend.
+
+        Returns ``{"total_shards": N, "assigned_shard_ids": [...],
+        "node_id": "..."}`` or an error dict on failure.
+
+        The bot calls this **before** constructing the discord client so
+        it can pass ``shard_count`` and ``shard_ids`` to ``commands.Bot()``.
+        """
+        if not CLUSTER_ENABLED:
+            return {"total_shards": 1, "assigned_shard_ids": [], "node_id": ""}
+
+        url = self._url("cluster/shard-config/")
+        body_bytes = b""  # GET request
+        headers = self._signed_headers("GET", url, body_bytes)
+
+        session = get_http_session()
+        try:
+            async with session.get(
+                url,
+                params={"node_id": self._node_id},
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                logger.warning(
+                    "Shard config fetch failed, status=%s body=%s",
+                    resp.status,
+                    await resp.text(),
+                )
+                return {"error": f"HTTP {resp.status}"}
+        except Exception as exc:
+            logger.warning("Shard config fetch error: %s", exc)
+            return {"error": str(exc)}
 
     async def claim_shards(
         self,
@@ -331,9 +367,10 @@ class ClusterWorker:
         """Claim shards for this node from the backend.
 
         Returns the API response dict (or an error dict on failure).
+        The response now includes ``shard_ids`` (list of ints).
         """
         if not CLUSTER_ENABLED:
-            return {"claimed_from_dead": 0, "claimed_unassigned": 0, "total": 0}
+            return {"claimed_from_dead": 0, "claimed_unassigned": 0, "total": 0, "shard_ids": []}
 
         url = self._url("cluster/claim-shards/")
         payload: Dict[str, Any] = {"node_id": self._node_id}
@@ -356,7 +393,7 @@ class ClusterWorker:
                 return await resp.json()
         except Exception as exc:
             logger.warning("Shard claim error: %s", exc)
-            return {"error": str(exc)}
+            return {"error": str(exc), "shard_ids": []}
 
     # ── Internal helpers ─────────────────────────────────────────────
 

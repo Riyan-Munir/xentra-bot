@@ -57,9 +57,13 @@ if not WEBHOOK_SECRET:
         "Set it in bot/.env or the system environment."
     )
 
-# ── Cluster / Sharding (Phase 3-4) ──────────────────────────────────
+# ── Cluster / Sharding ──────────────────────────────────────────────
 CLUSTER_ENABLED = os.getenv('CLUSTER_ENABLED', 'False').lower() in ('1', 'true', 'yes')
 CLUSTER_NODE_ID = os.getenv('CLUSTER_NODE_ID', '')
 CLUSTER_API_URL = os.getenv('CLUSTER_API_URL', BACKEND_URL)
+# TOTAL_SHARD_COUNT is the authoritative shard count from the backend.
+# In cluster mode this is set by the backend (TOTAL_SHARD_COUNT env).
+# Fallback: SHARD_COUNT (for non-cluster or legacy setups).
+CLUSTER_TOTAL_SHARDS = int(os.getenv('CLUSTER_TOTAL_SHARDS', '0'))
 SHARD_COUNT = int(os.getenv('SHARD_COUNT', '1'))
 AUTO_SHARD = os.getenv('AUTO_SHARD', 'False').lower() in ('1', 'true', 'yes')
