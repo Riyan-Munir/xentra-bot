@@ -2,13 +2,13 @@
 Embed builder for ``room_closure`` system messages.
 
 Sent to both parties when an interview room is concluded,
-either via agreement signature or a party leaving.
+either via agreement signature, a party leaving, or system action.
 
 Expected data keys
 ------------------
 - discord_id (str), Snowflake of the recipient (used by handler).
 - room_id (str), The interview room that was closed.
-- closure_type (str), ``"agreement"`` or ``"leave"``.
+- closure_type (str), ``"agreement"``, ``"leave"``, or ``"system"``.
 - client_name (str, optional), Display name of the client.
 - freelancer_name (str, optional), Display name of the freelancer.
 - agreement_id (str, optional), Agreement ID (agreement closure only).
@@ -38,6 +38,15 @@ def build_embed(data: dict) -> discord.Embed:
             description += f"\n\n**Reason:** {leave_reason}"
         description += (
             f"\n\nThank you for using Xentra. "
+            f"A transcript of your conversation has been attached."
+        )
+    elif closure_type == "system":
+        title = "Interview Room Closed by System"
+        description = (
+            f"Your interview room **{room_id}** has been closed "
+            f"by the system.\n\n"
+            f"Another room for this job has reached an agreement. "
+            f"Thank you for using Xentra. "
             f"A transcript of your conversation has been attached."
         )
     else:

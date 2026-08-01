@@ -125,7 +125,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         if not complaint_text:
             await interaction.response.defer()
             await self._edit_done(
-                error_embed(message='Complaint text could not be empty.'),
+                error_embed(message='Could not submit the complaint. The complaint text cannot be empty.'),
             )
             return
 
@@ -258,8 +258,8 @@ class InterviewComplain(commands.Cog):
             is_dm = interaction.guild is None
             await interaction.response.send_message(
                 embed=error_embed(
-                    message='You can link a complaint to either a **message** or a '
-                    'previous **complaint**, but not both.'
+                    message='Could not submit the complaint. A complaint can reference '
+                    'a message or another complaint, but not both.'
                 ),
                 ephemeral=not is_dm,
             )

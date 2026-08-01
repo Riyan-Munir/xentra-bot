@@ -45,7 +45,7 @@
     ]
   },
   {
-    "name": "room_greet_client",
+    "name": "room_guide_client",
     "description": "Notify the client that an interview room has been created.",
     "context": [
       "dm"
@@ -70,7 +70,7 @@
     ]
   },
   {
-    "name": "room_greet_freelancer",
+    "name": "room_guide_freelancer",
     "description": "Notify the freelancer that they have been invited to an interview room.",
     "context": [
       "dm"
@@ -296,6 +296,76 @@
         "name": "left_by",
         "description": "\"client\" or \"freelancer\" (leave closure only)",
         "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "room_job_cancelled",
+    "description": "Notify the freelancer when a client cancels a job that had an active agreement.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the freelancer",
+        "mandatory": true
+      },
+      {
+        "name": "job_id",
+        "description": "The cancelled job ID",
+        "mandatory": true
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the cancelled job",
+        "mandatory": true
+      },
+      {
+        "name": "client_name",
+        "description": "Display name of the client who cancelled",
+        "mandatory": true
+      },
+      {
+        "name": "application_id",
+        "description": "The freelancer's application ID (optional)",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "room_application_withdrawn",
+    "description": "Notify the client when a freelancer withdraws an application that was accepted.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the client",
+        "mandatory": true
+      },
+      {
+        "name": "job_id",
+        "description": "The job ID",
+        "mandatory": true
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job",
+        "mandatory": true
+      },
+      {
+        "name": "freelancer_name",
+        "description": "Display name of the freelancer who withdrew",
+        "mandatory": true
+      },
+      {
+        "name": "application_id",
+        "description": "The withdrawn application ID",
+        "mandatory": true
       }
     ]
   }

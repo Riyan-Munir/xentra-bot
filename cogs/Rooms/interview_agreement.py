@@ -9,8 +9,8 @@ Flow:
   5. If both reviewed, shows confirmation embed with Accept / Decline.
   6. On **Accept**, POST to ``BotAcceptAgreementView``, show success embed:
      *"You've signed the Job Agreement. Xentra will share signed agreement soon."*
-  7. Sends a DM notification to the other party with execution data
-     *"Requested signature on Job Agreement."*
+  7. Sends a DM notification to the other party with the identical success text
+     shown to the executor.
   8. If **both** parties have now accepted, generates signed PDF with stamps
      from the database, sends it to **both** client and freelancer via DM.
   9. Logs *"Sent signed Job Agreement"* as a system message.
@@ -118,7 +118,9 @@ class AgreementConfirmView(discord.ui.View):
         except Exception:
             logger.exception('Failed to reach accept-agreement endpoint')
             await interaction.edit_original_response(
-                embed=error_embed(message='The service is temporarily unavailable.'),
+                embed=error_embed(
+                    message='Could not sign the agreement. The service is temporarily unavailable.',
+                ),
                 view=None,
             )
             return
@@ -131,9 +133,8 @@ class AgreementConfirmView(discord.ui.View):
             return
 
         # ── Success embed ──────────────────────────────────────────────
-        success = success_embed(
-            "You've signed the Job Agreement. We will share the signed agreement soon.",
-        )
+        success_msg = "You've signed the Job Agreement. We will share the signed agreement soon."
+        success = success_embed(success_msg)
         await interaction.edit_original_response(embed=success, view=None)
 
         # ── Notify the other party ──────────────────────────────────────
@@ -143,7 +144,7 @@ class AgreementConfirmView(discord.ui.View):
             'job_title': self.job_title,
             'command_name': 'interview_agreement',
             'executor_name': self.executor_name,
-            'msg_data': 'Requested signature on Job Agreement.',
+            'msg_data': success_msg,
         }
 
         delivery_ok = await handle_system_message(
@@ -335,15 +336,13 @@ class InterviewAgreement(commands.Cog):
         bot: discord.Client,
         session,
         headers: dict,
+        msg_data: str = '',
     ) -> None:
-        """Send a DM notification to the other party when a review is needed.
+        """Send a DM notification to the other party.
 
-        The backend returns ``notify_discord_id``, ``notify_receiver_name``
-        and ``notify_msg_data`` for cases where the other party must take
-        action (REVIEW_INCOMPLETE).
-
-        If the DM fails (DMs blocked / disabled), logs a failed delivery
-        record with the ``msg_id`` so it can be retried.
+        Uses the provided ``msg_data`` (which must be identical to the
+        executor's response text).  If the DM fails (DMs blocked /
+        disabled), logs a failed delivery record so it can be retried.
         """
         notify_discord_id = body.get('notify_discord_id')
         if not notify_discord_id:
@@ -355,7 +354,7 @@ class InterviewAgreement(commands.Cog):
             'job_title': job_title,
             'command_name': 'interview_agreement',
             'executor_name': body.get('notify_receiver_name', 'Someone'),
-            'msg_data': body.get('notify_msg_data', ''),
+            'msg_data': msg_data or body.get('notify_msg_data', ''),
         }
 
         delivery_ok = await handle_system_message(
@@ -420,7 +419,7 @@ class InterviewAgreement(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach process-agreement endpoint')
                 return error_embed(
-                    message='The service is temporarily unavailable.',
+                    message='Could not process the agreement. The service is temporarily unavailable.',
                 )
 
             # ── 3. Handle error codes with role-aware messages ──────────
@@ -430,34 +429,37 @@ class InterviewAgreement(commands.Cog):
                 if code == 'REVIEW_INCOMPLETE':
                     executor_ok = body.get('executor_review_ok', False)
                     other_ok = body.get('other_review_ok', False)
-                    other_name = body.get('notify_receiver_name', 'The other party')
+
+                    if executor_ok and not other_ok:
+                        error_msg = (
+                            'Could not sign the agreement. '
+                            'The agreement has not been reviewed yet.'
+                        )
+                    elif not executor_ok and other_ok:
+                        error_msg = (
+                            'Could not sign the agreement. '
+                            'You need to review the agreement first via '
+                            '/interview_review.'
+                        )
+                    else:
+                        error_msg = (
+                            'Could not sign the agreement. '
+                            'The agreement has not been reviewed yet. '
+                            'Use /interview_review to review it first.'
+                        )
 
                     # Notify the other party (the one who needs to act)
                     await self._notify_other_party(
                         body, room_id, job_title,
                         interaction.client,
                         session, headers,
+                        msg_data=error_msg,
                     )
-
-                    if executor_ok and not other_ok:
-                        return error_embed(
-                            message=f'**{other_name}** has not reviewed the agreement yet. '
-                            f'A notification has been sent to them.',
-                        )
-                    elif not executor_ok and other_ok:
-                        return error_embed(
-                            message='**You** need to review the agreement first via '
-                            '`/interview_review` before signing.',
-                        )
-                    else:
-                        return error_embed(
-                            message=f'**You** and **{other_name}** need to review the agreement first '
-                            f'via `/interview_review` before signing.',
-                        )
+                    return error_embed(message=error_msg)
 
                 # Fallback for unknown error codes
                 return error_embed(
-                    message=body.get('message', 'Failed to process the agreement.'),
+                    message=body.get('message', 'Could not process the agreement.'),
                 )
 
             # ── 4. Both reviews complete, handle ALREADY_SIGNED ─────────
@@ -592,16 +594,23 @@ class InterviewAgreement(commands.Cog):
                     )
                 else:
                     # Already signed but other party hasn't, just notify
-                    return error_embed(
-                        message='**You** have already signed the agreement for this job. '
-                        f'A notification has been sent to **{other_name}** '
-                        f'requesting their signature.',
+                    error_msg = (
+                        'Could not sign the agreement. '
+                        'You have already signed. '
+                        'The other party has been notified.'
                     )
+                    await self._notify_other_party(
+                        body, room_id, job_title,
+                        interaction.client,
+                        session, headers,
+                        msg_data=error_msg,
+                    )
+                    return error_embed(message=error_msg)
 
             # ── 5. Both reviews complete, show confirmation embed ──────
             if body.get('status') != 'ok':
                 return error_embed(
-                    message='Unexpected response from the server. Please try again.',
+                    message='Could not process the agreement. The server returned an unexpected response.',
                 )
 
             client_discord_id = body.get('client_discord_id', '')

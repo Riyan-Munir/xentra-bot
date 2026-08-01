@@ -49,7 +49,7 @@ class InterviewBudget(commands.Cog):
 
             # --- budget validation ---
             if budget < 50:
-                return error_embed(message='The minimum budget is $50.')
+                return error_embed(message='Could not set the budget. The minimum is $50.')
 
             room_data = user_data['_selected_room']
 
@@ -71,6 +71,13 @@ class InterviewBudget(commands.Cog):
                         freelancer_discord_id = body.get('freelancer_discord_id', '')
                         msg_id = body.get('msg_id', '')
 
+                        # Build the single final response text (used for
+                        # both the executor embed and the DM notification).
+                        success_msg = (
+                            f'Final budget set to **${budget:,.2f}** for job '
+                            f'**{room_data.get("job_title", "")}**.'
+                        )
+
                         if freelancer_discord_id and msg_id:
                             notify_data = {
                                 'discord_id': freelancer_discord_id,
@@ -78,7 +85,7 @@ class InterviewBudget(commands.Cog):
                                 'job_title': room_data.get('job_title', ''),
                                 'command_name': 'interview_budget',
                                 'executor_name': client_name,
-                                'msg_data': body.get('message', f'Final budget set to ${budget}.'),
+                                'msg_data': success_msg,
                             }
 
                             delivery_ok = await handle_system_message(
@@ -97,17 +104,14 @@ class InterviewBudget(commands.Cog):
                                     headers=headers,
                                 )
 
-                        return success_embed(
-                            f'Final budget set to **${budget:,.2f}** for job '
-                            f'**{room_data.get("job_title", "")}**.'
-                        )
+                        return success_embed(success_msg)
                     return error_embed(
                         body.get('error', 'Could not set the budget.')
                     )
             except Exception as e:
                 logger.exception('Error setting budget: %s', e)
                 return error_embed(
-                    'The service is temporarily unavailable.'
+                    'Could not set the budget. The service is temporarily unavailable.'
                 )
 
         await validate_and_respond(interaction, callback)

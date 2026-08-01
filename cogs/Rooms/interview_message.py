@@ -299,7 +299,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message='File upload timed out.'
+                    message='Could not upload file. The upload timed out.'
                 ),
                 ephemeral=not self.is_dm,
             )
@@ -312,7 +312,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message=f'Too many files (max {MAX_ATTACHMENTS}).'
+                    message=f'Could not attach files. Maximum is {MAX_ATTACHMENTS} files per message.'
                 ),
                 ephemeral=not self.is_dm,
             )
@@ -325,7 +325,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message=f'Total file size exceeds {MAX_TOTAL_SIZE_MB} MB. '
+                    message=f'Could not attach files. Total size must not exceed {MAX_TOTAL_SIZE_MB} MB.'
                 ),
                 ephemeral=not self.is_dm,
             )
@@ -639,7 +639,7 @@ class InterviewMessage(commands.Cog):
                             return error_embed(
                                 message=err_data.get(
                                     'error',
-                                    f'Could not find Message ID `{message_id}` in this room.',
+                                    'Could not verify the message reference.',
                                 ),
                             )
                 except Exception:

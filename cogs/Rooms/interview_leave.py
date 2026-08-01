@@ -148,7 +148,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         if not reason_text:
             try:
                 await interaction.response.edit_message(
-                    embed=error_embed(message='Reason cannot be empty.'),
+                    embed=error_embed(message='Could not process the leave. The reason cannot be empty.'),
                     view=None,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):
@@ -178,7 +178,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             ) as resp:
                 if resp.status != 200:
                     err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Failed to process room leave.')
+                    err_msg = err_data.get('error', 'Could not process the leave.')
                     # interaction already deferred, edit the original message
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
@@ -196,7 +196,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             )
             return
 
-        leave_id = leave_data.get('leave_id', '')
+        closure_id = leave_data.get('closure_id', '')
         other_discord_id = leave_data.get('other_discord_id', '')
         other_role = leave_data.get('other_role', '')
         other_name = leave_data.get('other_name', 'The other party')
@@ -216,7 +216,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                 'job_title': self.job_title,
                 'command_name': 'interview_leave',
                 'executor_name': sender_name,
-                'leave_id': leave_id,
+                'closure_id': closure_id,
                 'reason': reason_text,
             }
 
@@ -232,7 +232,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                     room_id=self.room_id,
                     message_type='notification',
                     target_discord_id=other_discord_id,
-                    msg_id=leave_id,
+                    msg_id=closure_id,
                     session=session,
                     headers=self.headers,
                 )
@@ -276,7 +276,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         # Edit the original message (from the Proceed view) to show the error
         try:
             await self.original_interaction.edit_original_response(
-                embed=error_embed(message='The service is temporarily unavailable.'),
+                embed=error_embed(message='Could not process the leave. The service is temporarily unavailable.'),
                 view=None,
             )
         except Exception:

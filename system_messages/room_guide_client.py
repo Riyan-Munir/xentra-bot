@@ -1,5 +1,5 @@
 """
-Embed builder for ``room_greet_client`` system messages.
+Embed builder for ``room_guide_client`` system messages.
 
 Sent to the client when an interview room has been successfully created.
 

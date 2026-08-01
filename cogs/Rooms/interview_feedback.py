@@ -126,7 +126,7 @@ class FeedbackStartView(discord.ui.View):
 
         if not selected_id or selected_id == 'none':
             await interaction.response.edit_message(
-                embed=error_embed(message='Select a valid room first.'),
+                embed=error_embed(message='Could not proceed. Select a valid room first.'),
                 view=self,
             )
             return
@@ -205,14 +205,14 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
         if contains_security_threat(feedback_text):
             await security_fail(
                 interaction,
-                message='The feedback contains prohibited content. Command terminated.',
+                message='Could not submit feedback. The feedback contains prohibited content.',
             )
             return
 
         if not feedback_text:
             await validation_fail(
                 interaction,
-                message='Feedback text cannot be empty.',
+                message='Could not submit feedback. The feedback text cannot be empty.',
                 modal_class=FeedbackModal,
                 modal_kwargs={
                     'user_data': self.user_data,
@@ -227,7 +227,8 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
             await validation_fail(
                 interaction,
                 message=(
-                    f'Feedback exceeds 100 words ({word_count} words). '
+                    f'Could not submit feedback. Feedback must be at most '
+                    f'100 words (currently {word_count}).'
                 ),
                 modal_class=FeedbackModal,
                 modal_kwargs={

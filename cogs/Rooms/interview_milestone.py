@@ -83,7 +83,7 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
             # Re-open the same modal via retry button
             view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
             await interaction.response.edit_message(
-                embed=error_embed(message='Enter a valid number (1-10).'),
+                embed=error_embed(message='Could not set milestone count. Enter a valid number between 1 and 10.'),
                 view=view,
             )
             return
@@ -91,7 +91,7 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
         if total < 1 or total > 10:
             view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
             await interaction.response.edit_message(
-                embed=error_embed(message='Number of milestones must be between 1 and 10.'),
+                embed=error_embed(message='Could not set milestone count. Must be between 1 and 10.'),
                 view=view,
             )
             return
@@ -181,7 +181,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
 
         # --- validate title ---
         if not title:
-            await self._fail(interaction, 'Title cannot be empty.',
+            await self._fail(interaction, 'Could not save milestone. The title cannot be empty.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
@@ -190,13 +190,13 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         word_count = len(description.split())
         if word_count < 30:
             await self._fail(interaction,
-                             f'Description must be at least 30 words (currently {word_count}).',
+                             f'Could not save milestone. Description must be at least 30 words (currently {word_count}).',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
         if word_count > 600:
             await self._fail(interaction,
-                             f'Description must be no more than 600 words (currently {word_count}).',
+                             f'Could not save milestone. Description must be at most 600 words (currently {word_count}).',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
@@ -205,13 +205,13 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         try:
             budget = float(raw_budget)
         except (ValueError, TypeError):
-            await self._fail(interaction, 'Budget must be a valid number (e.g. 500.00).',
+            await self._fail(interaction, 'Could not save milestone. Budget must be a valid number.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
 
         if budget <= 0:
-            await self._fail(interaction, 'Budget must be a valid number.',
+            await self._fail(interaction, 'Could not save milestone. Budget must be a positive number.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
@@ -303,7 +303,13 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
 
                 count = body.get('milestone_count', 0)
                 msg_id = body.get('msg_id', '')
-                msg_data = body.get('msg_data', f'{count} milestone(s) configured.')
+
+                # Build the single final response text (used for both
+                # the executor embed and the DM notification).
+                success_msg = (
+                    f'**{count} milestone(s)** configured for room '
+                    f'`{self.room_data.get("room_id", "")}`.'
+                )
 
                 # --- Notify client ---
                 client_discord_id = self.room_data.get('client_discord_id', '')
@@ -314,7 +320,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                         'job_title': self.room_data.get('job_title', ''),
                         'command_name': 'interview_milestone',
                         'executor_name': self.room_data.get('freelancer_name', 'Freelancer'),
-                        'msg_data': msg_data,
+                        'msg_data': success_msg,
                     }
                     delivery_ok = await handle_system_message(
                         message_type='room_interview_message',
@@ -332,12 +338,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                         )
 
                 await interaction.response.edit_message(
-                    embed=success_embed(
-                        message=(
-                            f'**{count} milestone(s)** configured for room '
-                            f'`{self.room_data.get("room_id", "")}`.'
-                        ),
-                    ),
+                    embed=success_embed(message=success_msg),
                     view=None,
                 )
 
@@ -345,7 +346,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             logger.exception('Failed to save milestones to backend')
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message='The service is temporarily unavailable.',
+                    message='Could not save milestones. The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -410,7 +411,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
         # --- validate ---
         if not title:
             await interaction.response.edit_message(
-                embed=error_embed(message='Title cannot be empty.'),
+                embed=error_embed(message='Could not update milestone. The title cannot be empty.'),
                 view=None,
             )
             return
@@ -419,7 +420,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
         if word_count < 30:
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message=f'Description must be at least 30 words (currently {word_count}).',
+                    message=f'Could not update milestone. Description must be at least 30 words (currently {word_count}).',
                 ),
                 view=None,
             )
@@ -427,7 +428,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
         if word_count > 600:
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message=f'Description must be no more than 600 words (currently {word_count}).',
+                    message=f'Could not update milestone. Description must be at most 600 words (currently {word_count}).',
                 ),
                 view=None,
             )
@@ -437,14 +438,14 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
             budget = float(raw_budget)
         except (ValueError, TypeError):
             await interaction.response.edit_message(
-                embed=error_embed(message='Budget must be a valid number.'),
+                embed=error_embed(message='Could not update milestone. Budget must be a valid number.'),
                 view=None,
             )
             return
 
         if budget <= 0:
             await interaction.response.edit_message(
-                embed=error_embed(message='Budget must be a valid number.'),
+                embed=error_embed(message='Could not update milestone. Budget must be a positive number.'),
                 view=None,
             )
             return
@@ -481,7 +482,12 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                     return
 
                 msg_id = body.get('msg_id', '')
-                msg_data = body.get('msg_data', f'Milestone `{self.milestone_id}` updated.')
+
+                # Build the single final response text (used for both
+                # the executor embed and the DM notification).
+                success_msg = (
+                    f'Milestone `{self.milestone_id}` updated successfully.'
+                )
 
                 # --- Notify client ---
                 client_discord_id = self.room_data.get('client_discord_id', '')
@@ -492,7 +498,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                         'job_title': self.room_data.get('job_title', ''),
                         'command_name': 'interview_milestone',
                         'executor_name': self.room_data.get('freelancer_name', 'Freelancer'),
-                        'msg_data': msg_data,
+                        'msg_data': success_msg,
                     }
                     delivery_ok = await handle_system_message(
                         message_type='room_interview_message',
@@ -510,9 +516,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                         )
 
                 await interaction.response.edit_message(
-                    embed=success_embed(
-                        message=f'Milestone `{self.milestone_id}` updated successfully.',
-                    ),
+                    embed=success_embed(message=success_msg),
                     view=None,
                 )
         except Exception:
@@ -611,7 +615,13 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                     return
 
                 msg_id = body.get('msg_id', '')
-                msg_data = body.get('msg_data', f'Milestone `{self.milestone_id}` deleted.')
+
+                # Build the single final response text (used for both
+                # the executor embed and the DM notification).
+                success_msg = (
+                    f'Milestone `{self.milestone_id}` deleted. '
+                    f'Remaining milestones re-ordered.'
+                )
 
                 # --- Notify client ---
                 client_discord_id = self.room_data.get('client_discord_id', '')
@@ -622,7 +632,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                         'job_title': self.room_data.get('job_title', ''),
                         'command_name': 'interview_milestone',
                         'executor_name': self.room_data.get('freelancer_name', 'Freelancer'),
-                        'msg_data': msg_data,
+                        'msg_data': success_msg,
                     }
                     delivery_ok = await handle_system_message(
                         message_type='room_interview_message',
@@ -640,9 +650,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                         )
 
                 await btn_interaction.response.edit_message(
-                    embed=success_embed(
-                        message=f'Milestone `{self.milestone_id}` deleted and remaining milestones re-ordered.',
-                    ),
+                    embed=success_embed(message=success_msg),
                     view=None,
                 )
         except Exception:
@@ -748,7 +756,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
         milestone_id = self._selected_milestone_id or (self.milestone_select.values[0] if self.milestone_select.values else None)
         if not milestone_id:
             await interaction.response.edit_message(
-                embed=error_embed(message='Select a milestone first.'), view=self,
+                embed=error_embed(message='Could not proceed. Select a milestone first.'), view=self,
             )
             return
 
@@ -872,7 +880,7 @@ class InterviewMilestoneActionView(discord.ui.View):
         value = self._selected_action or (self.action_select.values[0] if self.action_select.values else None)
         if not value:
             await interaction.response.edit_message(
-                embed=error_embed(message='Select an action first.'), view=self,
+                embed=error_embed(message='Could not proceed. Select an action first.'), view=self,
             )
             return
 
@@ -881,7 +889,7 @@ class InterviewMilestoneActionView(discord.ui.View):
             if len(self.milestones) >= 10:
                 await interaction.response.edit_message(
                     embed=error_embed(
-                        message='Maximum 10 milestones already reached.',
+                        message='Could not add milestone. Maximum of 10 milestones already reached.',
                     ),
                     view=None,
                 )
@@ -966,15 +974,15 @@ class InterviewMilestone(commands.Cog):
 
                     if not body.get('has_budget'):
                         return error_embed(
-                            message='The client has not set a final budget yet. '
-                            'Milestones can only be configured after a budget is agreed upon.',
+                            message='Could not configure milestones. '
+                            'The client has not set a final budget yet.',
                         )
 
                     milestones = body.get('milestones', [])
             except Exception:
                 logger.exception('Failed to check agreement budget')
                 return error_embed(
-                    message='The service is temporarily unavailable.',
+                    message='Could not check agreement. The service is temporarily unavailable.',
                 )
 
             # ── 3a. CASE B, Milestones exist → show action view ────────────

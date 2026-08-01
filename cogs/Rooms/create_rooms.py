@@ -14,7 +14,7 @@ Flow
    e. Job selection dropdown.
    f. Fetch pending applications for selected job.
    g. Application selection dropdown.
-   h. DM validation, send greet messages to both parties sequentially.
+   h. DM validation, send guide messages to both parties sequentially.
    i. If both DMs succeed → atomically create room via backend.
    j. If either DM fails → professional error.
 """
@@ -748,7 +748,7 @@ class CreateRooms(commands.Cog):
             or interaction.user.display_name
         )
         freelancer_dm_ok = await handle_system_message(
-            "room_greet_freelancer",
+            "room_guide_freelancer",
             {
                 "discord_id": app_view.selected_freelancer_id,
                 "client_name": client_display_name,
@@ -767,7 +767,7 @@ class CreateRooms(commands.Cog):
             return
 
         client_dm_ok = await handle_system_message(
-            "room_greet_client",
+            "room_guide_client",
             {
                 "discord_id": str(interaction.user.id),
                 "freelancer_name": app_view.selected_freelancer_name,

@@ -580,8 +580,8 @@ def _bubble_colors(msg, is_self):
     is_cmd = msg.get("is_command", False)
     msg_type = msg.get("type", "msg")
 
-    # Leave messages always use leave colour (regardless of sender)
-    if msg_type == "leave":
+    # Closure messages (leave/agreement/system) always use closure colour
+    if msg_type == "closure":
         return BUBBLE_LEAVE, BUBBLE_LEAVE_BDR
     # Bot / system messages use the same steel-blue colour
     if sender in ("bot", "system"):

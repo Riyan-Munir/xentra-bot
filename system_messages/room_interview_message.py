@@ -25,7 +25,10 @@ Expected data keys
 **Command notification** (``command_name`` present, not ``interview_complain``)
 - command_name (str)        , The command that was run (e.g. "interview_budget").
 - executor_name (str)       , Display name of the person who ran the command.
-- msg_data (str)            , Execution details text (e.g. "3 milestone(s) configured.").
+- msg_data (str)            , The exact same text shown to the executor
+                             (success or error message).  Callers must build
+                             this string once and pass it to both the executor
+                             embed and this field.
 
 **Complaint notification** (``command_name`` = ``"interview_complain"``)
 - All of the above, plus:
@@ -84,23 +87,23 @@ def build_embed(data: dict) -> discord.Embed:
             )
 
         if command_name == 'interview_leave':
-            # ── Leave notification mode, uses leave model data ────────────
+            # ── Closure notification mode, uses closure model data ──────────
             executor_name = data.get("executor_name", "Someone")
-            leave_id = data.get("leave_id", "N/A")
+            closure_id = data.get("closure_id", "N/A")
             reason = data.get("reason", "")
 
             description_parts = [
                 f"**Interview Room:** `{room_id}`",
                 f"**Job Title:** {job_title}",
                 f"**Executor:** **{executor_name}**",
-                f"**Leave ID:** `{leave_id}`",
+                f"**Closure ID:** `{closure_id}`",
                 "",
                 "**Reason:**",
                 reason if reason else "_No reason provided_",
             ]
 
             return create_embed(
-                title="Room Leave Notification",
+                title="Room Closure Notification",
                 description="\n".join(description_parts),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Room system",

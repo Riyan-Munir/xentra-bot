@@ -6,8 +6,8 @@ Flow:
   2. Fetches selected interview room via shared resolver.
   3. Backend validates agreement budget, milestones, budget sum, deadline ordering,
      and job-deadline boundary.
-  4. Role-aware error messages, the party who can fix the issue sees actionable
-     instructions; the other party receives a DM notification summarising the gap.
+  4. Unified error messages — same message regardless of caller role.
+     The other party receives a DM notification with the identical text.
   5. On success, sets the proposal review flag on the room, logs a system message,
      sends a DM notification to the other party, and returns a simple success embed.
 """
@@ -138,85 +138,64 @@ class InterviewReview(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach review-agreement endpoint')
                 return error_embed(
-                    message='The service is temporarily unavailable.',
+                    message='Could not review the agreement. The service is temporarily unavailable.',
                 )
 
-            # ── 3. Handle error codes with role-aware messages ──────────
+            # ── 3. Handle error codes ────────────────────────────────────
             if body.get('status') == 'error':
                 code = body.get('code', '')
 
                 # NO_AGREEMENT, neither party can fix via commands
                 if code == 'NO_AGREEMENT':
                     return error_embed(
-                        message='No job agreement exists for this room yet. '
-                        'Contact a server administrator if the issue persists.',
+                        message='Could not review the agreement. '
+                        'No job agreement exists for this room.',
                     )
 
                 # NO_BUDGET, client must set the budget
                 if code == 'NO_BUDGET':
-                    client_name = body.get('client_name', 'Client')
-                    # Notify the client (always, they're the one who can act)
+                    error_msg = (
+                        'Could not review the agreement. '
+                        'The final budget has not been set yet.'
+                    )
                     await self._notify_other_party(
                         body, room_id, job_title,
-                        f'Requested review of Job Agreement. Requires {client_name} '
-                        f'to set the final budget via `/interview budget`.',
+                        error_msg,
                         interaction.client,
                         session, headers,
                     )
-                    if is_freelancer:
-                        return error_embed(
-                            message=f'The final budget has not been set yet. '
-                            f'A notification has been sent to **{client_name}**.',
-                        )
-                    else:
-                        return error_embed(
-                            message='The final budget has not been set yet. '
-                            'Use `/interview_budget` to set it, then re-run this command.',
-                        )
+                    return error_embed(message=error_msg)
 
                 # NO_MILESTONES, freelancer must create them
                 if code == 'NO_MILESTONES':
-                    freelancer_name = body.get('freelancer_name', 'Freelancer')
+                    error_msg = (
+                        'Could not review the agreement. '
+                        'No milestones have been configured yet.'
+                    )
                     await self._notify_other_party(
                         body, room_id, job_title,
-                        'Milestones are required for the job agreement review.',
+                        error_msg,
                         interaction.client,
                         session, headers,
                     )
-                    if is_freelancer:
-                        return error_embed(
-                            message='No milestones have been configured yet. '
-                            'Use `/interview milestone` to create them.',
-                        )
-                    else:
-                        return error_embed(
-                            message=f'No milestones have been configured yet. '
-                            f'A notification has been sent to **{freelancer_name}**.',
-                        )
+                    return error_embed(message=error_msg)
 
                 # BUDGET_MISMATCH, milestone total != final budget
                 if code == 'BUDGET_MISMATCH':
                     total = body.get('total_budget', '?')
                     final_budget = body.get('final_budget', '?')
-                    freelancer_name = body.get('freelancer_name', 'Freelancer')
+                    error_msg = (
+                        f'Could not review the agreement. '
+                        f'Milestone total (${total}) does not match '
+                        f'the final budget (${final_budget}).'
+                    )
                     await self._notify_other_party(
                         body, room_id, job_title,
-                        f'Milestone total (${total}) does not match the final budget (${final_budget}).',
+                        error_msg,
                         interaction.client,
                         session, headers,
                     )
-                    if is_freelancer:
-                        return error_embed(
-                            message=f'Total milestone budget (${total}) does not match the '
-                            f'final budget (${final_budget}). '
-                            f'Use `/interview milestone` to adjust milestone budgets.',
-                        )
-                    else:
-                        return error_embed(
-                            message=f'Total milestone budget (${total}) does not match the '
-                            f'final budget (${final_budget}). '
-                            f'A notification has been sent to **{freelancer_name}**.',
-                        )
+                    return error_embed(message=error_msg)
 
                 # DEADLINE_CONFLICT, milestone deadlines have ordering issues
                 if code == 'DEADLINE_CONFLICT':
@@ -224,37 +203,24 @@ class InterviewReview(commands.Cog):
                         'conflict_detail',
                         'Milestone deadlines have ordering conflicts.',
                     )
-                    freelancer_name = body.get('freelancer_name', 'Freelancer')
+                    error_msg = f'Could not review the agreement. {detail}'
                     await self._notify_other_party(
                         body, room_id, job_title,
-                        'Valid milestone deadlines are required for the job agreement review.',
+                        error_msg,
                         interaction.client,
                         session, headers,
                     )
-                    if is_freelancer:
-                        return error_embed(message=detail)
-                    else:
-                        return error_embed(
-                            message=f'Milestone deadlines contain ordering conflicts. '
-                            f'A notification has been sent to **{freelancer_name}**.',
-                        )
+                    return error_embed(message=error_msg)
 
                 # JOB_DEADLINE_EXCEEDED, last milestone past job deadline
                 if code == 'JOB_DEADLINE_EXCEEDED':
                     job_deadline = body.get('job_deadline', '?')
                     last_milestone_dl = body.get('last_milestone_deadline', '?')
-                    if is_freelancer:
-                        return error_embed(
-                            message=f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
-                            f'job deadline (`{job_deadline}`). '
-                            f'Use `/interview milestone` to adjust milestone deadlines.',
-                        )
-                    else:
-                        return error_embed(
-                            message=f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
-                            f'job deadline (`{job_deadline}`). '
-                            f'A notification has been sent to **{body.get("freelancer_name", "Freelancer")}**.',
-                        )
+                    return error_embed(
+                        message=f'Could not review the agreement. '
+                        f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
+                        f'job deadline (`{job_deadline}`).',
+                    )
 
                 # Fallback for unknown error codes
                 return error_embed(
@@ -264,7 +230,7 @@ class InterviewReview(commands.Cog):
             # ── 4. Success, notify other party, return simple success ──
             if body.get('status') != 'ok':
                 return error_embed(
-                    message='The service is temporarily unavailable.',
+                    message='Could not review the agreement. The service is temporarily unavailable.',
                 )
 
             msg_id = body.get('msg_id', '')
@@ -279,7 +245,7 @@ class InterviewReview(commands.Cog):
                     'job_title': job_title,
                     'command_name': 'interview_review',
                     'executor_name': notify_executor_name,
-                    'msg_data': 'Requested Job Agreement Review.',
+                    'msg_data': 'Review request has been submitted.',
                 }
 
                 delivery_ok = await handle_system_message(

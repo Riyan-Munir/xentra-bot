@@ -1,5 +1,5 @@
 """
-Embed builder for ``room_greet_freelancer`` system messages.
+Embed builder for ``room_guide_freelancer`` system messages.
 
 Sent to the freelancer when a client creates an interview room for them.
 

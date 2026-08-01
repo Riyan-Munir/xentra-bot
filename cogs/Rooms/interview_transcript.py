@@ -76,7 +76,7 @@ class InterviewTranscript(commands.Cog):
             'job_title': job_title,
             'command_name': 'interview_transcript',
             'executor_name': executor_name,
-            'msg_data': 'Requested interview room chat transcript.',
+            'msg_data': 'Your transcript request has been received and will be processed shortly.',
         }
 
         delivery_ok = await handle_system_message(
@@ -163,7 +163,7 @@ class InterviewTranscript(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach transcript logging endpoint')
                 return error_embed(
-                    'The service is temporarily unavailable.',
+                    'Could not request the transcript. The service is temporarily unavailable.',
                 )
 
             # ── 4. Log "Room Transcript" BEFORE fetching data ─────────────
