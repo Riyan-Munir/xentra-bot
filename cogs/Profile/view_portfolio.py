@@ -70,7 +70,7 @@ class PortfolioPaginationView(PaginationView):
         embed_color = BrandColor.PREMIUM if self.is_premium else BrandColor.PRIMARY
         
         # ── Profile Header (always visible on every page) ────────────
-        page_info = f", Project {self.current_page + 1}/{self.total_pages}" if self.items else ""
+        page_info = f", Project {self._portfolio_page + 1}/{self.total_pages}" if self.items else ""
         embed = create_embed(
             title=self.portfolio.get('title', f"{username}'s Portfolio"),
             description=self.portfolio.get('description', "Professional freelancer portfolio.") + page_info,
@@ -97,7 +97,7 @@ class PortfolioPaginationView(PaginationView):
         
         # ── Project Section ──────────────────────────────────────────
         if self.items:
-            project = self.items[self.current_page]
+            project = self.items[self._portfolio_page]
             p_title = project.get('title', 'Unnamed Project')
             p_desc = project.get('description', 'No description provided.')
             p_tech = project.get('technologies', [])
@@ -115,7 +115,7 @@ class PortfolioPaginationView(PaginationView):
                 f"> **Technologies Used**: {tech_str}"
             )
             embed.add_field(
-                name=f"Featured Project {self.current_page + 1}",
+                name=f"Featured Project {self._portfolio_page + 1}",
                 value=project_details,
                 inline=False,
             )
