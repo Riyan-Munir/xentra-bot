@@ -126,7 +126,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
             await security_fail(
                 interaction,
                 message='The message contains prohibited content. Command terminated.',
-                ephemeral=not (interaction.guild is None),
+                ephemeral=True,
             )
             return
 
@@ -144,7 +144,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
                     'message_id': self.message_id,
                     'prefill_msg': msg_text,
                 },
-                ephemeral=not (interaction.guild is None),
+                ephemeral=True,
             )
             return
 
@@ -301,7 +301,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 embed=error_embed(
                     message='Could not upload file. Upload timed out.'
                 ),
-                ephemeral=not self.is_dm,
+                ephemeral=True,
             )
             return
 
@@ -314,7 +314,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 embed=error_embed(
                     message=f'Could not attach files. Maximum is {MAX_ATTACHMENTS} files per message.'
                 ),
-                ephemeral=not self.is_dm,
+                ephemeral=True,
             )
             return
 
@@ -327,7 +327,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                 embed=error_embed(
                     message=f'Could not attach files. Total size must not exceed {MAX_TOTAL_SIZE_MB} MB.'
                 ),
-                ephemeral=not self.is_dm,
+                ephemeral=True,
             )
             return
 
@@ -354,7 +354,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             embed=success_embed(
                 message=f'Added {len(file_msg.attachments)} file(s).'
             ),
-            ephemeral=not self.is_dm,
+            ephemeral=True,
         )
 
     # ── per-attachment remove buttons ────────────────────────────────

@@ -125,7 +125,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         if not complaint_text:
             await interaction.response.defer()
             await self._edit_done(
-                error_embed(message='Could not submit an empty complaint.'),
+                error_embed(message='Complaint must not be empty.'),
             )
             return
 
@@ -255,12 +255,11 @@ class InterviewComplain(commands.Cog):
         """
         # Validate mutual exclusivity, only one of message_id / complain_id may be set
         if message_id and complain_id:
-            is_dm = interaction.guild is None
             await interaction.response.send_message(
                 embed=error_embed(
                     message='Could not submit the complaint with two reference IDs.'
                 ),
-                ephemeral=not is_dm,
+                ephemeral=True,
             )
             return
 

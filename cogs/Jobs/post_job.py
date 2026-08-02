@@ -138,7 +138,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                     embed=error_embed(
                         message=f"Description must be between 50 and 800 words. You used {word_count} words."
                     ),
-                    ephemeral=not (interaction.guild is None),
+                    ephemeral=True,
                 )
             except discord.errors.NotFound:
                 pass
@@ -159,7 +159,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                         embed=error_embed(
                             message="Maximum budget must exceed minimum budget."
                         ),
-                        ephemeral=not (interaction.guild is None),
+                        ephemeral=True,
                     )
                 except discord.errors.NotFound:
                     pass
@@ -170,7 +170,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                     embed=error_embed(
                         message="Invalid budget range. Use format: min-max (e.g. 500-5000)"
                     ),
-                    ephemeral=not (interaction.guild is None),
+                    ephemeral=True,
                 )
             except discord.errors.NotFound:
                 pass
@@ -191,7 +191,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                             embed=error_embed(
                                 message="Invalid date format. Use YYYY-MM-DD."
                             ),
-                            ephemeral=not (interaction.guild is None),
+                            ephemeral=True,
                         )
                     except discord.errors.NotFound:
                         pass
@@ -207,7 +207,7 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                             embed=error_embed(
                                 message="Invalid deadline. Enter a date (YYYY-MM-DD) or a positive number of days."
                             ),
-                            ephemeral=not (interaction.guild is None),
+                            ephemeral=True,
                         )
                     except discord.errors.NotFound:
                         pass
@@ -386,12 +386,12 @@ class JobPostSetupView(discord.ui.View):
         if self._done:
             return
         if not self.category_label:
-            embed = error_embed(message="Please select a job category first.")
+            embed = error_embed(message="Select a category first.")
             await interaction.response.edit_message(embed=embed, view=self)
             return
         if not self.experience_label:
             embed = error_embed(
-                message="Please select an experience level first."
+                message="Select an experience level first."
             )
             await interaction.response.edit_message(embed=embed, view=self)
             return

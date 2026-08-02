@@ -28,7 +28,7 @@ class SwitchRole(commands.Cog):
             current = user_data.get('active_role')
             
             if not roles:
-                return error_embed(message="You don't have any roles to switch to.")
+                return error_embed(message="Could not switch role. No roles available.")
             
             embed = create_embed(
                 title="Identity Switcher",
@@ -85,11 +85,11 @@ class SwitchRoleView(discord.ui.View):
                     else:
                         error_data = await resp.json()
                         err = error_embed(message=error_data.get('error', 'Failed to update role.'))
-                        await interaction.followup.send(embed=err, ephemeral=not (interaction.guild is None))
+                        await interaction.followup.send(embed=err, ephemeral=True)
         except Exception as e:
             logger.error(f"Error updating role: {e}")
             err = error_embed(message="The service is temporarily unavailable.")
-            await interaction.followup.send(embed=err, ephemeral=not (interaction.guild is None))
+            await interaction.followup.send(embed=err, ephemeral=True)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):

@@ -135,9 +135,9 @@ class FeedbackStartView(discord.ui.View):
                 break
 
         if not selected_id or selected_id == 'none':
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not proceed without selecting a valid room.'),
-                view=None,
+            await interaction.response.send_message(
+                embed=error_embed(message='Select a room first.'),
+                ephemeral=True,
             )
             return
 
@@ -150,7 +150,7 @@ class FeedbackStartView(discord.ui.View):
 
         if not room_data:
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not find selected room data.'),
+                embed=error_embed(message='Could not find the selected room.'),
                 view=None,
             )
             return

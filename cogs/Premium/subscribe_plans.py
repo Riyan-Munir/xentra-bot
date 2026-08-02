@@ -48,7 +48,7 @@ class PlanSelect(discord.ui.Select):
         plan = next((p for p in self.plans if str(p.get('id', '')) == selected_id), None)
         if not plan:
             await interaction.response.edit_message(
-                embed=error_embed(message='Selected plan not found.'), view=None,
+                embed=error_embed(message='Could not find the selected plan.'), view=None,
             )
             return
         view._selected_plan = plan

@@ -177,6 +177,7 @@ class ExtraRoomConfirmView(discord.ui.View):
         super().__init__(timeout=120)
         self.author_id: int | None = None
         self.use_extra: bool = False
+        self.went_back: bool = False
 
         confirm = discord.ui.Button(
             label="Proceed",
@@ -188,7 +189,7 @@ class ExtraRoomConfirmView(discord.ui.View):
         back = discord.ui.Button(
             label="\u2190 Back", style=discord.ButtonStyle.secondary
         )
-        back.callback = self._on_cancel
+        back.callback = self._on_back
         self.add_item(back)
 
     async def on_timeout(self) -> None:
@@ -201,15 +202,25 @@ class ExtraRoomConfirmView(discord.ui.View):
         await interaction.response.edit_message(view=None)
         self.stop()
 
-    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+    async def _on_back(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
-        self.use_extra = False
+        self.went_back = True
         self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message="Room creation cancelled."),
-            view=None,
+        # Go back to step 1 (room-type selection)
+        setup_view = CreateRoomSetupView()
+        setup_view.author_id = interaction.user.id
+        embed = create_embed(
+            title="Create a Room",
+            description=(
+                "> **Interview Room**, Interview a freelancer for a job "
+                "application.\n"
+                "> **Job Room**, Complete a job with agreed freelancer."
+            ),
+            color=BrandColor.PRIMARY,
         )
+        embed.set_footer(text='Xentra • Rooms')
+        await interaction.response.edit_message(embed=embed, view=setup_view)
 
 
 # =====================================================================
@@ -227,6 +238,7 @@ class JobSelectView(discord.ui.View):
         self.selected_job_id: Optional[str] = None
         self.selected_job_title: Optional[str] = None
         self.use_extra = use_extra
+        self.went_back: bool = False
 
         self._all_options = [
             discord.SelectOption(
@@ -258,7 +270,7 @@ class JobSelectView(discord.ui.View):
         back = discord.ui.Button(
             label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
         )
-        back.callback = self._on_cancel
+        back.callback = self._on_back
         self.add_item(back)
 
     # ------------------------------------------------------------------
@@ -282,23 +294,21 @@ class JobSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.selected_job_id:
-            await interaction.response.edit_message(
+            await interaction.response.send_message(
                 embed=error_embed(message="Select a job first."),
-                view=self,
+                ephemeral=True,
             )
             return
         self.stop()
         await interaction.response.edit_message(view=None)
 
-    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+    async def _on_back(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        self.went_back = True
         self.selected_job_id = None
         self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message="Room creation cancelled."),
-            view=None,
-        )
+        await interaction.response.defer()
 
 
 # =====================================================================
@@ -318,6 +328,7 @@ class ApplicationSelectView(discord.ui.View):
         self.selected_freelancer_name: Optional[str] = None
         self.selected_client_name: Optional[str] = None
         self.use_extra = use_extra
+        self.went_back: bool = False
 
         self._all_options = [
             discord.SelectOption(
@@ -349,7 +360,7 @@ class ApplicationSelectView(discord.ui.View):
         back = discord.ui.Button(
             label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
         )
-        back.callback = self._on_cancel
+        back.callback = self._on_back
         self.add_item(back)
 
     # ------------------------------------------------------------------
@@ -381,23 +392,21 @@ class ApplicationSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.selected_app_id:
-            await interaction.response.edit_message(
+            await interaction.response.send_message(
                 embed=error_embed(message="Select an application first."),
-                view=self,
+                ephemeral=True,
             )
             return
         self.stop()
         await interaction.response.edit_message(view=None)
 
-    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+    async def _on_back(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
+        self.went_back = True
         self.selected_app_id = None
         self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message="Room creation cancelled."),
-            view=None,
-        )
+        await interaction.response.defer()
 
 
 
@@ -462,30 +471,26 @@ class CreateRooms(commands.Cog):
         extra_count: int = quota.get("extra_available", 0)
         use_extra = False
 
-        # ── Step 1b, Extra-room confirmation ─────────────────────
+        # ── Initial view embed (for back navigation to step 1) ──
+        initial_embed = create_embed(
+            title="Create a Room",
+            description=(
+                "> **Interview Room**, Interview a freelancer for a job "
+                "application.\n"
+                "> **Job Room**, Complete a job with agreed freelancer."
+            ),
+            color=BrandColor.PRIMARY,
+        )
+        initial_embed.set_footer(text='Xentra • Rooms')
+
+        # ── Determine starting step ──────────────────────────────
+        # step 0 = extra-room confirmation, 1 = fetch jobs,
+        # 2 = job select, 3 = fetch apps, 4 = app select
         if can_use_system:
             use_extra = False
+            step = 1
         elif can_use_extra:
-            confirm_embed = create_embed(
-                title="Monthly Limit Reached",
-                description=(
-                    "> You have used all your room tokens for this month.\n"
-                    f"> You have **{extra_count}** room token"
-                    f"{'s' if extra_count != 1 else ''} remaining.\n\n"
-                    "> Would you like to use a purchased room token for this room?"
-                ),
-                color=BrandColor.WARNING,
-            )
-            confirm_view = ExtraRoomConfirmView(extra_count)
-            confirm_view.author_id = interaction.user.id
-            await interaction.edit_original_response(
-                embed=confirm_embed, view=confirm_view
-            )
-            await confirm_view.wait()
-
-            if not confirm_view.use_extra:
-                return  # cancel message already shown by view
-            use_extra = True
+            step = 0
         else:
             await interaction.edit_original_response(
                 embed=error_embed(
@@ -494,67 +499,131 @@ class CreateRooms(commands.Cog):
             )
             return
 
-        # ── Step 2, Fetch client jobs ────────────────────────────
+        jobs = None
+        job_view = None
+        applications = None
 
-        jobs = await self._fetch_client_jobs(interaction)
-        if isinstance(jobs, discord.Embed):
-            await interaction.edit_original_response(embed=jobs)
-            return
+        while True:
+            # ── Step 0, Extra-room confirmation ───────────────────
+            if step == 0:
+                confirm_embed = create_embed(
+                    title="Monthly Limit Reached",
+                    description=(
+                        "> You have used all your room tokens for this month.\n"
+                        f"> You have **{extra_count}** room token"
+                        f"{'s' if extra_count != 1 else ''} remaining.\n\n"
+                        "> Would you like to use a purchased room token for this room?"
+                    ),
+                    color=BrandColor.WARNING,
+                )
+                confirm_view = ExtraRoomConfirmView(extra_count)
+                confirm_view.author_id = interaction.user.id
+                await interaction.edit_original_response(
+                    embed=confirm_embed, view=confirm_view
+                )
+                await confirm_view.wait()
 
-        if not jobs:
-            await interaction.edit_original_response(
-                embed=error_embed(
-                    message="Could not find any open jobs with pending applications.",
-                ),
-            )
-            return
+                if confirm_view.went_back:
+                    # Go back to initial view (CreateRoomSetupView)
+                    setup_view = CreateRoomSetupView()
+                    setup_view.author_id = interaction.user.id
+                    await interaction.edit_original_response(
+                        embed=initial_embed, view=setup_view
+                    )
+                    return
+                if not confirm_view.use_extra:
+                    return  # cancel message already shown by view
+                use_extra = True
+                step = 1
+                continue
 
-        # ── Step 3, Job selection ────────────────────────────────
-        job_embed = create_embed(
-            title="Select a Job",
-            description="Choose a job to create an interview room for.",
-            color=BrandColor.PRIMARY,
-        )
-        job_view = JobSelectView(jobs, use_extra)
-        job_view.author_id = interaction.user.id
-        await interaction.edit_original_response(embed=job_embed, view=job_view)
-        await job_view.wait()
+            # ── Step 1, Fetch client jobs ────────────────────────
+            if step == 1:
+                jobs = await self._fetch_client_jobs(interaction)
+                if isinstance(jobs, discord.Embed):
+                    await interaction.edit_original_response(embed=jobs)
+                    return
 
-        if not job_view.selected_job_id:
-            return  # cancelled
+                if not jobs:
+                    await interaction.edit_original_response(
+                        embed=error_embed(
+                            message="Could not find any open jobs with pending applications.",
+                        ),
+                    )
+                    return
+                step = 2
+                continue
 
-        # ── Step 4, Fetch applications ───────────────────────────
+            # ── Step 2, Job selection ────────────────────────────
+            if step == 2:
+                job_embed = create_embed(
+                    title="Select a Job",
+                    description="Choose a job to create an interview room for.",
+                    color=BrandColor.PRIMARY,
+                )
+                job_view = JobSelectView(jobs, use_extra)
+                job_view.author_id = interaction.user.id
+                await interaction.edit_original_response(embed=job_embed, view=job_view)
+                await job_view.wait()
 
-        applications = await self._fetch_applications(
-            interaction, job_view.selected_job_id
-        )
-        if isinstance(applications, discord.Embed):
-            await interaction.edit_original_response(embed=applications)
-            return
+                if job_view.went_back:
+                    if can_use_extra and not can_use_system:
+                        step = 0  # go back to extra-room confirmation
+                    else:
+                        # Go back to initial view (CreateRoomSetupView)
+                        setup_view = CreateRoomSetupView()
+                        setup_view.author_id = interaction.user.id
+                        await interaction.edit_original_response(
+                            embed=initial_embed, view=setup_view
+                        )
+                        return
+                    continue
 
-        if not applications:
-            await interaction.edit_original_response(
-                embed=error_embed(
-                    message="Could not find pending applications for this job.",
-                ),
-            )
-            return
+                if not job_view.selected_job_id:
+                    return  # cancelled
+                step = 3
+                continue
 
-        # ── Step 5, Application selection ────────────────────────
-        app_embed = create_embed(
-            title="Select an Application",
-            description="Choose an applicant to interview.",
-            color=BrandColor.PRIMARY,
-        )
-        app_view = ApplicationSelectView(applications, use_extra)
-        app_view.author_id = interaction.user.id
-        await interaction.edit_original_response(
-            embed=app_embed, view=app_view
-        )
-        await app_view.wait()
+            # ── Step 3, Fetch applications ───────────────────────
+            if step == 3:
+                applications = await self._fetch_applications(
+                    interaction, job_view.selected_job_id
+                )
+                if isinstance(applications, discord.Embed):
+                    await interaction.edit_original_response(embed=applications)
+                    return
 
-        if not app_view.selected_app_id:
-            return  # cancelled
+                if not applications:
+                    await interaction.edit_original_response(
+                        embed=error_embed(
+                            message="Could not find pending applications for this job.",
+                        ),
+                    )
+                    return
+                step = 4
+                continue
+
+            # ── Step 4, Application selection ────────────────────
+            if step == 4:
+                app_embed = create_embed(
+                    title="Select an Application",
+                    description="Choose an applicant to interview.",
+                    color=BrandColor.PRIMARY,
+                )
+                app_view = ApplicationSelectView(applications, use_extra)
+                app_view.author_id = interaction.user.id
+                await interaction.edit_original_response(
+                    embed=app_embed, view=app_view
+                )
+                await app_view.wait()
+
+                if app_view.went_back:
+                    step = 2  # go back to job selection
+                    continue
+
+                if not app_view.selected_app_id:
+                    return  # cancelled
+                break  # proceed to room creation
 
         # ── Step 6, DM validation ────────────────────────────────
 

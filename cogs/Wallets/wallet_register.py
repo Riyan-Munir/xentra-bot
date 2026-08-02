@@ -46,7 +46,7 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
             await security_fail(
                 interaction,
                 message='Input contains prohibited content. Command terminated.',
-                ephemeral=not (interaction.guild is None),
+                ephemeral=True,
             )
             return
 
@@ -60,7 +60,7 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
                     'prefill_address': raw_addr,
                     'prefill_label': raw_label,
                 },
-                ephemeral=not (interaction.guild is None),
+                ephemeral=True,
             )
             return
 

@@ -42,7 +42,7 @@ class UserStats(commands.Cog):
                         return self.build_stats_embed(data, role)
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', 'Could not load stats. Please try again.'))
+                        return error_embed(message=err.get('error', 'Could not load stats.'))
 
         async def premium_stats_callback(inter, role, identifier, view):
             resolve_url = f"{BACKEND_URL}users/resolve-id/"
@@ -69,14 +69,14 @@ class UserStats(commands.Cog):
                         await inter.response.edit_message(content=None, embed=embed, view=final_view)
                     else:
                         err = await resp.json()
-                        err_embed = error_embed(message=err.get('error', 'This ID is not valid for the selected role.'))
+                        err_embed = error_embed(message=err.get('error', 'Could not proceed. This ID is not valid for the selected role.'))
                         await inter.response.edit_message(content=None, embed=err_embed, view=None)
 
         async def stats_callback(user_data):
             if not user_id:
                 # Self-lookup via Discord ID
                 if not user_data.get('registered'):
-                    return error_embed(message="**You** must be registered to view your own stats.")
+                    return error_embed(message="Could not load stats. You must be registered.")
 
                 url = f"{BACKEND_URL}profiles/bot-detail/"
                 params = {'discord_id': interaction.user.id}
@@ -90,7 +90,7 @@ class UserStats(commands.Cog):
                             return self.build_stats_embed(data, resp_role)
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'Could not load stats. Please try again.'))
+                            return error_embed(message=err.get('error', 'Could not load stats.'))
 
             result = resolve_user_id(user_id)
             if result.is_system:
@@ -109,7 +109,7 @@ class UserStats(commands.Cog):
                             return await fetch_and_show_stats(interaction, res['role'], res['canonical_id'])
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'No user found with that ID.'))
+                            return error_embed(message=err.get('error', 'Could not load stats. No user found with that ID.'))
             else:
                 # Premium ID, show role selection (client/freelancer only)
                 view = ProfileRoleView(result.normalized, premium_stats_callback, user_data)

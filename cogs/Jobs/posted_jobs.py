@@ -82,7 +82,7 @@ class PostedJobs(commands.Cog):
                         return view.build_embed(), view
                     else:
                         err_data = await resp.json()
-                        return error_embed(message=err_data.get('error', 'Could not load jobs. Please try again.'))
+                        return error_embed(message=err_data.get('error', 'Could not load jobs.'))
         
         await validate_and_respond(interaction, jobs_callback)
 
@@ -119,7 +119,7 @@ class JobsPaginationView(PaginationView):
                     self.current_page = new_page
                     await self.update_message(interaction)
                 else:
-                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=None)
+                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=None)
 
     def build_embed(self):
         title = "Client Posted Jobs"

@@ -73,7 +73,7 @@ def retry_view(
             except Exception:
                 logger.exception('Failed to open retry modal')
                 await btn_interaction.response.edit_message(
-                    embed=error_embed(message='Could not re-open the form. Please run the command again.'),
+                    embed=error_embed(message='Could not re-open the form.'),
                     view=None,
                 )
 
@@ -92,7 +92,7 @@ async def validation_fail(
     modal_kwargs: dict[str, Any] | None = None,
     retry_label: str = 'Try Again',
     *,
-    ephemeral: bool = False,
+    ephemeral: bool = True,
 ) -> None:
     """Show an info embed with a retry button that re-opens the modal.
 
@@ -139,7 +139,7 @@ async def security_fail(
     interaction: discord.Interaction,
     message: str = 'Security violation detected. The command has been terminated.',
     *,
-    ephemeral: bool = False,
+    ephemeral: bool = True,
 ) -> None:
     """Show an error embed with **no** retry button, command is terminated.
 

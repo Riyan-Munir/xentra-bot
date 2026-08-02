@@ -45,7 +45,7 @@ class UserProfile(commands.Cog):
                         return throttled_embed(err.get('retry_after', 10))
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', 'Could not load profile. Please try again.'))
+                        return error_embed(message=err.get('error', 'Could not load profile.'))
 
         async def premium_role_callback(inter, role, identifier, view):
             # Resolve premium ID
@@ -72,14 +72,14 @@ class UserProfile(commands.Cog):
                         await inter.response.edit_message(content=None, embed=embed, view=final_view)
                     else:
                         err = await resp.json()
-                        err_embed = error_embed(message=err.get('error', 'This ID is not valid for the selected role.'))
+                        err_embed = error_embed(message=err.get('error', 'Could not proceed. This ID is not valid for the selected role.'))
                         await inter.response.edit_message(content=None, embed=err_embed, view=None)
 
         async def profile_callback(user_data):
             if not user_id:
                 # Self-lookup (using Discord ID for reliability)
                 if not user_data.get('registered'):
-                    return error_embed(message="**You** must be registered to view your own profile.")
+                    return error_embed(message="Could not load profile. You must be registered.")
                 
                 url = f"{BACKEND_URL}profiles/bot-detail/"
                 params = {'discord_id': interaction.user.id}
@@ -98,7 +98,7 @@ class UserProfile(commands.Cog):
                             return throttled_embed(err.get('retry_after', 10))
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'Could not load profile. Please try again.'))
+                            return error_embed(message=err.get('error', 'Could not load profile.'))
 
             result = resolve_user_id(user_id)
             if result.is_system:
@@ -117,7 +117,7 @@ class UserProfile(commands.Cog):
                             return await fetch_and_show(interaction, res['role'], res['canonical_id'])
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'No user found with that ID.'))
+                            return error_embed(message=err.get('error', 'Could not load profile. No user found with that ID.'))
             else:
                 # Premium ID (Show Role Selection)
                 view = ProfileRoleView(result.normalized, premium_role_callback, user_data)

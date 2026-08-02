@@ -75,7 +75,7 @@ class ProfileRoleView(discord.ui.View):
             return
         if not self.selected_role:
             await interaction.response.send_message(
-                "Please select a role from the dropdown first.", ephemeral=not (interaction.guild is None),
+                "Please select a role from the dropdown first.", ephemeral=True,
             )
             return
         await self.callback_func(

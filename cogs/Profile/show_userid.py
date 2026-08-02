@@ -30,7 +30,7 @@ class ShowUserID(commands.Cog):
 
             role_ids = user_data.get('role_ids', {})
             if not role_ids:
-                return error_embed(message="No profiles found for this user.")
+                return error_embed(message="Could not load profiles. No profiles found.")
 
             target_user = username if username else interaction.user.name
             embed = create_embed(

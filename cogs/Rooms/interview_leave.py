@@ -143,7 +143,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         if not reason_text:
             try:
                 await interaction.response.edit_message(
-                    embed=error_embed(message='Could not process leave without a reason.'),
+                    embed=error_embed(message='Reason must not be empty.'),
                     view=None,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):

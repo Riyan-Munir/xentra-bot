@@ -82,17 +82,19 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
         except (ValueError, TypeError):
             # Re-open the same modal via retry button
             view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not set milestone count. Enter a valid number between 1 and 10.'),
+            await interaction.response.send_message(
+                embed=error_embed(message='Enter a valid milestone count.'),
                 view=view,
+                ephemeral=True,
             )
             return
 
         if total < 1 or total > 10:
             view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not set milestone count. Must be between 1 and 10.'),
+            await interaction.response.send_message(
+                embed=error_embed(message='Enter a valid milestone count.'),
                 view=view,
+                ephemeral=True,
             )
             return
 
@@ -181,22 +183,16 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
 
         # --- validate title ---
         if not title:
-            await self._fail(interaction, 'Could not save milestone. The title cannot be empty.',
+            await self._fail(interaction, 'Title must not be empty.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
 
         # --- validate description word count ---
         word_count = len(description.split())
-        if word_count < 30:
+        if word_count < 30 or word_count > 600:
             await self._fail(interaction,
-                             f'Could not save milestone. Description must be at least 30 words (currently {word_count}).',
-                             {'title': title, 'description': description,
-                              'budget': raw_budget, 'deadline': raw_deadline})
-            return
-        if word_count > 600:
-            await self._fail(interaction,
-                             f'Could not save milestone. Description must be at most 600 words (currently {word_count}).',
+                             f'Description must be 30-600 words (currently {word_count}).',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
@@ -205,13 +201,13 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         try:
             budget = float(raw_budget)
         except (ValueError, TypeError):
-            await self._fail(interaction, 'Could not save milestone. Budget must be a valid number.',
+            await self._fail(interaction, 'Enter a valid budget.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
 
         if budget <= 0:
-            await self._fail(interaction, 'Could not save milestone. Budget must be a positive number.',
+            await self._fail(interaction, 'Enter a valid budget.',
                              {'title': title, 'description': description,
                               'budget': raw_budget, 'deadline': raw_deadline})
             return
@@ -273,9 +269,10 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                 'prefill': prefill,
             },
         )
-        await interaction.response.edit_message(
+        await interaction.response.send_message(
             embed=error_embed(message=message),
             view=view,
+            ephemeral=True,
         )
 
     async def _save_all(self, interaction: discord.Interaction) -> None:
@@ -410,43 +407,67 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
 
         # --- validate ---
         if not title:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not update milestone. The title cannot be empty.'),
-                view=None,
+            await interaction.response.send_message(
+                embed=error_embed(message='Title must not be empty.'),
+                view=_retry_view(
+                    InterviewMilestoneEditModal,
+                    dict(
+                        milestone_id=self.milestone_id,
+                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
+                        room_data=self.room_data,
+                    ),
+                ),
+                ephemeral=True,
             )
             return
 
         word_count = len(description.split())
-        if word_count < 30:
-            await interaction.response.edit_message(
+        if word_count < 30 or word_count > 600:
+            await interaction.response.send_message(
                 embed=error_embed(
-                    message=f'Could not update milestone. Description must be at least 30 words (currently {word_count}).',
+                    message=f'Description must be 30-600 words (currently {word_count}).',
                 ),
-                view=None,
-            )
-            return
-        if word_count > 600:
-            await interaction.response.edit_message(
-                embed=error_embed(
-                    message=f'Could not update milestone. Description must be at most 600 words (currently {word_count}).',
+                view=_retry_view(
+                    InterviewMilestoneEditModal,
+                    dict(
+                        milestone_id=self.milestone_id,
+                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
+                        room_data=self.room_data,
+                    ),
                 ),
-                view=None,
+                ephemeral=True,
             )
             return
 
         try:
             budget = float(raw_budget)
         except (ValueError, TypeError):
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not update milestone. Budget must be a valid number.'),
-                view=None,
+            await interaction.response.send_message(
+                embed=error_embed(message='Enter a valid budget.'),
+                view=_retry_view(
+                    InterviewMilestoneEditModal,
+                    dict(
+                        milestone_id=self.milestone_id,
+                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
+                        room_data=self.room_data,
+                    ),
+                ),
+                ephemeral=True,
             )
             return
 
         if budget <= 0:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not update milestone. Budget must be a positive number.'),
-                view=None,
+            await interaction.response.send_message(
+                embed=error_embed(message='Enter a valid budget.'),
+                view=_retry_view(
+                    InterviewMilestoneEditModal,
+                    dict(
+                        milestone_id=self.milestone_id,
+                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
+                        room_data=self.room_data,
+                    ),
+                ),
+                ephemeral=True,
             )
             return
 
@@ -751,13 +772,14 @@ class InterviewMilestoneSelectView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
         milestone_id = self._selected_milestone_id or (self.milestone_select.values[0] if self.milestone_select.values else None)
         if not milestone_id:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not proceed without selecting a milestone.'), view=None,
+            await interaction.response.send_message(
+                embed=error_embed(message='Select a milestone first.'),
+                ephemeral=True,
             )
             return
+        self._done = True
 
         milestone_data = next(
             (m for m in self.milestones if m['milestone_id'] == milestone_id),
@@ -765,7 +787,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
         )
         if not milestone_data:
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not find milestone.'),
+                embed=error_embed(message='Could not find the milestone.'),
                 view=None,
             )
             return
@@ -875,20 +897,21 @@ class InterviewMilestoneActionView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
         value = self._selected_action or (self.action_select.values[0] if self.action_select.values else None)
         if not value:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not proceed without selecting an action.'), view=None,
+            await interaction.response.send_message(
+                embed=error_embed(message='Select an action first.'),
+                ephemeral=True,
             )
             return
+        self._done = True
 
         if value == 'add':
             # Check max before opening form
             if len(self.milestones) >= 10:
                 await interaction.response.edit_message(
                     embed=error_embed(
-                        message='Could not add milestone. Maximum of 10 milestones already reached.',
+                        message='Could not add milestone. Maximum of 10 milestones reached.',
                     ),
                     view=None,
                 )

@@ -51,9 +51,11 @@ class AllowExecutionView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
         if not self.selected_role:
-            return await interaction.response.edit_message(embed=error_embed(message="Select a role first."), view=None)
+            return await interaction.response.send_message(
+                embed=error_embed(message="Select a role first."), ephemeral=True,
+            )
+        self._done = True
         await self.callback_func(interaction, self.selected_role, self.identifier, self)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
@@ -95,12 +97,12 @@ class AllowExecution(commands.Cog):
                         await inter.response.edit_message(content=None, embed=embed, view=None)
                     else:
                         err = await resp.json()
-                        err_embed = error_embed(message=err.get('error', 'Provided ID is not valid for the selected role.'))
+                        err_embed = error_embed(message=err.get('error', 'Could not allow this user. Provided ID is not valid for the selected role.'))
                         await inter.response.edit_message(content=None, embed=err_embed, view=None)
 
         async def do_allow(inter, role, canonical_id):
             if not inter.guild_id:
-                return error_embed(message="This command can only be executed inside a server.")
+                return error_embed(message="Could not proceed. This command can only be executed inside a server.")
 
             url = f"{BACKEND_URL}guilds/allow-execution/"
             packet = BotPacketFactory.create_packet(
@@ -141,7 +143,7 @@ class AllowExecution(commands.Cog):
 
         async def allow_callback(user_data):
             if not interaction.guild_id:
-                return error_embed(message="This command can only be run inside a server.")
+                return error_embed(message="Could not proceed. This command can only be run inside a server.")
 
             result = resolve_user_id(user_id)
             if result.is_system:
@@ -160,7 +162,7 @@ class AllowExecution(commands.Cog):
                             return await do_allow(interaction, res['role'], res['canonical_id'])
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'No user found with provided ID.'))
+                            return error_embed(message=err.get('error', 'Could not allow this user. No user found with provided ID.'))
             else:
                 view = AllowExecutionView(result.normalized, premium_role_callback, user_data)
                 view.author_id = interaction.user.id

@@ -28,17 +28,17 @@ class CommandChannel(commands.Cog):
             # 1. Clean the channel_id to extract digits
             digits = re.findall(r"\d+", channel_id)
             if not digits:
-                return error_embed(message="Invalid channel ID. Enter valid channel ID or mention (e.g. #channel).")
+                return error_embed(message="Enter a valid channel ID.")
             
             clean_id = int(digits[0])
             
             # 2. Verify channel exists in this guild
             target_channel = interaction.guild.get_channel(clean_id)
             if not target_channel:
-                return error_embed(message="Provided channel does not exist in this server.")
+                return error_embed(message="Could not configure command channel. Channel does not exist in this server.")
                 
             if not isinstance(target_channel, discord.TextChannel):
-                return error_embed(message="Command channel must be a text channel.")
+                return error_embed(message="Could not configure command channel. Must be a text channel.")
 
             # 3. Call backend to update configuration
             url = f"{BACKEND_URL}guilds/bot-management/"

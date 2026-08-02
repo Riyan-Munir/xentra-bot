@@ -109,11 +109,11 @@ class MembersList(commands.Cog):
         async def members_callback(user_data):
             # Early enforcement: ensure command is run in a server
             if not interaction.guild_id:
-                return error_embed(message="This command can only be run inside a server.")
+                return error_embed(message="Could not proceed. This command can only be run inside a server.")
 
             # Check if all parameters are explicitly false
             if client is False and freelancer is False and server_admin is False:
-                return error_embed(message="List cannot be displayed with no response.")
+                return error_embed(message="Could not display the list. No filters selected.")
 
             url = f"{BACKEND_URL}guilds/members/"
             params = {'guild_id': interaction.guild_id, 'discord_id': str(interaction.user.id)}

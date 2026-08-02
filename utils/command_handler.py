@@ -574,7 +574,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         if _selected is None:
             await interaction.followup.send(
                 embed=error_embed('No selected interview room found. Use `/switch_room` to select one.'),
-                ephemeral=not is_dm,
+                ephemeral=True,
             )
             return
         user_data['_selected_room'] = _selected
@@ -587,7 +587,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         if _selected is None:
             await interaction.followup.send(
                 embed=error_embed('No selected job room found. Use `/switch_room` to select one.'),
-                ephemeral=not is_dm,
+                ephemeral=True,
             )
             return
         user_data['_selected_room'] = _selected

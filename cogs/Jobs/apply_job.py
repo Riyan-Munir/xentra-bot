@@ -54,8 +54,8 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
                 self.preflight_view.last_proposal = proposal_text
                 self.preflight_view.last_bid = self.bid.value
             await interaction.response.send_message(
-                embed=error_embed(message=f"Proposal must be between 50 and 300 words. You used {word_count} words."),
-                ephemeral=not (interaction.guild is None),
+                embed=error_embed(message=f"Edit proposal. 50-300 words (currently {word_count})."),
+                ephemeral=True,
             )
             return
 
@@ -69,8 +69,8 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
                 self.preflight_view.last_proposal = proposal_text
                 self.preflight_view.last_bid = self.bid.value
             await interaction.response.send_message(
-                embed=error_embed(message="Bid must be a positive number."),
-                ephemeral=not (interaction.guild is None),
+                embed=error_embed(message="Enter a valid bid."),
+                ephemeral=True,
             )
             return
 
@@ -163,14 +163,13 @@ class ApplyJobPreflightView(discord.ui.View):
             )
             await interaction.response.send_modal(modal)
         except discord.errors.NotFound:
-            await interaction.followup.send(embed=error_embed(message="Interaction expired or unknown. Please run the command again."), ephemeral=not (interaction.guild is None))
+            await interaction.followup.send(embed=error_embed(message="Could not process the interaction."), ephemeral=True)
         except Exception as e:
             logger.error(f"Error sending modal: {e}")
-            is_dm = interaction.guild is None
             if not interaction.response.is_done():
-                await interaction.response.send_message("The service is temporarily unavailable.", ephemeral=not is_dm)
+                await interaction.response.send_message("The service is temporarily unavailable.", ephemeral=True)
             else:
-                await interaction.followup.send(embed=error_embed(message="The service is temporarily unavailable."), ephemeral=not is_dm)
+                await interaction.followup.send(embed=error_embed(message="The service is temporarily unavailable."), ephemeral=True)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -228,7 +227,7 @@ class ApplyJob(commands.Cog):
                         view.author_id = interaction.user.id
                         return embed, view
                     else:
-                        return error_embed(message=res_data.get('error', "You are not eligible for this job."))
+                        return error_embed(message=res_data.get('error', "Could not apply. You are not eligible for this job."))
 
         await validate_and_respond(interaction, apply_callback)
 

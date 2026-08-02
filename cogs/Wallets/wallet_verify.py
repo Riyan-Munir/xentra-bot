@@ -41,7 +41,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
             await security_fail(
                 interaction,
                 message='Input contains prohibited content. Command terminated.',
-                ephemeral=not (interaction.guild is None),
+                ephemeral=True,
             )
             return
 
@@ -54,7 +54,7 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
                     'wallet_id': self.wallet_id,
                     'challenge_msg': self.challenge_msg,
                 },
-                ephemeral=not (interaction.guild is None),
+                ephemeral=True,
             )
             return
 
@@ -128,7 +128,7 @@ class UnverifiedWalletSelect(discord.ui.Select):
 
 
 class WalletVerifyView(discord.ui.View):
-    """View that lists unverified wallets for selection with Proceed/← Back."""
+    """View that lists unverified wallets for selection with Proceed/Cancel."""
 
     def __init__(self, wallets: list[dict], wallet_type: str) -> None:
         super().__init__(timeout=120)
@@ -143,14 +143,14 @@ class WalletVerifyView(discord.ui.View):
         proceed.callback = self._on_proceed
         self.add_item(proceed)
 
-        back = discord.ui.Button(label='← Back', style=discord.ButtonStyle.secondary, row=1)
-        back.callback = self._on_back
-        self.add_item(back)
+        cancel = discord.ui.Button(label='Cancel', style=discord.ButtonStyle.danger, row=1)
+        cancel.callback = self._on_cancel
+        self.add_item(cancel)
 
     async def on_timeout(self) -> None:
         self.stop()
 
-    async def _on_back(self, interaction: discord.Interaction) -> None:
+    async def _on_cancel(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
         self.stop()
@@ -176,7 +176,7 @@ class WalletVerifyView(discord.ui.View):
         selected = next((w for w in self.wallets if w['id'] == wallet_id), None)
         if not selected:
             await interaction.response.edit_message(
-                embed=error_embed(message='Selected wallet not found.'),
+                embed=error_embed(message='Could not find the selected wallet.'),
                 view=None,
             )
             return

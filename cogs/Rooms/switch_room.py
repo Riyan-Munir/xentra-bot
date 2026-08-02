@@ -266,10 +266,18 @@ class RoomPickerView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message="Room switch cancelled."),
-            view=None,
+        # Go back to step 1 (room-type selection)
+        setup_view = SwitchRoomSetupView(self.user_data)
+        setup_view.author_id = interaction.user.id
+        embed = create_embed(
+            title="Switch Selected Room",
+            description=(
+                "> Select a room type to switch."
+            ),
+            color=BrandColor.PRIMARY,
+            footer="Xentra • Rooms",
         )
+        await interaction.response.edit_message(embed=embed, view=setup_view)
 
     async def _on_confirm(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):

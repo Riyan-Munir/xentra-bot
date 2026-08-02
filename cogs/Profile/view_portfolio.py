@@ -142,7 +142,7 @@ class ViewPortfolio(commands.Cog):
         
         async def fetch_and_show_portfolio(inter, role, canonical_id, viewer_data):
             if role != 'freelancer':
-                return error_embed(message="This ID is not valid for the selected role.")
+                return error_embed(message="Could not proceed. This ID is not valid for the selected role.")
             
             url = f"{BACKEND_URL}profiles/bot-detail/"
             params = {'profile_id': canonical_id, 'role': 'freelancer', 'discord_id': inter.user.id}
@@ -156,7 +156,7 @@ class ViewPortfolio(commands.Cog):
                         data = await resp.json()
                         portfolios = data.get('portfolios', [])
                         if not portfolios:
-                            return error_embed(message="No portfolio found for this ID.")
+                            return error_embed(message="Could not load portfolio. No portfolio found.")
                         
                         portfolio = portfolios[0]
                         is_premium = data.get('premium_tier') == 'premium'
@@ -168,13 +168,13 @@ class ViewPortfolio(commands.Cog):
                         return view.build_embed(), view
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', 'Could not load portfolio. Please try again.'))
+                        return error_embed(message=err.get('error', 'Could not load portfolio.'))
         
         async def portfolio_callback(user_data):
             if not user_id:
                 # Self-lookup
                 if not user_data.get('registered'):
-                    return error_embed(message="**You** must be registered to view your own portfolio.")
+                    return error_embed(message="Could not load portfolio. You must be registered.")
                 
                 # Use current user's freelancer profile
                 url = f"{BACKEND_URL}profiles/bot-detail/"
@@ -189,7 +189,7 @@ class ViewPortfolio(commands.Cog):
                             data = await resp.json()
                             portfolios = data.get('portfolios', [])
                             if not portfolios:
-                                return error_embed(message="No portfolio found for this ID.")
+                                return error_embed(message="Could not load portfolio. No portfolio found.")
                             
                             portfolio = portfolios[0]
                             is_premium = data.get('premium_tier') == 'premium'
@@ -200,7 +200,7 @@ class ViewPortfolio(commands.Cog):
                             return view.build_embed(), view
                         else:
                             err = await resp.json()
-                            return error_embed(message=err.get('error', 'Could not load portfolio. Please try again.'))
+                            return error_embed(message=err.get('error', 'Could not load portfolio.'))
             
             # ID resolution logic (Force freelancer role for portfolios)
             resolve_url = f"{BACKEND_URL}users/resolve-id/"
@@ -210,7 +210,7 @@ class ViewPortfolio(commands.Cog):
             if result.is_system:
                 # Only FRL_ prefix is valid for portfolios
                 if result.prefix != 'FRL':
-                    return error_embed(message="This ID is not valid for the selected role.")
+                    return error_embed(message="Could not proceed. This ID is not valid for the selected role.")
                 packet = BotPacketFactory.create_packet(
                     packet_type="user_resolve_id",
                     data={'raw_id': result.normalized},
@@ -229,11 +229,11 @@ class ViewPortfolio(commands.Cog):
                     if resp.status == 200:
                         res = await resp.json()
                         if res['role'] != 'freelancer':
-                            return error_embed(message="This ID is not valid for the selected role.")
+                            return error_embed(message="Could not proceed. This ID is not valid for the selected role.")
                         return await fetch_and_show_portfolio(interaction, res['role'], res['canonical_id'], user_data)
                     else:
                         err = await resp.json()
-                        return error_embed(message=err.get('error', "This ID is not valid for the selected role."))
+                        return error_embed(message=err.get('error', "Could not proceed. This ID is not valid for the selected role."))
         
         await validate_and_respond(interaction, portfolio_callback)
 
