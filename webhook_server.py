@@ -44,10 +44,13 @@ class WebhookServer:
         self._last_request_time: Optional[float] = None
         self._start_time: float = time.time()
         self.app = web.Application()
-        # Unauthenticated health endpoint, used by HF Spaces monitor ping
-        self.app.router.add_route('GET', '/health', self.handle_health)
+        # Unauthenticated health endpoint, used by monitor pings
+        # '*' accepts any HTTP method (GET, HEAD, POST, OPTIONS, etc.)
+        # so UptimeRobot and any other monitor always get 200 OK.
+        self.app.router.add_route('*', '/health', self.handle_health)
         # HTML status page, shows last request timestamp, bot latency, uptime
         self.app.router.add_route('GET', '/status', self.handle_status_page)
+        self.app.router.add_route('HEAD', '/status', self.handle_status_page)
         # Accept POST webhooks and preflight OPTIONS from backend only
         self.app.router.add_route('POST', '/status', self.handle_status_update)
         self.app.router.add_route('OPTIONS', '/status', self.handle_status_update)
