@@ -102,11 +102,20 @@ async def send_room_closure_and_transcript(
     from cogs.Rooms.create_rooms import CreateRooms  # lazy import to avoid cycles
 
     sys_msg_type = 'closure'
-    await CreateRooms._log_system_message(room_id, sys_msg_type, {})
+    # Build closure body_text for transcript logging (no room headers)
+    closure_build_data = {
+        'room_id': room_id,
+        'closure_type': closure_type,
+        'leave_reason': leave_reason,
+        'left_by': left_by,
+    }
+    _, closure_body_text = build_closure_embed(closure_build_data)
+    await CreateRooms._log_system_message(room_id, sys_msg_type, {}, msg_text=closure_body_text)
 
     # ── 1b. Log "Room Transcript" BEFORE fetching data ──────────────
     # Ensures this message appears in the session JSON used for PDF generation
-    await CreateRooms._log_system_message(room_id, 'Room Transcript', {})
+    transcript_label = 'A transcript of this room is being generated and will be delivered to both parties.'
+    await CreateRooms._log_system_message(room_id, 'Room Transcript', {}, msg_text=transcript_label)
 
     # ── 2. Fetch transcript data from backend ────────────────────────
     transcript_data = await _fetch_transcript_data(room_id, headers, session)

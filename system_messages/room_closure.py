@@ -8,6 +8,7 @@ Expected data keys
 ------------------
 - discord_id (str), Snowflake of the recipient (used by handler).
 - room_id (str), The interview room that was closed.
+- job_title (str), Title of the job.
 - closure_type (str), ``"agreement"``, ``"leave"``, or ``"system"``.
 - client_name (str, optional), Display name of the client.
 - freelancer_name (str, optional), Display name of the freelancer.
@@ -20,46 +21,74 @@ import discord
 from utils.embeds import create_embed, BrandColor
 
 
-def build_embed(data: dict) -> discord.Embed:
-    """Construct a room-closure notification embed for a party."""
+def build_embed(data: dict) -> tuple[discord.Embed, str]:
+    """Construct a room-closure notification embed for a party.
+
+    Returns ``(embed, body_text)`` where ``body_text`` is the
+    transcript-safe version without room headers.
+
+    Three closure types:
+    - ``agreement``: Both parties signed, room concluded.
+    - ``leave``: A party left the room.
+    - ``system``: Room auto-closed because another room reached agreement.
+    """
     room_id = data.get("room_id", "Unknown Room")
+    job_title = data.get("job_title", "N/A")
     closure_type = data.get("closure_type", "agreement")
 
     if closure_type == "leave":
         left_by = data.get("left_by", "A participant")
         leave_reason = data.get("leave_reason", "")
 
-        title = "Interview Room Closed"
-        description = (
-            f"Your interview room **{room_id}** has been closed "
-            f"because **{left_by}** left the interview."
-        )
-        if leave_reason:
-            description += f"\n\n**Reason:** {leave_reason}"
-        description += (
-            f"\n\nThank you for using Xentra. "
-            f"A transcript of your conversation has been attached."
-        )
-    elif closure_type == "system":
-        title = "Interview Room Closed by System"
-        description = (
-            f"Your interview room **{room_id}** has been closed "
-            f"by the system.\n\n"
-            f"Another room for this job has reached an agreement. "
-            f"Thank you for using Xentra. "
-            f"A transcript of your conversation has been attached."
-        )
-    else:
-        title = "Interview Room Concluded"
-        description = (
-            f"Your interview room **{room_id}** has been concluded."
-            f"\n\nThank you for using Xentra to facilitate your agreement. "
-            f"The signed Job Agreement has been delivered to both parties."
-        )
+        body_parts = [
+            f"> ***A participant has left the interview room.***",
+            "",
+            f"**Left by:** `{left_by}`",
+        ]
 
-    return create_embed(
+        if leave_reason:
+            body_parts.append(f"**Reason:** `{leave_reason}`")
+
+        body_parts.extend([
+            "",
+            "> __This room has been permanently closed. A transcript will follow shortly.__",
+        ])
+
+        body = "\n".join(body_parts)
+        title = "Room Closed"
+
+    elif closure_type == "system":
+        body = (
+            f"> ***This room was closed automatically by the system.***\n"
+            f"\n"
+            f"**Reason:** `Agreement reached in another room`\n"
+            f"\n"
+            f"> __A transcript of this room will be delivered shortly.__"
+        )
+        title = "Room Closed by System"
+
+    else:
+        # agreement
+        body = (
+            f"> ***Agreement has been reached between both parties.***\n"
+            f"\n"
+            f"**Status:** `Agreement Signed`\n"
+            f"\n"
+            f"> __The signed Job Agreement has been delivered. A transcript will follow shortly.__"
+        )
+        title = "Room Concluded"
+
+    description = (
+        f"> ***Room: `{room_id}`***\n"
+        f"> ***Job: `{job_title}`***\n"
+        f"\n"
+        f"{body}"
+    )
+
+    embed = create_embed(
         title=title,
         description=description,
         color=BrandColor.PRIMARY,
         footer="Xentra • Room system",
     )
+    return embed, body

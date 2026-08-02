@@ -22,6 +22,7 @@ import base64
 import io
 import logging
 import math
+import re
 import textwrap
 import urllib.error
 import urllib.request
@@ -41,6 +42,46 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
 logger = logging.getLogger("bot.transcript_generator")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DISCORD MARKDOWN → ReportLab XML
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _convert_inline_rl(text: str) -> str:
+    """Convert inline Discord markdown to ReportLab XML tags."""
+    text = re.sub(r'\*\*\*(.+?)\*\*\*', r'<b><i>\1</i></b>', text)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    text = re.sub(r'`(.+?)`', r'<font face="Courier" size="8">\1</font>', text)
+    text = re.sub(r'__(.+?)__', r'<u>\1</u>', text)
+    text = re.sub(r'~~(.+?)~~', r'<strike>\1</strike>', text)
+    text = re.sub(r'\|\|(.+?)\|\|', r'[spoiler]', text)
+    return text
+
+
+def discord_md_to_reportlab(text: str) -> str:
+    """Convert Discord markdown to ReportLab XML markup for PDF rendering.
+
+    Blockquotes are rendered as muted italic lines.  Inline styles map to
+    ReportLab's supported XML tags.
+    """
+    lines = text.split('\n')
+    rl_lines: list[str] = []
+    for line in lines:
+        if line.startswith('> '):
+            inner = _convert_inline_rl(line[2:])
+            rl_lines.append(
+                f'<font color="#5B6472"><i>{inner}</i></font>'
+            )
+        elif line.startswith('>>> '):
+            inner = _convert_inline_rl(line[4:])
+            rl_lines.append(
+                f'<font color="#5B6472"><i>{inner}</i></font>'
+            )
+        else:
+            rl_lines.append(_convert_inline_rl(line))
+    return '\n'.join(rl_lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +191,37 @@ MSG_GAP           = 2.0 * mm   # vertical gap between consecutive messages
 # 645 pt frame.  Messages exceeding this are truncated at the data level
 # so no flowable ever triggers ReportLab's split() path.
 MAX_BODY_LINES = 40
+
+
+def _is_styled_msg(msg):
+    """Return True if the message contains Discord markdown needing styled rendering."""
+    sender = msg.get("sender", "")
+    return sender in ("system", "bot")
+
+
+# ParagraphStyle for styled body text inside bubbles (system / bot messages)
+_bubble_body_style = ParagraphStyle(
+    "_bubble_body",
+    fontName=FONT_REG,
+    fontSize=FONT_SIZE_MAIN,
+    leading=LEADING,
+    textColor=MSG_TEXT_COLOR,
+    spaceBefore=0,
+    spaceAfter=0,
+)
+
+
+def _styled_para_height(msg, inner_w):
+    """Measure the height a styled Paragraph would occupy for *msg*."""
+    raw = msg.get("data", "")
+    xml_text = discord_md_to_reportlab(raw) if _is_styled_msg(msg) else ""
+    if not xml_text:
+        lines = _wrap_lines(raw, inner_w)
+        return len(lines) * LEADING
+    para = Paragraph(xml_text, _bubble_body_style)
+    _, h = para.wrap(inner_w, 10000)
+    return h
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE DECORATION
@@ -561,8 +633,12 @@ def bubble_dimensions(msg, bubble_w):
     if has_cmd_tag:
         h += CMD_TAG_H + 2*mm
 
-    lines = _wrap_lines(msg.get("data", ""), inner_w)
-    h += len(lines) * LEADING
+    # Use Paragraph-based height for styled (system/bot) messages
+    if _is_styled_msg(msg):
+        h += _styled_para_height(msg, inner_w)
+    else:
+        lines = _wrap_lines(msg.get("data", ""), inner_w)
+        h += len(lines) * LEADING
 
     # timestamp row
     h += FONT_SIZE_TS + 2.5
@@ -658,14 +734,23 @@ def draw_bubble(c, msg, x, y, bubble_w, is_self):
         cur_y = ty - 2*mm
 
     # ── 3. Body text ──────────────────────────────────────────────────────────
-    lines = _wrap_lines(msg.get("data", ""), inner_w)
-    c.saveState()
-    c.setFont(FONT_REG, FONT_SIZE_MAIN)
-    c.setFillColor(MSG_TEXT_COLOR)
-    for line in lines:
-        cur_y -= LEADING
-        c.drawString(x + PAD_H, cur_y, line)
-    c.restoreState()
+    if _is_styled_msg(msg):
+        # Render Discord markdown via ReportLab Paragraph
+        raw_data = msg.get("data", "")
+        xml_text = discord_md_to_reportlab(raw_data)
+        para = Paragraph(xml_text, _bubble_body_style)
+        _, para_h = para.wrap(inner_w, 10000)
+        para.drawOn(c, x + PAD_H, cur_y - para_h)
+        cur_y -= para_h
+    else:
+        lines = _wrap_lines(msg.get("data", ""), inner_w)
+        c.saveState()
+        c.setFont(FONT_REG, FONT_SIZE_MAIN)
+        c.setFillColor(MSG_TEXT_COLOR)
+        for line in lines:
+            cur_y -= LEADING
+            c.drawString(x + PAD_H, cur_y, line)
+        c.restoreState()
 
     # ── 4. Timestamp (bottom-right) ───────────────────────────────────────────
     ts_text = _extract_time(str(msg.get("timestamp", "")))

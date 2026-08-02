@@ -207,6 +207,20 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         else:
             sender_name = self.room_data.get('freelancer_name', 'Freelancer')
 
+        # ── Log leave execution to transcript ─────────────────────────
+        try:
+            from .create_rooms import CreateRooms
+            leave_log_text = (
+                f'**{sender_name}** has left the room.\n'
+                f'> ***Reason:*** {reason_text}'
+            )
+            await CreateRooms._log_system_message(
+                self.room_id, 'leave', {},
+                msg_text=leave_log_text,
+            )
+        except Exception:
+            logger.exception('Failed to log leave system message')
+
         # ── Send notification to the other party ─────────────────────
         other_notified = True
         if other_discord_id:

@@ -43,6 +43,8 @@ from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
 from packet_templates.factory import BotPacketFactory
+from system_messages.room_rules import build_embed as build_rules_embed
+from system_messages.room_job_details import build_embed as build_job_details_embed
 
 logger = logging.getLogger("bot.rooms.create_rooms")
 
@@ -817,6 +819,8 @@ class CreateRooms(commands.Cog):
             )
 
         if rules_freelancer_ok and rules_client_ok:
+            rules_data = {"room_id": result['room_id']}
+            _, rules_body_text = build_rules_embed(rules_data)
             await self._log_system_message(
                 room_id=result['room_id'],
                 msg_type="rules",
@@ -824,6 +828,7 @@ class CreateRooms(commands.Cog):
                     "freelancer_rules_sent": True,
                     "client_rules_sent": True,
                 },
+                msg_text=rules_body_text,
             )
         else:
             # Log failed deliveries for retry
@@ -873,6 +878,15 @@ class CreateRooms(commands.Cog):
             )
 
         if jd_freelancer_ok and jd_client_ok:
+            jd_data = {
+                "room_id": result['room_id'],
+                "job_title": result['job_title'],
+                "job_description": result.get('job_description', ''),
+                "budget_min": result.get('budget_min', '—'),
+                "budget_max": result.get('budget_max', '—'),
+                "deadline": result.get('deadline'),
+            }
+            _, jd_body_text = build_job_details_embed(jd_data)
             await self._log_system_message(
                 room_id=result['room_id'],
                 msg_type="job_details",
@@ -880,6 +894,7 @@ class CreateRooms(commands.Cog):
                     "freelancer_job_details_sent": True,
                     "client_job_details_sent": True,
                 },
+                msg_text=jd_body_text,
             )
         else:
             # Log failed deliveries for retry
@@ -979,14 +994,29 @@ class CreateRooms(commands.Cog):
         room_id: str,
         msg_type: str,
         flags: dict,
+        msg_text: str = '',
     ) -> None:
-        """Fire-and-forget log of a system message delivery to the backend."""
+        """Fire-and-forget log of a system message delivery to the backend.
+
+        Parameters
+        ----------
+        room_id : str
+            The interview room ID.
+        msg_type : str
+            Short label (e.g. ``"rules"``, ``"closure"``).
+        flags : dict
+            Model boolean fields to mark on the room session.
+        msg_text : str, optional
+            The actual body-only message text (no room headers).
+            If empty, the backend falls back to a placeholder.
+        """
         log_packet = BotPacketFactory.create_packet(
             packet_type="log_system_message",
             data={
                 "room_id": room_id,
                 "msg_type": msg_type,
                 "flags": flags,
+                "msg_text": msg_text,
             },
             provider="bot",
         )

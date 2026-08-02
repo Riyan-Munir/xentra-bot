@@ -242,6 +242,10 @@ class AgreementConfirmView(discord.ui.View):
             self.room_id,
             'signed Job Agreement',
             {},
+            msg_text=(
+                'The Job Agreement has been signed by both parties. '
+                'The signed document has been delivered.'
+            ),
         )
 
         # ── Notify the other party if one delivery failed ──────────────
@@ -536,6 +540,10 @@ class InterviewAgreement(commands.Cog):
                             self.room_id,
                             'signed Job Agreement',
                             {},
+                            msg_text=(
+                                'The Job Agreement has been signed by both parties. '
+                                'The signed document has been delivered.'
+                            ),
                         )
 
                         # Notify other if one delivery failed

@@ -316,6 +316,10 @@ class InterviewReview(commands.Cog):
                         room_id,
                         f'Job Agreement to {other_party_name}',
                         {},
+                        msg_text=(
+                            f'The Job Agreement document has been reviewed '
+                            f'and delivered to {other_party_name}.'
+                        ),
                     )
 
             except Exception:

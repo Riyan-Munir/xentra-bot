@@ -51,6 +51,7 @@
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -76,6 +77,7 @@
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -96,11 +98,12 @@
   },
   {
     "name": "room_interview_message",
-    "description": "Notify the receiver of a new interview room message or command notification.",
+    "description": "Notify the receiver of a new interview room message or command notification. Builder returns (embed, body_text) tuple — body_text is the DM description without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -156,11 +159,12 @@
   },
   {
     "name": "room_rules",
-    "description": "Send interview room rules to both parties.",
+    "description": "Send interview room rules to both parties. Builder returns (embed, body_text) tuple — body_text is the rules body without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -176,11 +180,12 @@
   },
   {
     "name": "room_job_details",
-    "description": "Send job details to both parties in the interview room.",
+    "description": "Send job details to both parties in the interview room. Builder returns (embed, body_text) tuple — body_text is the details body without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -251,11 +256,12 @@
   },
   {
     "name": "room_closure",
-    "description": "Notify both parties when an interview room is concluded (agreement signed or party left).",
+    "description": "Notify both parties when an interview room is concluded (agreement signed or party left). Builder returns (embed, body_text) tuple — body_text is the closure body without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -301,11 +307,12 @@
   },
   {
     "name": "room_job_cancelled",
-    "description": "Notify the freelancer when a client cancels a job that had an active agreement.",
+    "description": "Notify the freelancer when a client cancels a job that had an active agreement. Builder returns (embed, body_text) tuple — body_text is the notification body without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",
@@ -336,11 +343,12 @@
   },
   {
     "name": "room_application_withdrawn",
-    "description": "Notify the client when a freelancer withdraws an application that was accepted.",
+    "description": "Notify the client when a freelancer withdraws an application that was accepted. Builder returns (embed, body_text) tuple — body_text is the notification body without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
     "requires_user": true,
+    "returns_tuple": true,
     "fields": [
       {
         "name": "discord_id",

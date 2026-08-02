@@ -19,8 +19,12 @@ import discord
 from utils.embeds import create_embed, BrandColor
 
 
-def build_embed(data: dict) -> discord.Embed:
-    """Construct a job-details embed for interview room participants."""
+def build_embed(data: dict) -> tuple[discord.Embed, str]:
+    """Construct a job-details embed for interview room participants.
+
+    Returns ``(embed, body_text)`` where ``body_text`` is the
+    transcript-safe version without room headers.
+    """
     room_id = data.get("room_id", "N/A")
     job_title = data.get("job_title", "N/A")
     job_description = data.get("job_description", "No description provided.")
@@ -28,21 +32,34 @@ def build_embed(data: dict) -> discord.Embed:
     budget_max = data.get("budget_max", "—")
     deadline = data.get("deadline")
 
-    description_parts = [
-        f"**Room:** `{room_id}`",
-        f"**Title:** {job_title}",
+    body_parts = [
+        f"> ***Details for the job linked to this interview room.***",
         "",
-        job_description,
-        "",
-        f"**Budget:** ${budget_min} – ${budget_max}",
+        f"**Budget:** `${budget_min} - ${budget_max}`",
     ]
 
     if deadline:
-        description_parts.append(f"**Deadline:** {deadline}")
+        body_parts.append(f"**Deadline:** `{deadline}`")
 
-    return create_embed(
+    body_parts.extend([
+        "",
+        "**Description:**",
+        f"> {job_description}",
+    ])
+
+    body = "\n".join(body_parts)
+
+    description = (
+        f"> ***Room: `{room_id}`***\n"
+        f"> ***Job: `{job_title}`***\n"
+        f"\n"
+        f"{body}"
+    )
+
+    embed = create_embed(
         title="Job Details",
-        description="\n".join(description_parts),
+        description=description,
         color=BrandColor.PRIMARY,
         footer="Xentra • Room system",
     )
+    return embed, body

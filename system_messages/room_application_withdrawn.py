@@ -8,6 +8,7 @@ is reopened.
 Expected data keys
 ------------------
 - discord_id (str), Snowflake of the client (used by handler).
+- room_id (str), The interview room ID.
 - job_id (str), The job ID.
 - job_title (str), Title of the job.
 - freelancer_name (str), Display name of the freelancer who withdrew.
@@ -18,28 +19,39 @@ import discord
 from utils.embeds import create_embed, BrandColor
 
 
-def build_embed(data: dict) -> discord.Embed:
-    """Construct an application-withdrawn notification embed for the client."""
-    job_id = data.get("job_id", "N/A")
+def build_embed(data: dict) -> tuple[discord.Embed, str]:
+    """Construct an application-withdrawn notification embed for the client.
+
+    Returns ``(embed, body_text)`` where ``body_text`` is the
+    transcript-safe version without room headers.
+    """
+    room_id = data.get("room_id", "N/A")
     job_title = data.get("job_title", "a job")
+    job_id = data.get("job_id", "N/A")
     freelancer_name = data.get("freelancer_name", "The freelancer")
     application_id = data.get("application_id", "N/A")
 
-    description_parts = [
-        f"**Job ID:** `{job_id}`",
-        f"**Job Title:** **{job_title}**",
-        f"**Freelancer:** **{freelancer_name}**",
-        f"**Application ID:** `{application_id}`",
-        "",
-        "The freelancer has withdrawn their application. The linked "
-        "agreement has been expired and the job has been **reopened**.",
-        "",
-        "You may review new applications with `/job applications`.",
-    ]
+    body = (
+        f"> ***An accepted application has been withdrawn.***\n"
+        f"\n"
+        f"**Job ID:** `{job_id}`\n"
+        f"**Freelancer:** `{freelancer_name}`\n"
+        f"**Application:** `{application_id}`\n"
+        f"\n"
+        f"> __The interview room will be closed.__"
+    )
 
-    return create_embed(
-        title="Application Withdrawn by Freelancer",
-        description="\n".join(description_parts),
+    description = (
+        f"> ***Room: `{room_id}`***\n"
+        f"> ***Job: `{job_title}`***\n"
+        f"\n"
+        f"{body}"
+    )
+
+    embed = create_embed(
+        title="Application Withdrawn",
+        description=description,
         color=BrandColor.PRIMARY,
         footer="Xentra • Job system",
     )
+    return embed, body

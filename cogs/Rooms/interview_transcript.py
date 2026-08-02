@@ -170,7 +170,13 @@ class InterviewTranscript(commands.Cog):
             # (Requirement C: ensures this message appears in the retrieved
             #  session JSON and generated PDF)
             from .create_rooms import CreateRooms
-            await CreateRooms._log_system_message(room_id, 'Room Transcript', {})
+            transcript_label = (
+                'A transcript of this room has been requested '
+                'and will be delivered to both parties.'
+            )
+            await CreateRooms._log_system_message(
+                room_id, 'Room Transcript', {}, msg_text=transcript_label,
+            )
 
             # ── 5. Background task: fetch data → generate PDF → send DM ──
             async def _run_transcript_task():

@@ -1,13 +1,9 @@
 """
 Embed builder for ``premium_expiry_reminder`` system messages.
 
-Structure
----------
-This module mirrors the pattern established by ``security_bypass_attempt.py``:
-it exports a ``build_embed(data)`` function that returns a ``discord.Embed``.
-
-Callers (via ``system_message_handler``) pass the full payload dict after
-unwrapping.  Expected keys are defined in ``data/system_messages.json``.
+DM-only notification (not room-scoped, no room headers).
+Mirrors the pattern established by ``security_bypass_attempt.py``:
+exports ``build_embed(data) -> discord.Embed``.
 
 Message intent
 --------------
@@ -24,6 +20,9 @@ from utils.embeds import create_embed, BrandColor
 def build_embed(data: dict) -> discord.Embed:
     """Construct a premium-expiry reminder DM embed.
 
+    This is a DM-only message (not room-scoped), so it returns a plain
+    embed without room headers.
+
     Expected payload keys
     ---------------------
     discord_id : str
@@ -39,28 +38,21 @@ def build_embed(data: dict) -> discord.Embed:
     expires_at = data.get("expires_at")
 
     description = (
-        f"Hey **{username}**, your **Xentra Premium** benefits are about to end."
+        f"> ***Your premium benefits are about to expire.***\n"
+        f"\n"
+        f"**User:** `{username}`"
     )
 
     if expires_at:
-        description += (
-            f"\n\nYour subscription will expire on **{expires_at}**."
-        )
+        description += f"\n**Expires:** `{expires_at}`"
 
     description += (
-        "\n\nRenew now to keep enjoying unlimited access to premium features:\n"
-        "‣ Unlimited job listings & applications\n"
-        "‣ Priority discovery in search results\n"
-        "‣ Extended portfolio with up to 6 skill tags\n"
-        "‣ And more…"
-    )
-
-    description += (
-        f"\n\n> Head over to the **Xentra Dashboard** to renew your subscription."
+        f"\n\n"
+        f"> __Renew your premium plan to continue enjoying exclusive features.__"
     )
 
     return create_embed(
-        title="Premium Benefits Ending Soon",
+        title="Premium Expiring Soon",
         description=description,
         color=BrandColor.WARNING,
         footer="Xentra • Premium",

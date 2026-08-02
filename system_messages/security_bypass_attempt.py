@@ -1,7 +1,8 @@
 ﻿"""
 Security bypass attempt notification.
 
-Injected as a system message DM when a user triggers an advanced
+DM-only notification (not room-scoped, no room headers).
+Injects a system message DM when a user triggers an advanced
 security event.  Built as a tiered embed with escalating urgency.
 """
 
@@ -14,7 +15,7 @@ from utils.embeds import create_embed, BrandColor
 __all__ = ["build_embed"]
 
 # ═══════════════════════════════════════════════════════════════════
-#  Tier-level metadata (unused values left for readability)
+#  Tier-level metadata
 # ═══════════════════════════════════════════════════════════════════
 
 _TIER_COLORS: dict[int, int] = {
@@ -43,13 +44,6 @@ def _tier_embed_body(tier: int, data: dict) -> str:
     attempt_count = data.get("total_attempts", 1)
     tier_msg = data.get("tier_msg", "")
 
-    event_line = (
-        f"**Event:** `{event_type}`\n"
-        f"**IP Address:** `{ip}`\n"
-        f"**Path:** `{path}`\n"
-        f"**Detail:** {detail}"
-    )
-
     # ── Tier-specific label & action ────────────────────────────────
     if tier == 5:
         tier_label = "**Auto-ban:**"
@@ -68,16 +62,25 @@ def _tier_embed_body(tier: int, data: dict) -> str:
         action = "If you believe this is a mistake, please log into the **Xentra Dashboard** to submit an appeal."
 
     return (
-        f"A security bypass attempt was detected on your account.\n\n"
-        f"{event_line}\n\n"
-        f"**Total attempts:** `{attempt_count}`\n\n"
-        f"{tier_label} {tier_msg}\n\n"
-        f"> {action}"
+        f"> ***A security bypass attempt was detected on your account.***\n"
+        f"\n"
+        f"**Event:** `{event_type}`\n"
+        f"**Total Attempts:** `{attempt_count}`\n"
+        f"**IP Address:** `||{ip}||`\n"
+        f"**Path:** `{path}`\n"
+        f"\n"
+        f"{tier_label} {tier_msg}\n"
+        f"\n"
+        f"> __{action}__"
     )
 
 
 def build_embed(data: dict) -> discord.Embed:
-    """Construct a tier-aware security-alert DM embed for a bypass attempt."""
+    """Construct a tier-aware security-alert DM embed for a bypass attempt.
+
+    This is a DM-only message (not room-scoped), so it returns a plain
+    embed without room headers.
+    """
     tier = data.get("bypass_tier", 1)
     title = _TIER_TITLES.get(tier, "Security Alert")
     color = _TIER_COLORS.get(tier, BrandColor.ERROR)

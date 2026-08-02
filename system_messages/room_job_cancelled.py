@@ -8,6 +8,7 @@ linked agreement is expired.
 Expected data keys
 ------------------
 - discord_id (str), Snowflake of the freelancer (used by handler).
+- room_id (str), The interview room ID.
 - job_id (str), The cancelled job ID.
 - job_title (str), Title of the cancelled job.
 - client_name (str), Display name of the client who cancelled.
@@ -18,33 +19,46 @@ import discord
 from utils.embeds import create_embed, BrandColor
 
 
-def build_embed(data: dict) -> discord.Embed:
-    """Construct a job-cancelled notification embed for the freelancer."""
-    job_id = data.get("job_id", "N/A")
+def build_embed(data: dict) -> tuple[discord.Embed, str]:
+    """Construct a job-cancelled notification embed for the freelancer.
+
+    Returns ``(embed, body_text)`` where ``body_text`` is the
+    transcript-safe version without room headers.
+    """
+    room_id = data.get("room_id", "N/A")
     job_title = data.get("job_title", "a job")
+    job_id = data.get("job_id", "N/A")
     client_name = data.get("client_name", "The client")
     application_id = data.get("application_id", "")
 
-    description_parts = [
+    body_parts = [
+        f"> ***A job with an active agreement has been cancelled.***",
+        "",
         f"**Job ID:** `{job_id}`",
-        f"**Job Title:** **{job_title}**",
-        f"**Cancelled By:** **{client_name}**",
+        f"**Client:** `{client_name}`",
     ]
 
     if application_id:
-        description_parts.append(f"**Application ID:** `{application_id}`")
+        body_parts.append(f"**Application:** `{application_id}`")
 
-    description_parts.extend([
+    body_parts.extend([
         "",
-        "The client has cancelled this job. Your application has been "
-        "set to **rejected** and any linked agreement has been expired.",
-        "",
-        "You may browse open jobs with `/jobs discover`.",
+        "> __If you had an active agreement, the room will be closed.__",
     ])
 
-    return create_embed(
-        title="Job Cancelled by Client",
-        description="\n".join(description_parts),
+    body = "\n".join(body_parts)
+
+    description = (
+        f"> ***Room: `{room_id}`***\n"
+        f"> ***Job: `{job_title}`***\n"
+        f"\n"
+        f"{body}"
+    )
+
+    embed = create_embed(
+        title="Job Cancelled",
+        description=description,
         color=BrandColor.PRIMARY,
         footer="Xentra • Job system",
     )
+    return embed, body

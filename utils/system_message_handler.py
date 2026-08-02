@@ -5,9 +5,13 @@ Mirrors the pattern established by ``command_handler.py`` / ``commands.json``:
 
   * ``system_messages.json``, metadata registry (context, fields, description).
   * ``system_messages/<name>.py``, individual embed builders exporting
-    ``build_embed(data) -> discord.Embed``.
+    ``build_embed(data) -> discord.Embed | tuple[discord.Embed, str]``.
   * ``system_message_handler.handle()``, the single entry point called by
     the webhook server.
+
+Room-scoped builders return ``(embed, body_text)`` where ``body_text`` is the
+message content without room headers (for transcript logging).  Premium and
+security builders return just an ``embed``.
 
 Usage
 -----
@@ -96,6 +100,14 @@ async def handle_system_message(
     -------
     bool
         ``True`` if the DM was sent successfully.
+
+    Notes
+    -----
+    Room-scoped builders may return ``(embed, body_text)`` instead of just
+    ``embed``.  The ``body_text`` is the message content without room
+    headers, suitable for transcript logging.  This function always returns
+    ``bool``; callers that need ``body_text`` should call the builder
+    directly via ``_load_handler()``.
     """
     # 1. Validate against metadata
     metadata = _load_system_messages_data()
@@ -138,10 +150,16 @@ async def handle_system_message(
         return False
 
     try:
-        embed = builder(data)
+        result = builder(data)
     except Exception:
         logger.exception("build_embed(%s) raised an exception", message_type)
         return False
+
+    # Unpack tuple (embed, body_text) or plain embed
+    if isinstance(result, tuple):
+        embed, _body_text = result
+    else:
+        embed = result
 
     # 4. Validate mandatory fields
     if type_meta.get("fields"):
