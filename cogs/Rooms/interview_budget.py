@@ -49,7 +49,7 @@ class InterviewBudget(commands.Cog):
 
             # --- budget validation ---
             if budget < 50:
-                return error_embed(message='Could not set the budget. The minimum is $50.')
+                return error_embed(message='Could not set the budget. Required minimum amount is $50.')
 
             room_data = user_data['_selected_room']
 
@@ -111,7 +111,7 @@ class InterviewBudget(commands.Cog):
             except Exception as e:
                 logger.exception('Error setting budget: %s', e)
                 return error_embed(
-                    'Could not set the budget. The service is temporarily unavailable.'
+                    'The service is temporarily unavailable.'
                 )
 
         await validate_and_respond(interaction, callback)

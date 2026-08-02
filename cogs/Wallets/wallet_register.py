@@ -116,10 +116,6 @@ class WalletRegisterView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    async def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
-
     @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
     async def register_btn(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):

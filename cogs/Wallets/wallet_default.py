@@ -86,7 +86,7 @@ class WalletDefaultView(discord.ui.View):
                     break
         if not wallet_id:
             await interaction.response.edit_message(
-                embed=error_embed(message='Select a wallet first.'), view=self,
+                embed=error_embed(message='Select a wallet first.'), view=None,
             )
             return
 

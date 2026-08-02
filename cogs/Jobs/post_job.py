@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.embeds import create_embed, BrandColor, error_embed, success_embed, info_embed, loading_embed
+from utils.embeds import create_embed, BrandColor, error_embed, success_embed, info_embed
 from utils.http import get_http_session
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import sync_cog_commands, validate_and_respond, is_author
@@ -11,9 +11,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# =====================================================================
+#  Dropdowns
+# =====================================================================
+
+
 class JobCategorySelect(discord.ui.Select):
+    """Dropdown for job category selection with mirrored selection."""
+
     def __init__(self):
-        options = [
+        self._all_options = [
             discord.SelectOption(label="Web Development", value="web_dev", description="Websites, web apps, SaaS"),
             discord.SelectOption(label="Mobile Development", value="mobile_dev", description="iOS, Android, cross-platform"),
             discord.SelectOption(label="Desktop Development", value="desktop_dev", description="Windows, macOS, Linux apps"),
@@ -25,69 +32,54 @@ class JobCategorySelect(discord.ui.Select):
             discord.SelectOption(label="Scripting / Automation", value="scripting", description="Bots, scrapers, automation tools"),
             discord.SelectOption(label="Other", value="other", description="Anything else not listed"),
         ]
-        super().__init__(placeholder="Select a job category", options=options)
+        super().__init__(placeholder="Select a job category", options=self._all_options, row=0)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
             return
-        self.view.category_label = self.values[0]
-        await interaction.response.edit_message()
+        selected_value = self.values[0]
+        selected_label = next(opt.label for opt in self._all_options if opt.value == selected_value)
+        self.view.category_label = selected_value
+        # Mirror selection in dropdown placeholder
+        self.placeholder = f"✓ {selected_label}"
+        await interaction.response.edit_message(view=self.view)
 
 
 class ExperienceLevelSelect(discord.ui.Select):
+    """Dropdown for experience level selection with mirrored selection."""
+
     def __init__(self):
-        options = [
+        self._all_options = [
             discord.SelectOption(label="Entry Level", value="entry", description="0-2 years of experience"),
             discord.SelectOption(label="Intermediate", value="intermediate", description="2-5 years of experience"),
             discord.SelectOption(label="Expert", value="expert", description="5+ years of experience"),
         ]
-        super().__init__(placeholder="Select experience level", options=options)
+        super().__init__(placeholder="Select experience level", options=self._all_options, row=1)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
             return
-        self.view.experience_label = self.values[0]
-        await interaction.response.edit_message()
-
-
-class PremiumToggleButton(discord.ui.Button):
-    def __init__(self, label, custom_id, field_name):
-        super().__init__(label=label, custom_id=custom_id, style=discord.ButtonStyle.primary)
-        self.field_name = field_name
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_author(interaction, self.view):
-            return
-        setattr(self.view, self.field_name, not getattr(self.view, self.field_name))
-        self.label = "Featured: ON" if getattr(self.view, self.field_name) else "Featured: OFF"
+        selected_value = self.values[0]
+        selected_label = next(opt.label for opt in self._all_options if opt.value == selected_value)
+        self.view.experience_label = selected_value
+        # Mirror selection in dropdown placeholder
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.edit_message(view=self.view)
 
 
-class JobPostDeadlineModal(discord.ui.Modal, title="Enter Job Deadline"):
-    deadline = discord.ui.TextInput(
-        label="Deadline",
-        placeholder="e.g. 2025-12-31 or 7 (days from now)",
-        required=False,
-        max_length=20,
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if not is_author(interaction, self.view):
-            return
-        try:
-            if self.deadline.value.strip():
-                self.view.deadline = self.deadline.value.strip()
-            await interaction.response.edit_message()
-        except discord.errors.NotFound:
-            pass
+# =====================================================================
+#  Modal – Job details + optional deadline (single step after Proceed)
+# =====================================================================
 
 
 class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
+    """Modal collecting all job details. Deadline is optional."""
+
     job_title = discord.ui.TextInput(
         label="Job Title",
         placeholder="e.g. Fullstack Developer (max 64 chars)",
         required=True,
-        max_length=64
+        max_length=64,
     )
     job_description = discord.ui.TextInput(
         label="Job Description",
@@ -95,90 +87,110 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
         placeholder="Describe the job duties and deliverables (50-800 words)",
         required=True,
         min_length=10,
-        max_length=4000
+        max_length=4000,
     )
     skills = discord.ui.TextInput(
         label="Skills Required (comma separated)",
         placeholder="e.g. PYTHON, DJANGO, REACT",
         required=True,
-        max_length=250
+        max_length=250,
     )
-    budget_min = discord.ui.TextInput(
-        label="Minimum Budget ($)",
-        placeholder="e.g. 500",
+    budget_range = discord.ui.TextInput(
+        label="Budget Range ($min - $max)",
+        placeholder="e.g. 500-5000",
         required=True,
-        max_length=10
+        max_length=30,
     )
-    budget_max = discord.ui.TextInput(
-        label="Maximum Budget ($)",
-        placeholder="e.g. 5000",
-        required=True,
-        max_length=10
+    deadline = discord.ui.TextInput(
+        label="Deadline (optional)",
+        placeholder="e.g. 2025-12-31 or 7 (days from now)",
+        required=False,
+        max_length=20,
     )
 
-    def __init__(self, setup_view, title=None, description=None, skills=None,
-                 budget_min=None, budget_max=None, deadline=None):
+    def __init__(self, setup_view):
         super().__init__(timeout=600)
         self.setup_view = setup_view
-        if title:
-            self.job_title.default = title
-        if description:
-            self.job_description.default = description
-        if skills:
-            self.skills.default = skills
-        if budget_min:
-            self.budget_min.default = str(budget_min)
-        if budget_max:
-            self.budget_max.default = str(budget_max)
+        # Pre-fill with previous values on retry
+        if setup_view.last_title:
+            self.job_title.default = setup_view.last_title
+        if setup_view.last_description:
+            self.job_description.default = setup_view.last_description
+        if setup_view.last_skills:
+            self.skills.default = setup_view.last_skills
+        if setup_view.last_budget_min and setup_view.last_budget_max:
+            self.budget_range.default = (
+                f"{setup_view.last_budget_min}-{setup_view.last_budget_max}"
+            )
 
     async def on_submit(self, interaction: discord.Interaction):
         title_text = self.job_title.value.strip()
         desc_text = self.job_description.value.strip()
         skills_text = str(self.skills.value).strip()
-        budget_min_value = float(self.budget_min.value.strip())
-        budget_max_value = float(self.budget_max.value.strip())
+        budget_text = self.budget_range.value.strip()
+        deadline_text = self.deadline.value.strip() if self.deadline.value else ""
 
+        # ── Validate description word count ────────────────────────
         word_count = len(desc_text.split())
         if word_count < 50 or word_count > 800:
             try:
                 await interaction.response.send_message(
-                    embed=error_embed(message=f"Description must be between 50 and 800 words. You used {word_count} words."),
+                    embed=error_embed(
+                        message=f"Description must be between 50 and 800 words. You used {word_count} words."
+                    ),
                     ephemeral=not (interaction.guild is None),
                 )
             except discord.errors.NotFound:
                 pass
             return
 
-        self.setup_view.last_title = title_text
-        self.setup_view.last_description = desc_text
-        self.setup_view.last_skills = skills_text
-        self.setup_view.last_budget_min = budget_min_value
-        self.setup_view.last_budget_max = budget_max_value
-        self.setup_view.last_deadline = getattr(self.setup_view, 'deadline', '')
-
-        if budget_min_value >= budget_max_value and title_text and desc_text:
+        # ── Parse budget range ─────────────────────────────────────
+        try:
+            parts = budget_text.replace("$", "").replace(",", "").split("-")
+            if len(parts) != 2:
+                raise ValueError
+            budget_min_value = float(parts[0].strip())
+            budget_max_value = float(parts[1].strip())
+            if budget_min_value <= 0 or budget_max_value <= 0:
+                raise ValueError
+            if budget_min_value >= budget_max_value:
+                try:
+                    await interaction.response.send_message(
+                        embed=error_embed(
+                            message="Maximum budget must exceed minimum budget."
+                        ),
+                        ephemeral=not (interaction.guild is None),
+                    )
+                except discord.errors.NotFound:
+                    pass
+                return
+        except ValueError:
             try:
                 await interaction.response.send_message(
-                    embed=error_embed(message="Maximum budget must exceed minimum budget."),
+                    embed=error_embed(
+                        message="Invalid budget range. Use format: min-max (e.g. 500-5000)"
+                    ),
                     ephemeral=not (interaction.guild is None),
                 )
             except discord.errors.NotFound:
                 pass
             return
 
-        # Validate deadline if provided
-        deadline_value = getattr(self.setup_view, 'deadline', '')
-        if deadline_value:
+        # ── Validate deadline if provided ──────────────────────────
+        if deadline_text:
             from datetime import datetime
             import re
-            date_pattern = re.compile(r'\d{4}-\d{2}-\d{2}')
-            if date_pattern.match(deadline_value):
+
+            date_pattern = re.compile(r"\d{4}-\d{2}-\d{2}")
+            if date_pattern.match(deadline_text):
                 try:
-                    datetime.strptime(deadline_value, '%Y-%m-%d')
+                    datetime.strptime(deadline_text, "%Y-%m-%d")
                 except ValueError:
                     try:
                         await interaction.response.send_message(
-                            embed=error_embed(message="Invalid date format. Use YYYY-MM-DD."),
+                            embed=error_embed(
+                                message="Invalid date format. Use YYYY-MM-DD."
+                            ),
                             ephemeral=not (interaction.guild is None),
                         )
                     except discord.errors.NotFound:
@@ -186,19 +198,30 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                     return
             else:
                 try:
-                    days = int(deadline_value)
+                    days = int(deadline_text)
                     if days < 1:
                         raise ValueError
                 except ValueError:
                     try:
                         await interaction.response.send_message(
-                            embed=error_embed(message="Invalid deadline. Enter a date (YYYY-MM-DD) or a positive number of days."),
+                            embed=error_embed(
+                                message="Invalid deadline. Enter a date (YYYY-MM-DD) or a positive number of days."
+                            ),
                             ephemeral=not (interaction.guild is None),
                         )
                     except discord.errors.NotFound:
                         pass
                     return
 
+        # ── Store values in setup view ─────────────────────────────
+        self.setup_view.last_title = title_text
+        self.setup_view.last_description = desc_text
+        self.setup_view.last_skills = skills_text
+        self.setup_view.last_budget_min = budget_min_value
+        self.setup_view.last_budget_max = budget_max_value
+        self.setup_view.deadline = deadline_text
+
+        # ── Defer and post the job ─────────────────────────────────
         try:
             await interaction.response.defer()
         except discord.errors.NotFound:
@@ -209,40 +232,48 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
             packet = BotPacketFactory.create_packet(
                 packet_type="job_post",
                 data={
-                    'discord_id': interaction.user.id,
-                    'guild_id': str(interaction.guild_id),
-                    'guild_name': str(interaction.guild.name) if interaction.guild else "Direct Message",
-                    'title': title_text,
-                    'description': desc_text,
-                    'skills': skills_text,
-                    'budget_min': budget_min_value,
-                    'budget_max': budget_max_value,
-                    'category': self.setup_view.category_label,
-                    'experience': self.setup_view.experience_label,
-                    'featured': self.setup_view.featured,
-                    'deadline': deadline_value or None,
+                    "discord_id": interaction.user.id,
+                    "guild_id": str(interaction.guild_id),
+                    "guild_name": (
+                        str(interaction.guild.name)
+                        if interaction.guild
+                        else "Direct Message"
+                    ),
+                    "title": title_text,
+                    "description": desc_text,
+                    "skills": skills_text,
+                    "budget_min": budget_min_value,
+                    "budget_max": budget_max_value,
+                    "category": self.setup_view.category_label,
+                    "experience": self.setup_view.experience_label,
+                    "featured": self.setup_view.featured,
+                    "deadline": deadline_text or None,
                 },
-                provider="bot"
+                provider="bot",
             )
-            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+            headers = {"X-Webhook-Token": WEBHOOK_SECRET}
 
             session = get_http_session()
-            async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
+            async with session.post(
+                url, json=packet.to_dict(), headers=headers
+            ) as resp:
                 if resp.status in (200, 201):
                     data = await resp.json()
                     embed = success_embed(
                         title="Job Posted Successfully",
-                        message=f"Your job listing has been posted!\n\n**Job ID**: `{data.get('job_id', '')}`"
+                        message=(
+                            "Your job listing has been posted!\n\n"
+                            f"**Job ID**: `{data.get('job_id', '')}`"
+                        ),
                     )
                     await interaction.edit_original_response(embed=embed, view=None)
-                    self.setup_view.disable_all = True
                     self.setup_view.stop()
                 else:
                     try:
                         err = await resp.json()
-                        msg = err.get('error', 'Failed to post job.')
+                        msg = err.get("error", "Failed to post job.")
                     except Exception:
-                        msg = 'Failed to post job.'
+                        msg = "Failed to post job."
                     await interaction.edit_original_response(
                         embed=error_embed(message=msg), view=None
                     )
@@ -250,66 +281,127 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
             logger.exception(f"Error posting job: {e}")
             await interaction.edit_original_response(
                 embed=error_embed(message="The service is temporarily unavailable."),
-                view=None
+                view=None,
             )
 
 
+# =====================================================================
+#  Setup View – Dropdowns above, buttons below
+# =====================================================================
+
+
 class JobPostSetupView(discord.ui.View):
-    def __init__(self, is_premium):
+    """Initial view: category dropdown + experience dropdown + proceed / cancel.
+
+    Layout:
+        Row 0 – Category dropdown
+        Row 1 – Experience dropdown
+        Row 2 – [Featured toggle]  Proceed  Cancel
+    """
+
+    def __init__(self, is_premium: bool):
         super().__init__(timeout=300)
         self.author_id: int | None = None
         self._done = False
-        self.category_label: str = ''
-        self.experience_label: str = ''
-        self.last_title = ''
-        self.last_description = ''
-        self.last_skills = ''
+        self.category_label: str = ""
+        self.experience_label: str = ""
+        self.last_title = ""
+        self.last_description = ""
+        self.last_skills = ""
         self.last_budget_min = 0.0
         self.last_budget_max = 0.0
-        self.last_deadline: str = ''
-        self.deadline: str = ''
+        self.deadline: str = ""
         self.featured = False
         self.is_premium = is_premium
-        self.disable_all = False
 
+        # Row 0 – Category dropdown
         self.add_item(JobCategorySelect())
+        # Row 1 – Experience dropdown
         self.add_item(ExperienceLevelSelect())
+
+        # Row 2 – Buttons (left-to-right: toggle, proceed, cancel)
         if is_premium:
-            self.add_item(PremiumToggleButton("Featured: OFF", "premium_toggle", "featured"))
+            toggle = discord.ui.Button(
+                label="Featured: OFF",
+                style=discord.ButtonStyle.primary,
+                row=2,
+            )
+            toggle.callback = self._on_toggle_featured
+            self.add_item(toggle)
+
+        proceed = discord.ui.Button(
+            label="Proceed",
+            style=discord.ButtonStyle.success,
+            row=2,
+        )
+        proceed.callback = self._on_proceed
+        self.add_item(proceed)
+
+        cancel = discord.ui.Button(
+            label="Cancel",
+            style=discord.ButtonStyle.danger,
+            row=2,
+        )
+        cancel.callback = self._on_cancel
+        self.add_item(cancel)
+
+    # ------------------------------------------------------------------
 
     async def on_timeout(self) -> None:
         self.stop()
 
+    # ------------------------------------------------------------------
+
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if self.disable_all:
-            await interaction.response.edit_message(view=None)
+        if self._done:
+            try:
+                await interaction.response.edit_message(view=None)
+            except discord.errors.NotFound:
+                pass
             return False
         return True
 
-    @discord.ui.button(label="Details", style=discord.ButtonStyle.secondary, row=1)
-    async def on_details(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    # ------------------------------------------------------------------
+
+    async def _on_toggle_featured(self, interaction: discord.Interaction):
         if not is_author(interaction, self):
             return
-        modal = JobPostDetailsModal(
-            self,
-            title=self.last_title,
-            description=self.last_description,
-            skills=self.last_skills,
-            budget_min=self.last_budget_min,
-            budget_max=self.last_budget_max
-        )
-        await interaction.response.send_modal(modal)
+        self.featured = not self.featured
+        # Update the button label in-place
+        for child in self.children:
+            if isinstance(child, discord.ui.Button) and child.label.startswith(
+                "Featured"
+            ):
+                child.label = (
+                    "Featured: ON" if self.featured else "Featured: OFF"
+                )
+                break
+        await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Deadline", style=discord.ButtonStyle.secondary, row=1)
-    async def on_deadline(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    # ------------------------------------------------------------------
+
+    async def _on_proceed(self, interaction: discord.Interaction):
         if not is_author(interaction, self):
             return
-        modal = JobPostDeadlineModal()
-        modal.view = self
+        if self._done:
+            return
+        if not self.category_label:
+            embed = error_embed(message="Please select a job category first.")
+            await interaction.response.edit_message(embed=embed, view=self)
+            return
+        if not self.experience_label:
+            embed = error_embed(
+                message="Please select an experience level first."
+            )
+            await interaction.response.edit_message(embed=embed, view=self)
+            return
+        self._done = True
+        modal = JobPostDetailsModal(self)
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, row=2)
-    async def on_cancel(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    # ------------------------------------------------------------------
+
+    async def _on_cancel(self, interaction: discord.Interaction):
         if not is_author(interaction, self):
             return
         if self._done:
@@ -319,72 +411,10 @@ class JobPostSetupView(discord.ui.View):
         embed = info_embed(message="Job posting cancelled.")
         await interaction.response.edit_message(embed=embed, view=None)
 
-    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success, row=2)
-    async def on_next(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        if not is_author(interaction, self):
-            return
-        if self._done:
-            return
-        if not self.last_title or not self.last_description:
-            embed = error_embed(message="Please fill in the job details first.")
-            await interaction.response.edit_message(embed=embed, view=self)
-            return
-        if not self.category_label:
-            embed = error_embed(message="Please select a job category.")
-            await interaction.response.edit_message(embed=embed, view=self)
-            return
-        if not self.experience_label:
-            embed = error_embed(message="Please select an experience level.")
-            await interaction.response.edit_message(embed=embed, view=self)
-            return
-        self._done = True
-        self.disable_all = True
 
-        try:
-            await interaction.response.defer()
-        except discord.errors.NotFound:
-            return
-
-        url = f"{BACKEND_URL}jobs/bot/post/"
-        packet = BotPacketFactory.create_packet(
-            packet_type="job_post",
-            data={
-                'discord_id': interaction.user.id,
-                'guild_id': str(interaction.guild_id),
-                'guild_name': str(interaction.guild.name) if interaction.guild else "Direct Message",
-                'title': self.last_title,
-                'description': self.last_description,
-                'skills': self.last_skills,
-                'budget_min': self.last_budget_min,
-                'budget_max': self.last_budget_max,
-                'category': self.category_label,
-                'experience': self.experience_label,
-                'featured': self.featured,
-                'deadline': self.deadline or None,
-            },
-            provider="bot"
-        )
-        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
-
-        session = get_http_session()
-        async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
-            if resp.status in (200, 201):
-                data = await resp.json()
-                embed = success_embed(
-                    title="Job Posted Successfully",
-                    message=f"Your job listing has been posted!\n\n**Job ID**: `{data.get('job_id', '')}`"
-                )
-                await interaction.edit_original_response(embed=embed, view=None)
-                self.stop()
-            else:
-                try:
-                    err = await resp.json()
-                    msg = err.get('error', 'Failed to post job.')
-                except Exception:
-                    msg = 'Failed to post job.'
-                await interaction.edit_original_response(
-                    embed=error_embed(message=msg), view=None
-                )
+# =====================================================================
+#  Cog
+# =====================================================================
 
 
 class PostJob(commands.Cog):
@@ -404,32 +434,37 @@ class PostJob(commands.Cog):
             url = f"{BACKEND_URL}jobs/bot/post/"
             packet = BotPacketFactory.create_packet(
                 packet_type="job_preflight",
-                data={'preflight': True},
-                provider="bot"
+                data={"preflight": True},
+                provider="bot",
             )
-            packet.data['discord_id'] = interaction.user.id
-            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+            packet.data["discord_id"] = interaction.user.id
+            headers = {"X-Webhook-Token": WEBHOOK_SECRET}
 
             session = get_http_session()
-            async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
-                    res_data = await resp.json()
-                    if resp.status in (200, 201):
-                        is_premium = res_data.get('is_premium', False)
-                        embed = create_embed(
-                            title="Post a Job",
-                            description=(
-                                "> **Configure**, Use the dropdown menus below to select your job category and experience level.\n"
-                                "> **Details**, Click the configured button to fill in the title, description, skills, and budget range.\n"
-                                "> **Constraint**, Description must be between 50 and 800 words."
-                            ),
-                            color=BrandColor.PRIMARY,
-                            footer="Xentra • Jobs"
+            async with session.post(
+                url, json=packet.to_dict(), headers=headers
+            ) as resp:
+                res_data = await resp.json()
+                if resp.status in (200, 201):
+                    is_premium = res_data.get("is_premium", False)
+                    embed = create_embed(
+                        title="Post a Job",
+                        description=(
+                            "> **Configure**, Use the dropdown menus below to select your job category and experience level.\n"
+                            "> **Proceed**, Click the proceed button to fill in the title, description, skills, and budget range."
+                        ),
+                        color=BrandColor.PRIMARY,
+                        footer="Xentra • Jobs",
+                    )
+                    view = JobPostSetupView(is_premium)
+                    view.author_id = interaction.user.id
+                    return embed, view
+                else:
+                    return error_embed(
+                        message=res_data.get(
+                            "error", "You are not eligible to post jobs."
                         )
-                        view = JobPostSetupView(is_premium)
-                        view.author_id = interaction.user.id
-                        return embed, view
-                    else:
-                        return error_embed(message=res_data.get('error', "You are not eligible to post jobs."))
+                    )
 
         await validate_and_respond(interaction, post_job_callback)
 

@@ -13,7 +13,7 @@ logger = logging.getLogger('bot.jobs.jobs_list')
 
 class JobCategoryFilterSelect(discord.ui.Select):
     def __init__(self):
-        options = [
+        self._all_options = [
             discord.SelectOption(label="All Categories", value="all"),
             discord.SelectOption(label="Web Development", value="Web development"),
             discord.SelectOption(label="Mobile App Development", value="Mobile app development"),
@@ -28,46 +28,61 @@ class JobCategoryFilterSelect(discord.ui.Select):
             discord.SelectOption(label="Virtual Assistant & Admin", value="Virtual assistant admin"),
             discord.SelectOption(label="Other", value="Other")
         ]
-        super().__init__(placeholder="Select Category (Default: All)", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Select Category (Default: All)", min_values=1, max_values=1, options=self._all_options)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
             return
         self.view.category = self.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
 class JobBudgetFilterSelect(discord.ui.Select):
     def __init__(self):
-        options = [
+        self._all_options = [
             discord.SelectOption(label="Any Budget", value="any"),
             discord.SelectOption(label="Low", value="low"),
             discord.SelectOption(label="Medium", value="medium"),
             discord.SelectOption(label="High", value="high")
         ]
-        super().__init__(placeholder="Select Budget", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Select Budget", min_values=1, max_values=1, options=self._all_options)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
             return
         self.view.budget_level = self.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
 class JobOrderFilterSelect(discord.ui.Select):
     def __init__(self):
-        options = [
+        self._all_options = [
             discord.SelectOption(label="Newest First", value="newest"),
             discord.SelectOption(label="Highest Pay", value="budget_max_desc"),
             discord.SelectOption(label="Lowest Pay", value="budget_max_asc"),
             discord.SelectOption(label="Soonest Deadline", value="deadline")
         ]
-        super().__init__(placeholder="Sort By", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Sort By", min_values=1, max_values=1, options=self._all_options)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
             return
         self.view.sort_by = self.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
@@ -113,10 +128,7 @@ class JobsListFilterView(discord.ui.View):
         if self._done:
             return
         self._done = True
-        # Disable all UI components
-        for item in self.children:
-            item.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=None)
         
         url = f"{BACKEND_URL}jobs/bot/list/"
         params = {
@@ -216,10 +228,10 @@ class JobsDiscoverPaginationView(PaginationView):
                         self.current_page = new_page
                         await self.update_message(interaction)
                     else:
-                        await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=self)
+                        await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=None)
         except Exception as e:
             logger.error(f"Error querying jobs/bot/list/: {e}")
-            await interaction.response.edit_message(embed=error_embed(message="The service is temporarily unavailable."), view=self)
+            await interaction.response.edit_message(embed=error_embed(message="The service is temporarily unavailable."), view=None)
     
     def build_embed(self):
         # Premium Styling Detection

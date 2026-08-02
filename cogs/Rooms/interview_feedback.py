@@ -46,7 +46,7 @@ class FeedbackRoomSelect(discord.ui.Select):
     """Dropdown listing closed rooms that are eligible for feedback."""
 
     def __init__(self, rooms: list) -> None:
-        options = []
+        self._all_options = []
         for r in rooms:
             label = f'Room {r["room_id"]}'
             job_title = r.get('job_title', '')
@@ -54,15 +54,15 @@ class FeedbackRoomSelect(discord.ui.Select):
                 description = job_title[:100]  # max 100 chars for select option desc
             else:
                 description = 'No job title'
-            options.append(
+            self._all_options.append(
                 discord.SelectOption(
                     label=label,
                     value=r['room_id'],
                     description=description,
                 )
             )
-        if not options:
-            options.append(
+        if not self._all_options:
+            self._all_options.append(
                 discord.SelectOption(
                     label='No rooms available',
                     value='none',
@@ -71,13 +71,23 @@ class FeedbackRoomSelect(discord.ui.Select):
             )
         super().__init__(
             placeholder='Select a room to review…',
-            options=options,
+            options=self._all_options,
             min_values=0,
             max_values=1,
         )
         self.selected_rooms = rooms
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self.view):
+            return
+        view: "FeedbackStartView" = self.view
+        if self.values:
+            view._selected_room_id = self.values[0]
+            selected_label = next(
+                (opt.label for opt in self._all_options if opt.value == self.values[0]),
+                self.values[0],
+            )
+            self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
@@ -126,8 +136,8 @@ class FeedbackStartView(discord.ui.View):
 
         if not selected_id or selected_id == 'none':
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not proceed. Select a valid room first.'),
-                view=self,
+                embed=error_embed(message='Could not proceed without selecting a valid room.'),
+                view=None,
             )
             return
 
@@ -141,7 +151,7 @@ class FeedbackStartView(discord.ui.View):
         if not room_data:
             await interaction.response.edit_message(
                 embed=error_embed(message='Could not find selected room data.'),
-                view=self,
+                view=None,
             )
             return
 
@@ -226,10 +236,7 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
         if word_count > 100:
             await validation_fail(
                 interaction,
-                message=(
-                    f'Could not submit feedback. Feedback must be at most '
-                    f'100 words (currently {word_count}).'
-                ),
+                message=f'Could not submit feedback. Feedback must be at most 100 words (currently {word_count}).',
                 modal_class=FeedbackModal,
                 modal_kwargs={
                     'user_data': self.user_data,
@@ -280,7 +287,7 @@ class RatingSelect(discord.ui.Select):
     """Dropdown to select a rating from 1 to 5."""
 
     def __init__(self) -> None:
-        options = [
+        self._all_options = [
             discord.SelectOption(label='⭐ 1 – Very Poor', value='1'),
             discord.SelectOption(label='⭐⭐ 2 – Poor', value='2'),
             discord.SelectOption(label='⭐⭐⭐ 3 – Average', value='3'),
@@ -289,12 +296,22 @@ class RatingSelect(discord.ui.Select):
         ]
         super().__init__(
             placeholder='Select your rating…',
-            options=options,
+            options=self._all_options,
             min_values=0,
             max_values=1,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self.view):
+            return
+        view: "RatingSelectView" = self.view
+        if self.values:
+            view._selected_rating = int(self.values[0])
+            selected_label = next(
+                (opt.label for opt in self._all_options if opt.value == self.values[0]),
+                self.values[0],
+            )
+            self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
@@ -326,10 +343,6 @@ class RatingSelectView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    async def _disable_all(self) -> None:
-        for item in self.children:
-            item.disabled = True
-
     @discord.ui.button(label='Submit Feedback', style=discord.ButtonStyle.success)
     async def submit_feedback(
         self, interaction: discord.Interaction, _button: discord.ui.Button,
@@ -340,14 +353,6 @@ class RatingSelectView(discord.ui.View):
             return
         self._done = True
 
-        # Read selected rating from dropdown
-        for child in self.children:
-            if isinstance(child, RatingSelect):
-                if child.values:
-                    self._selected_rating = int(child.values[0])
-                break
-
-        await self._disable_all()
         await interaction.response.defer()
 
         session = get_http_session()
@@ -369,7 +374,7 @@ class RatingSelectView(discord.ui.View):
             ) as resp:
                 if resp.status != 200:
                     err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Could not save the feedback.')
+                    err_msg = err_data.get('error', 'The service is temporarily unavailable.')
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
                         view=None,
@@ -381,7 +386,7 @@ class RatingSelectView(discord.ui.View):
             logger.exception('Failed to save feedback to backend')
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message='Could not save the feedback.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -476,12 +481,12 @@ class InterviewFeedback(commands.Cog):
             except Exception:
                 logger.exception('Failed to fetch closed rooms')
                 return error_embed(
-                    message='Could not load closed rooms.',
+                    message='Could not load rooms awaiting feedback.',
                 ), None
 
             if not rooms:
                 return error_embed(
-                    message='No closed rooms found that need feedback.',
+                    message='Could not load any rooms awaiting feedback.',
                 ), None
 
             # ── 2. Show room selection view ────────────────────────

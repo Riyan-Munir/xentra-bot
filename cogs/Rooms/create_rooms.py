@@ -58,7 +58,7 @@ class RoomTypeSelect(discord.ui.Select):
     """Dropdown: Interview Room or Job Room."""
 
     def __init__(self) -> None:
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label="Interview Room",
                 value="interview",
@@ -74,15 +74,19 @@ class RoomTypeSelect(discord.ui.Select):
             placeholder="Select room type",
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self.view):
             return
         view: "CreateRoomSetupView" = self.view  # type: ignore
-        view.room_type = self.values[0]
-        await interaction.response.defer()
+        selected_value = self.values[0]
+        view.room_type = selected_value
+        # Mirror selection in dropdown placeholder
+        selected_label = next(opt.label for opt in self._all_options if opt.value == selected_value)
+        self.placeholder = f"✓ {selected_label}"
+        await interaction.response.edit_message(view=self.view)
 
 
 class CreateRoomSetupView(discord.ui.View):
@@ -143,10 +147,8 @@ class CreateRoomSetupView(discord.ui.View):
         # Defer so we have time for backend calls
         await interaction.response.defer()
 
-        # Disable controls so the user can't re-submit
-        for child in self.children:
-            child.disabled = True
-        await interaction.edit_original_response(view=self)
+        # Remove controls from the message
+        await interaction.edit_original_response(view=None)
 
         if self.room_type == "job":
             await interaction.edit_original_response(
@@ -196,8 +198,7 @@ class ExtraRoomConfirmView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.use_extra = True
-        self._disable_all()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=None)
         self.stop()
 
     async def _on_cancel(self, interaction: discord.Interaction) -> None:
@@ -210,10 +211,6 @@ class ExtraRoomConfirmView(discord.ui.View):
             view=None,
         )
 
-    def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
-
 
 # =====================================================================
 #  Job Selection
@@ -231,7 +228,7 @@ class JobSelectView(discord.ui.View):
         self.selected_job_title: Optional[str] = None
         self.use_extra = use_extra
 
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label=j["title"][:100],
                 value=j["job_id"],
@@ -247,7 +244,7 @@ class JobSelectView(discord.ui.View):
             placeholder="Select a job",
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
         self._job_select.callback = self._on_select
         self.add_item(self._job_select)
@@ -277,7 +274,9 @@ class JobSelectView(discord.ui.View):
             (j for j in self.jobs if j["job_id"] == self.selected_job_id), None
         )
         self.selected_job_title = match["title"] if match else "Unknown"
-        await interaction.response.defer()
+        # Mirror selection in dropdown placeholder
+        self._job_select.placeholder = f"✓ {self.selected_job_title[:80]}"
+        await interaction.response.edit_message(view=self)
 
     async def _on_confirm(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
@@ -289,23 +288,17 @@ class JobSelectView(discord.ui.View):
             )
             return
         self.stop()
-        self._disable_all()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=None)
 
     async def _on_cancel(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
         self.selected_job_id = None
         self.stop()
-        self._disable_all()
         await interaction.response.edit_message(
             embed=info_embed(message="Room creation cancelled."),
             view=None,
         )
-
-    def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
 
 
 # =====================================================================
@@ -326,7 +319,7 @@ class ApplicationSelectView(discord.ui.View):
         self.selected_client_name: Optional[str] = None
         self.use_extra = use_extra
 
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label=(
                     f"{app['freelancer_name'][:50]}, "
@@ -342,7 +335,7 @@ class ApplicationSelectView(discord.ui.View):
             placeholder="Select an application",
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
         self._app_select.callback = self._on_select
         self.add_item(self._app_select)
@@ -380,7 +373,9 @@ class ApplicationSelectView(discord.ui.View):
             self.selected_freelancer_id = match["freelancer_discord_id"]
             self.selected_freelancer_name = match["freelancer_name"]
             self.selected_client_name = match.get("client_name")
-        await interaction.response.defer()
+        # Mirror selection in dropdown placeholder
+        self._app_select.placeholder = f"✓ {self.selected_freelancer_name or self.selected_app_id}"
+        await interaction.response.edit_message(view=self)
 
     async def _on_confirm(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
@@ -392,199 +387,19 @@ class ApplicationSelectView(discord.ui.View):
             )
             return
         self.stop()
-        self._disable_all()
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=None)
 
     async def _on_cancel(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
         self.selected_app_id = None
         self.stop()
-        self._disable_all()
         await interaction.response.edit_message(
             embed=info_embed(message="Room creation cancelled."),
             view=None,
         )
 
-    def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
 
-
-# =====================================================================
-#  Job Selection
-# =====================================================================
-
-
-class JobSelectView(discord.ui.View):
-    """Let the client pick one of their open jobs with applications."""
-
-    def __init__(self, jobs: List[dict], use_extra: bool) -> None:
-        super().__init__(timeout=120)
-        self.jobs = jobs
-        self.selected_job_id: Optional[str] = None
-        self.selected_job_title: Optional[str] = None
-        self.use_extra = use_extra
-
-        options = [
-            discord.SelectOption(
-                label=j["title"][:100],
-                value=j["job_id"],
-                description=(
-                    f"{j['application_count']} applicant"
-                    f"{'s' if j['application_count'] != 1 else ''}"
-                ),
-            )
-            for j in jobs
-        ]
-
-        self._job_select = discord.ui.Select(
-            placeholder="Select a job",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
-        self._job_select.callback = self._on_select
-        self.add_item(self._job_select)
-
-        confirm = discord.ui.Button(
-            label="Proceed", style=discord.ButtonStyle.success, row=1
-        )
-        confirm.callback = self._on_confirm
-        self.add_item(confirm)
-
-        back = discord.ui.Button(
-            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
-        )
-        back.callback = self._on_cancel
-        self.add_item(back)
-
-    # ------------------------------------------------------------------
-
-    async def _on_select(self, interaction: discord.Interaction) -> None:
-        self.selected_job_id = self._job_select.values[0]
-        match = next(
-            (j for j in self.jobs if j["job_id"] == self.selected_job_id), None
-        )
-        self.selected_job_title = match["title"] if match else "Unknown"
-        await interaction.response.defer()
-
-    async def _on_confirm(self, interaction: discord.Interaction) -> None:
-        if not self.selected_job_id:
-            await interaction.response.edit_message(
-                embed=error_embed(message="Select a job first."),
-                view=self,
-            )
-            return
-        self.stop()
-        self._disable_all()
-        await interaction.response.edit_message(view=self)
-
-    async def _on_cancel(self, interaction: discord.Interaction) -> None:
-        self.selected_job_id = None
-        self.stop()
-        self._disable_all()
-        await interaction.response.edit_message(
-            embed=info_embed(message="Room creation cancelled."),
-            view=None,
-        )
-
-    def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
-
-
-# =====================================================================
-#  Application Selection
-# =====================================================================
-
-
-class ApplicationSelectView(discord.ui.View):
-    """Let the client pick one pending application for the selected job."""
-
-    def __init__(self, applications: List[dict], use_extra: bool) -> None:
-        super().__init__(timeout=120)
-        self.applications = applications
-        self.selected_app_id: Optional[str] = None
-        self.selected_freelancer_id: Optional[str] = None
-        self.selected_freelancer_name: Optional[str] = None
-        self.selected_client_name: Optional[str] = None
-        self.use_extra = use_extra
-
-        options = [
-            discord.SelectOption(
-                label=(
-                    f"{app['freelancer_name'][:50]}, "
-                    f"${app['bid_amount']}"
-                ),
-                value=app["application_id"],
-                description=f"Applied {app['created_at'][:10]}",
-            )
-            for app in applications
-        ]
-
-        self._app_select = discord.ui.Select(
-            placeholder="Select an application",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
-        self._app_select.callback = self._on_select
-        self.add_item(self._app_select)
-
-        confirm = discord.ui.Button(
-            label="Proceed", style=discord.ButtonStyle.success, row=1
-        )
-        confirm.callback = self._on_confirm
-        self.add_item(confirm)
-
-        back = discord.ui.Button(
-            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
-        )
-        back.callback = self._on_cancel
-        self.add_item(back)
-
-    # ------------------------------------------------------------------
-
-    async def _on_select(self, interaction: discord.Interaction) -> None:
-        self.selected_app_id = self._app_select.values[0]
-        match = next(
-            (
-                a
-                for a in self.applications
-                if a["application_id"] == self.selected_app_id
-            ),
-            None,
-        )
-        if match:
-            self.selected_freelancer_id = match["freelancer_discord_id"]
-            self.selected_freelancer_name = match["freelancer_name"]
-            self.selected_client_name = match.get("client_name")
-        await interaction.response.defer()
-
-    async def _on_confirm(self, interaction: discord.Interaction) -> None:
-        if not self.selected_app_id:
-            await interaction.response.edit_message(
-                embed=error_embed(message="Select an application first."),
-                view=self,
-            )
-            return
-        self.stop()
-        self._disable_all()
-        await interaction.response.edit_message(view=self)
-
-    async def _on_cancel(self, interaction: discord.Interaction) -> None:
-        self.selected_app_id = None
-        self.stop()
-        self._disable_all()
-        await interaction.response.edit_message(
-            embed=info_embed(message="Room creation cancelled."),
-            view=None,
-        )
-
-    def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
 
 
 # =====================================================================
@@ -689,7 +504,7 @@ class CreateRooms(commands.Cog):
         if not jobs:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Could not find any posted jobs.",
+                    message="Could not find any open jobs with pending applications.",
                 ),
             )
             return

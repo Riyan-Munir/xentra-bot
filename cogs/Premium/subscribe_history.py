@@ -51,13 +51,13 @@ class HistoryPaginationView(PaginationView):
                     except Exception:
                         msg = 'Could not load history.'
                     await interaction.edit_original_response(
-                        embed=error_embed(message=msg), view=self,
+                        embed=error_embed(message=msg), view=None,
                     )
                     return
         except Exception:
             logger.exception("Failed to fetch premium history page %s", new_page)
             await interaction.edit_original_response(
-                embed=error_embed(message="Could not load this page."), view=self,
+                embed=error_embed(message="Could not load this page."), view=None,
             )
             return
 

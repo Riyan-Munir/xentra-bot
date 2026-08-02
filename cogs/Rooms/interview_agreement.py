@@ -79,14 +79,8 @@ class AgreementConfirmView(discord.ui.View):
     # Helpers
     # ------------------------------------------------------------------
 
-    async def _disable_all(self) -> None:
-        """Disable every button in the view."""
-        for child in self.children:
-            child.disabled = True
-
     async def on_timeout(self) -> None:
-        """Disable all buttons / remove view on timeout to prevent stale-state abuse."""
-        await self._disable_all()
+        """Remove view on timeout to prevent stale-state abuse."""
         self.stop()
 
     # ------------------------------------------------------------------
@@ -102,8 +96,6 @@ class AgreementConfirmView(discord.ui.View):
         self._accepted = True
 
         await interaction.response.defer()
-        await self._disable_all()
-        await interaction.edit_original_response(view=self)
 
         session = get_http_session()
         url = f'{BACKEND_URL}rooms/bot/accept-agreement/'
@@ -119,7 +111,7 @@ class AgreementConfirmView(discord.ui.View):
             logger.exception('Failed to reach accept-agreement endpoint')
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message='Could not sign the agreement. The service is temporarily unavailable.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -307,7 +299,6 @@ class AgreementConfirmView(discord.ui.View):
         if self._accepted:
             return
         await interaction.response.defer()
-        await self._disable_all()
         self.stop()
         await interaction.edit_original_response(
             embed=info_embed(message='Agreement signing cancelled.'),
@@ -423,7 +414,7 @@ class InterviewAgreement(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach process-agreement endpoint')
                 return error_embed(
-                    message='Could not process the agreement. The service is temporarily unavailable.',
+                    message='The service is temporarily unavailable.',
                 )
 
             # ── 3. Handle error codes with role-aware messages ──────────
@@ -435,22 +426,11 @@ class InterviewAgreement(commands.Cog):
                     other_ok = body.get('other_review_ok', False)
 
                     if executor_ok and not other_ok:
-                        error_msg = (
-                            'Could not sign the agreement. '
-                            'The agreement has not been reviewed yet.'
-                        )
+                        error_msg = 'Could not sign the agreement. The agreement has not been reviewed by any one participant.'
                     elif not executor_ok and other_ok:
-                        error_msg = (
-                            'Could not sign the agreement. '
-                            'You need to review the agreement first via '
-                            '/interview_review.'
-                        )
+                        error_msg = 'Could not sign the agreement. The agreement has not been reviewed by any one participant.'
                     else:
-                        error_msg = (
-                            'Could not sign the agreement. '
-                            'The agreement has not been reviewed yet. '
-                            'Use /interview_review to review it first.'
-                        )
+                        error_msg = 'Could not sign the agreement. The agreement has not been reviewed by one or more participants.'
 
                     # Notify the other party (the one who needs to act)
                     await self._notify_other_party(
@@ -463,7 +443,7 @@ class InterviewAgreement(commands.Cog):
 
                 # Fallback for unknown error codes
                 return error_embed(
-                    message=body.get('message', 'Could not process the agreement.'),
+                    message=body.get('message', 'The service is temporarily unavailable.'),
                 )
 
             # ── 4. Both reviews complete, handle ALREADY_SIGNED ─────────
@@ -602,23 +582,18 @@ class InterviewAgreement(commands.Cog):
                     )
                 else:
                     # Already signed but other party hasn't, just notify
-                    error_msg = (
-                        'Could not sign the agreement. '
-                        'You have already signed. '
-                        'The other party has been notified.'
-                    )
                     await self._notify_other_party(
                         body, room_id, job_title,
                         interaction.client,
                         session, headers,
-                        msg_data=error_msg,
+                        msg_data='You have already signed the agreement.',
                     )
-                    return error_embed(message=error_msg)
+                    return info_embed(message='You have already signed the agreement.')
 
             # ── 5. Both reviews complete, show confirmation embed ──────
             if body.get('status') != 'ok':
                 return error_embed(
-                    message='Could not process the agreement. The server returned an unexpected response.',
+                    message='The service is temporarily unavailable.',
                 )
 
             client_discord_id = body.get('client_discord_id', '')

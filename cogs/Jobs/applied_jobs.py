@@ -118,7 +118,7 @@ class ApplicationsPaginationView(PaginationView):
                     self.current_page = new_page
                     await self.update_message(interaction)
                 else:
-                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=self)
+                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page."), view=None)
 
     def build_embed(self):
         title = "Freelancer Applied Jobs"

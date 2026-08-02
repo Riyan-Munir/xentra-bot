@@ -138,7 +138,7 @@ class InterviewReview(commands.Cog):
             except Exception:
                 logger.exception('Failed to reach review-agreement endpoint')
                 return error_embed(
-                    message='Could not review the agreement. The service is temporarily unavailable.',
+                    message='The service is temporarily unavailable.',
                 )
 
             # ── 3. Handle error codes ────────────────────────────────────
@@ -148,16 +148,12 @@ class InterviewReview(commands.Cog):
                 # NO_AGREEMENT, neither party can fix via commands
                 if code == 'NO_AGREEMENT':
                     return error_embed(
-                        message='Could not review the agreement. '
-                        'No job agreement exists for this room.',
+                        message='Could not review the agreement. No job agreement exists for this room.',
                     )
 
                 # NO_BUDGET, client must set the budget
                 if code == 'NO_BUDGET':
-                    error_msg = (
-                        'Could not review the agreement. '
-                        'The final budget has not been set yet.'
-                    )
+                    error_msg = 'Could not review the agreement. The job has no final budget.'
                     await self._notify_other_party(
                         body, room_id, job_title,
                         error_msg,
@@ -168,10 +164,7 @@ class InterviewReview(commands.Cog):
 
                 # NO_MILESTONES, freelancer must create them
                 if code == 'NO_MILESTONES':
-                    error_msg = (
-                        'Could not review the agreement. '
-                        'No milestones have been configured yet.'
-                    )
+                    error_msg = 'Could not review the agreement. The job has no milestones set.'
                     await self._notify_other_party(
                         body, room_id, job_title,
                         error_msg,
@@ -184,11 +177,7 @@ class InterviewReview(commands.Cog):
                 if code == 'BUDGET_MISMATCH':
                     total = body.get('total_budget', '?')
                     final_budget = body.get('final_budget', '?')
-                    error_msg = (
-                        f'Could not review the agreement. '
-                        f'Milestone total (${total}) does not match '
-                        f'the final budget (${final_budget}).'
-                    )
+                    error_msg = f'Could not review the agreement. Milestone total (${total}) does not match the final budget (${final_budget}).'
                     await self._notify_other_party(
                         body, room_id, job_title,
                         error_msg,
@@ -217,9 +206,7 @@ class InterviewReview(commands.Cog):
                     job_deadline = body.get('job_deadline', '?')
                     last_milestone_dl = body.get('last_milestone_deadline', '?')
                     return error_embed(
-                        message=f'Could not review the agreement. '
-                        f'Last milestone deadline (`{last_milestone_dl}`) exceeds '
-                        f'job deadline (`{job_deadline}`).',
+                        message=f'Could not review the agreement. Last milestone deadline (`{last_milestone_dl}`) exceeds job deadline (`{job_deadline}`).',
                     )
 
                 # Fallback for unknown error codes
@@ -230,7 +217,7 @@ class InterviewReview(commands.Cog):
             # ── 4. Success, notify other party, return simple success ──
             if body.get('status') != 'ok':
                 return error_embed(
-                    message='Could not review the agreement. The service is temporarily unavailable.',
+                    message='The service is temporarily unavailable.',
                 )
 
             msg_id = body.get('msg_id', '')

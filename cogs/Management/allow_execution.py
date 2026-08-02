@@ -53,7 +53,7 @@ class AllowExecutionView(discord.ui.View):
             return
         self._done = True
         if not self.selected_role:
-            return await interaction.response.edit_message(embed=error_embed(message="Select a role first."), view=self)
+            return await interaction.response.edit_message(embed=error_embed(message="Select a role first."), view=None)
         await self.callback_func(interaction, self.selected_role, self.identifier, self)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)

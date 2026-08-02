@@ -25,7 +25,7 @@ class SelectedRoomTypeSelect(discord.ui.Select):
     """Dropdown: Interview Room or Job Room."""
 
     def __init__(self) -> None:
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label="Interview Room",
                 value="interview",
@@ -41,7 +41,7 @@ class SelectedRoomTypeSelect(discord.ui.Select):
             placeholder="Select room type",
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -49,6 +49,11 @@ class SelectedRoomTypeSelect(discord.ui.Select):
             return
         view: "SelectedRoomSetupView" = self.view
         view.room_type = self.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
@@ -92,9 +97,7 @@ class SelectedRoomSetupView(discord.ui.View):
         self._done = True
         is_dm = interaction.guild is None
 
-        for item in self.children:
-            item.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=None)
 
         if self.room_type == "job":
             embed = create_embed(

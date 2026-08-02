@@ -158,12 +158,12 @@ class InterviewTranscript(commands.Cog):
                             resp.status, body.get('error', ''),
                         )
                         return error_embed(
-                            'Could not log the transcript request.',
+                            'The service is temporarily unavailable.',
                         )
             except Exception:
                 logger.exception('Failed to reach transcript logging endpoint')
                 return error_embed(
-                    'Could not request the transcript. The service is temporarily unavailable.',
+                    'The service is temporarily unavailable.',
                 )
 
             # ── 4. Log "Room Transcript" BEFORE fetching data ─────────────

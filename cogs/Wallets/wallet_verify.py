@@ -168,7 +168,7 @@ class WalletVerifyView(discord.ui.View):
         wallet_id = self._selected_wallet_id or (self.children[0].values[0] if isinstance(self.children[0], UnverifiedWalletSelect) and self.children[0].values else None)
         if not wallet_id:
             await interaction.response.edit_message(
-                embed=error_embed(message='Select a wallet first.'), view=self,
+                embed=error_embed(message='Select a wallet first.'), view=None,
             )
             return
 

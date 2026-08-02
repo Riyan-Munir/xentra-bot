@@ -62,29 +62,24 @@ class LeaveConfirmView(discord.ui.View):
         self.author_id: int | None = None
         self.interaction: discord.Interaction | None = None
 
-    async def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
+    async def _remove_view(self) -> None:
         if self.interaction:
             try:
-                await self.interaction.edit_original_response(view=self)
+                await self.interaction.edit_original_response(view=None)
             except Exception:
                 pass
 
     async def on_timeout(self) -> None:
-        """Disable all buttons / remove view on timeout to prevent stale-state abuse."""
-        await self._disable_all()
+        """Remove view on timeout to prevent stale-state abuse."""
+        await self._remove_view()
         self.stop()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(self, interaction: discord.Interaction, _btn: discord.ui.Button) -> None:
         if not is_author(interaction, self):
             return
-        self.interaction = interaction
-        await interaction.response.defer()
-        await self._disable_all()
         self.stop()
-        await interaction.edit_original_response(
+        await interaction.response.edit_message(
             embed=info_embed(message='Room leave cancelled.'),
             view=None,
         )
@@ -95,7 +90,7 @@ class LeaveConfirmView(discord.ui.View):
             return
         self.interaction = interaction
 
-        # Send modal FIRST as the initial response, then disable buttons
+        # Send modal FIRST as the initial response, then remove buttons
         modal = LeaveReasonModal(
             room_id=self.room_id,
             job_title=self.job_title,
@@ -106,8 +101,8 @@ class LeaveConfirmView(discord.ui.View):
         )
         await interaction.response.send_modal(modal)
 
-        # Disable buttons on the original message after modal response
-        await self._disable_all()
+        # Remove buttons on the original message after modal response
+        await self._remove_view()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -148,7 +143,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         if not reason_text:
             try:
                 await interaction.response.edit_message(
-                    embed=error_embed(message='Could not process the leave. The reason cannot be empty.'),
+                    embed=error_embed(message='Could not process leave without a reason.'),
                     view=None,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):
@@ -178,7 +173,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             ) as resp:
                 if resp.status != 200:
                     err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Could not process the leave.')
+                    err_msg = err_data.get('error', 'The service is temporarily unavailable.')
                     # interaction already deferred, edit the original message
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
@@ -190,7 +185,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             logger.exception('Failed to call room-leave backend')
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message='Could not process room leave.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -290,7 +285,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         # Edit the original message (from the Proceed view) to show the error
         try:
             await self.original_interaction.edit_original_response(
-                embed=error_embed(message='Could not process the leave. The service is temporarily unavailable.'),
+                embed=error_embed(message='The service is temporarily unavailable.'),
                 view=None,
             )
         except Exception:

@@ -269,7 +269,7 @@ class PlansView(discord.ui.View):
         plan = self._selected_plan
         if not plan:
             await interaction.response.edit_message(
-                embed=error_embed(message='Select a plan first.'), view=self,
+                embed=error_embed(message='Select a plan first.'), view=None,
             )
             return
         await self.show_plan_detail(interaction, plan)

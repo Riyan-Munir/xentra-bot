@@ -27,7 +27,7 @@ class SwitchRoomTypeSelect(discord.ui.Select):
     """Dropdown: Interview Room or Job Room."""
 
     def __init__(self) -> None:
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label="Interview Room",
                 value="interview",
@@ -43,7 +43,7 @@ class SwitchRoomTypeSelect(discord.ui.Select):
             placeholder="Select room type",
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -51,6 +51,11 @@ class SwitchRoomTypeSelect(discord.ui.Select):
             return
         view: "SwitchRoomSetupView" = self.view
         view.room_type = self.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
@@ -94,9 +99,7 @@ class SwitchRoomSetupView(discord.ui.View):
         self._done = True
         is_dm = interaction.guild is None
 
-        for item in self.children:
-            item.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=None)
 
         if self.room_type == "job":
             embed = create_embed(
@@ -156,7 +159,7 @@ class SwitchRoomSetupView(discord.ui.View):
                     err_data = await resp.json()
                     await interaction.edit_original_response(
                         embed=error_embed(
-                            message=err_data.get("error", "Could not load active rooms.")
+                            message=err_data.get("error", "The service is temporarily unavailable.")
                         ),
                         view=None,
                     )
@@ -177,12 +180,12 @@ class ActiveRoomSelect(discord.ui.Select):
     """Dropdown listing active rooms by room_id + job_title."""
 
     def __init__(self, rooms: list) -> None:
-        options = []
+        self._all_options = []
         for room in rooms[:25]:  # Discord max 25 options per dropdown
             room_id = room.get("room_id", "???")
             job_title = room.get("job_title", "Unknown")
             label = f"{room_id}, {job_title[:50]}"
-            options.append(
+            self._all_options.append(
                 discord.SelectOption(
                     label=label[:100],
                     value=room_id,
@@ -190,8 +193,8 @@ class ActiveRoomSelect(discord.ui.Select):
                 )
             )
 
-        if not options:
-            options.append(
+        if not self._all_options:
+            self._all_options.append(
                 discord.SelectOption(
                     label="No rooms available",
                     value="none",
@@ -203,7 +206,7 @@ class ActiveRoomSelect(discord.ui.Select):
             placeholder="Choose a room to switch to...",
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -211,6 +214,11 @@ class ActiveRoomSelect(discord.ui.Select):
             return
         view: "RoomPickerView" = self.view
         view.selected_room_id = self.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
 
@@ -277,9 +285,6 @@ class RoomPickerView(discord.ui.View):
             )
             return
 
-        # Disable all controls and defer (no loading embed shown)
-        for item in self.children:
-            item.disabled = True
         await interaction.response.defer()
 
         # POST to backend to switch room

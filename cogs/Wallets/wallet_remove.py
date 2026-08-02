@@ -57,10 +57,6 @@ class WalletRemoveConfirmView(discord.ui.View):
     async def on_timeout(self) -> None:
         self.stop()
 
-    async def _disable_all(self) -> None:
-        for child in self.children:
-            child.disabled = True
-
     @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
     async def proceed(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         if not is_author(interaction, self):
@@ -70,7 +66,6 @@ class WalletRemoveConfirmView(discord.ui.View):
         self._done = True
 
         await interaction.response.defer()
-        await self._disable_all()
 
         url = f"{BACKEND_URL}wallets/bot/disable/"
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
@@ -160,7 +155,7 @@ class WalletRemoveView(discord.ui.View):
                     break
         if not wallet_id:
             await interaction.response.edit_message(
-                embed=error_embed(message='Select a wallet first.'), view=self,
+                embed=error_embed(message='Select a wallet first.'), view=None,
             )
             return
         selected = next((w for w in self.wallets if w['id'] == wallet_id), None)

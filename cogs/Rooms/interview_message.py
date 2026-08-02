@@ -299,7 +299,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await self._refresh_embed()
             await interaction.followup.send(
                 embed=error_embed(
-                    message='Could not upload file. The upload timed out.'
+                    message='Could not upload file. Upload timed out.'
                 ),
                 ephemeral=not self.is_dm,
             )
@@ -470,7 +470,7 @@ class InterviewMessageConfirmView(discord.ui.View):
                     err_msg = err_data.get('error', 'Unknown error')
                     await _edit_msg_done(
                         self,
-                        error_embed(message=f'Could not save the message.'),
+                        error_embed(message=f'The service is temporarily unavailable.'),
                     )
                     self.stop()
                     return
@@ -481,7 +481,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             await _edit_msg_done(
                 self,
                 error_embed(
-                    message='Could not save the message. ',
+                    message='The service is temporarily unavailable.',
                 ),
             )
             self.stop()

@@ -125,7 +125,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         if not complaint_text:
             await interaction.response.defer()
             await self._edit_done(
-                error_embed(message='Could not submit the complaint. The complaint text cannot be empty.'),
+                error_embed(message='Could not submit an empty complaint.'),
             )
             return
 
@@ -152,7 +152,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
                 ) as resp:
                     if resp.status != 200:
                         err_data = await resp.json()
-                        err_msg = err_data.get('error', 'Reference verification failed.')
+                        err_msg = err_data.get('error', 'Could not verify the reference ID.')
                         await self._edit_done(
                             error_embed(message=err_msg),
                         )
@@ -185,7 +185,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
             ) as resp:
                 if resp.status != 200:
                     err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Could not save the complaint.')
+                    err_msg = err_data.get('error', 'The service is temporarily unavailable.')
                     await self._edit_done(
                         error_embed(message=err_msg),
                     )
@@ -196,7 +196,7 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
             logger.exception('Failed to save complaint to backend')
             await self._edit_done(
                 error_embed(
-                    message='Could not save the complaint.',
+                    message='The service is temporarily unavailable.',
                 ),
             )
             return
@@ -258,8 +258,7 @@ class InterviewComplain(commands.Cog):
             is_dm = interaction.guild is None
             await interaction.response.send_message(
                 embed=error_embed(
-                    message='Could not submit the complaint. A complaint can reference '
-                    'a message or another complaint, but not both.'
+                    message='Could not submit the complaint with two reference IDs.'
                 ),
                 ephemeral=not is_dm,
             )

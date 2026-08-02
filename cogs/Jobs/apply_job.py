@@ -80,15 +80,11 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
         except discord.errors.NotFound:
             return
 
-        # Disable the original button to prevent double-app
+        # Remove buttons to prevent double-app
         try:
-            view = discord.ui.View.from_message(interaction.message)
-            for item in view.children:
-                if isinstance(item, discord.ui.Button):
-                    item.disabled = True
-            await interaction.edit_original_response(view=view)
+            await interaction.edit_original_response(view=None)
         except Exception:
-            pass  # Ignore errors disabling view
+            pass  # Ignore errors removing view
 
         # Submit application
         url = f"{BACKEND_URL}jobs/bot/apply/"

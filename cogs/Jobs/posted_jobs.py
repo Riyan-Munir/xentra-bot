@@ -119,7 +119,7 @@ class JobsPaginationView(PaginationView):
                     self.current_page = new_page
                     await self.update_message(interaction)
                 else:
-                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=self)
+                    await interaction.response.edit_message(embed=error_embed(message="Could not load this page. Please try again."), view=None)
 
     def build_embed(self):
         title = "Client Posted Jobs"

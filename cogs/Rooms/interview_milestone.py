@@ -295,7 +295,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                 if resp.status != 200:
                     await interaction.response.edit_message(
                         embed=error_embed(
-                            message='Could not save milestones.',
+                            message='The service is temporarily unavailable.',
                         ),
                         view=None,
                     )
@@ -346,7 +346,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             logger.exception('Failed to save milestones to backend')
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message='Could not save milestones. The service is temporarily unavailable.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -475,7 +475,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                 if resp.status != 200:
                     await interaction.response.edit_message(
                         embed=error_embed(
-                            message=body.get('error', 'Could not update milestone.'),
+                            message=body.get('error', 'The service is temporarily unavailable.'),
                         ),
                         view=None,
                     )
@@ -523,7 +523,7 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
             logger.exception('Failed to update milestone')
             await interaction.response.edit_message(
                 embed=error_embed(
-                    message='Could not update milestone.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -581,9 +581,6 @@ class InterviewMilestoneDeleteView(discord.ui.View):
         self._done = False
 
     async def on_timeout(self) -> None:
-        """Disable all buttons on timeout to prevent stale-state abuse."""
-        for item in self.children:
-            item.disabled = True
         self.stop()
 
     @discord.ui.button(label='Yes, Delete', style=discord.ButtonStyle.danger)
@@ -608,7 +605,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                 if resp.status != 200:
                     await btn_interaction.response.edit_message(
                         embed=error_embed(
-                            message=body.get('error', 'Could not delete milestone.'),
+                            message=body.get('error', 'The service is temporarily unavailable.'),
                         ),
                         view=None,
                     )
@@ -657,7 +654,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
             logger.exception('Failed to delete milestone')
             await btn_interaction.response.edit_message(
                 embed=error_embed(
-                    message='Could not delete milestone.',
+                    message='The service is temporarily unavailable.',
                 ),
                 view=None,
             )
@@ -696,11 +693,11 @@ class InterviewMilestoneSelectView(discord.ui.View):
         self._done = False
         self._selected_milestone_id: str | None = None
 
-        options = []
+        self._all_options = []
         for m in milestones:
             label = f'{m["order_number"]}. {m["title"]} (${m["budget"]})'
             desc = None if action == 'delete' else f'Select milestone to {action}'
-            options.append(
+            self._all_options.append(
                 discord.SelectOption(
                     label=label[:100],  # Discord max 100 chars
                     value=m['milestone_id'],
@@ -710,7 +707,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
 
         self.milestone_select = discord.ui.Select(
             placeholder=f'Select milestone to {action}…',
-            options=options,
+            options=self._all_options,
         )
         self.milestone_select.callback = self._on_milestone_selected
         self.add_item(self.milestone_select)
@@ -724,9 +721,6 @@ class InterviewMilestoneSelectView(discord.ui.View):
         self.add_item(back)
 
     async def on_timeout(self) -> None:
-        """Disable all children on timeout to prevent stale-state abuse."""
-        for item in self.children:
-            item.disabled = True
         self.stop()
 
     async def _on_back(self, interaction: discord.Interaction) -> None:
@@ -745,6 +739,11 @@ class InterviewMilestoneSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self._selected_milestone_id = self.milestone_select.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.milestone_select.values[0]),
+            self.milestone_select.values[0],
+        )
+        self.milestone_select.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
     async def _on_proceed(self, interaction: discord.Interaction) -> None:
@@ -756,7 +755,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
         milestone_id = self._selected_milestone_id or (self.milestone_select.values[0] if self.milestone_select.values else None)
         if not milestone_id:
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not proceed. Select a milestone first.'), view=self,
+                embed=error_embed(message='Could not proceed without selecting a milestone.'), view=None,
             )
             return
 
@@ -810,7 +809,7 @@ class InterviewMilestoneActionView(discord.ui.View):
         self._done = False
         self._selected_action: str | None = None
 
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label='Add Milestone',
                 value='add',
@@ -818,14 +817,14 @@ class InterviewMilestoneActionView(discord.ui.View):
             ),
         ]
         if milestones:
-            options.append(
+            self._all_options.append(
                 discord.SelectOption(
                     label='Edit Milestone',
                     value='edit',
                     description='Modify an existing milestone',
                 ),
             )
-            options.append(
+            self._all_options.append(
                 discord.SelectOption(
                     label='Delete Milestone',
                     value='delete',
@@ -835,7 +834,7 @@ class InterviewMilestoneActionView(discord.ui.View):
 
         self.action_select = discord.ui.Select(
             placeholder='Choose an action…',
-            options=options,
+            options=self._all_options,
         )
         self.action_select.callback = self._on_action
         self.add_item(self.action_select)
@@ -849,16 +848,11 @@ class InterviewMilestoneActionView(discord.ui.View):
         self.add_item(cancel)
 
     async def on_timeout(self) -> None:
-        """Disable all children on timeout to prevent stale-state abuse."""
-        for item in self.children:
-            item.disabled = True
         self.stop()
 
     async def _on_cancel(self, interaction: discord.Interaction) -> None:
         if not is_author(interaction, self):
             return
-        for item in self.children:
-            item.disabled = True
         self.stop()
         await interaction.response.edit_message(
             embed=info_embed(message='Milestone management cancelled.'),
@@ -869,6 +863,11 @@ class InterviewMilestoneActionView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self._selected_action = self.action_select.values[0]
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.action_select.values[0]),
+            self.action_select.values[0],
+        )
+        self.action_select.placeholder = f"✓ {selected_label}"
         await interaction.response.defer()
 
     async def _on_proceed(self, interaction: discord.Interaction) -> None:
@@ -880,7 +879,7 @@ class InterviewMilestoneActionView(discord.ui.View):
         value = self._selected_action or (self.action_select.values[0] if self.action_select.values else None)
         if not value:
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not proceed. Select an action first.'), view=self,
+                embed=error_embed(message='Could not proceed without selecting an action.'), view=None,
             )
             return
 
@@ -974,15 +973,14 @@ class InterviewMilestone(commands.Cog):
 
                     if not body.get('has_budget'):
                         return error_embed(
-                            message='Could not configure milestones. '
-                            'The client has not set a final budget yet.',
+                            message='Could not configure milestones. The job has no final budget.',
                         )
 
                     milestones = body.get('milestones', [])
             except Exception:
                 logger.exception('Failed to check agreement budget')
                 return error_embed(
-                    message='Could not check agreement. The service is temporarily unavailable.',
+                    message='The service is temporarily unavailable.',
                 )
 
             # ── 3a. CASE B, Milestones exist → show action view ────────────

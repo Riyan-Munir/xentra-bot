@@ -64,12 +64,12 @@ class InterviewDelivery(commands.Cog):
                     if resp.status != 200:
                         err_data = await resp.json()
                         return error_embed(
-                            message='Could not check pending deliveries.',
+                            message='The service is temporarily unavailable.',
                         )
                     data = await resp.json()
             except Exception:
                 logger.exception('Failed to fetch pending deliveries')
-                return error_embed(message='Could not check pending deliveries. The service is temporarily unavailable.')
+                return error_embed(message='The service is temporarily unavailable.')
 
             pending = data.get('pending', [])
 
