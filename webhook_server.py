@@ -6,6 +6,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
+import discord
 from aiohttp import web, ClientTimeout
 
 from config import CLUSTER_ENABLED
@@ -58,6 +59,8 @@ class WebhookServer:
         # because the backend's urllib3/requests stack is blocked by Cloudflare.
         self.app.router.add_route('POST', '/proxy/discord', self.handle_discord_proxy)
         self.app.router.add_route('OPTIONS', '/proxy/discord', self.handle_discord_proxy)
+        # PDF Generator callback — receives generated PDFs and delivers via DM
+        self.app.router.add_route('POST', '/webhook/pdf-result', self.handle_pdf_result)
         self.runner = None
         self._poll_task: Optional[asyncio.Task] = None
 
@@ -283,6 +286,196 @@ class WebhookServer:
             if backend_origin:
                 resp.headers['Access-Control-Allow-Origin'] = backend_origin
             return resp
+
+    # ── PDF Generator Callback ───────────────────────────────────────────
+
+    async def handle_pdf_result(self, request: web.Request) -> web.Response:
+        """Receive PDF generation results from the PDF Generator.
+
+        POST /webhook/pdf-result
+        Body: { task_id, results: [{ part_id, pdf_bytes }] }
+
+        1. Verify HMAC signature from PDF_SERVICE_SECRET.
+        2. Fetch task detail from backend (parts + recipient info).
+        3. For each result, match part_id → recipient, send DM with PDF.
+        4. PATCH backend status → ``completed``.
+        """
+        import base64
+        import io
+
+        from config import BACKEND_URL, PDF_SERVICE_SECRET
+        from utils.http import get_http_session
+        from utils.embeds import create_embed, BrandColor, info_embed
+
+        # ── 1. Verify signature ───────────────────────────────────────
+        timestamp = request.headers.get('X-Timestamp', '')
+        nonce = request.headers.get('X-Nonce', '')
+        signature = request.headers.get('X-Signature', '')
+
+        if not PDF_SERVICE_SECRET:
+            logger.warning('PDF_SERVICE_SECRET not configured, rejecting callback')
+            return web.json_response({'error': 'PDF service not configured'}, status=503)
+
+        try:
+            body_bytes = await request.read()
+            # HMAC-SHA256: sign(method + path + timestamp + nonce + body)
+            import hashlib
+            canonical = f'POST\n/webhook/pdf-result\n{timestamp}\n{nonce}'.encode()
+            canonical += body_bytes
+            expected_sig = hmac.new(
+                PDF_SERVICE_SECRET.encode(), canonical, hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(expected_sig, signature):
+                logger.warning('PDF callback signature mismatch')
+                return web.json_response({'error': 'Invalid signature'}, status=401)
+        except Exception:
+            logger.exception('Failed to verify PDF callback signature')
+            return web.json_response({'error': 'Signature verification failed'}, status=401)
+
+        # ── 2. Parse body ─────────────────────────────────────────────
+        try:
+            data = json.loads(body_bytes)
+        except Exception:
+            return web.json_response({'error': 'Invalid JSON'}, status=400)
+
+        task_id = data.get('task_id', '')
+        results = data.get('results', [])
+
+        if not task_id or not results:
+            return web.json_response(
+                {'error': 'task_id and results are required'},
+                status=400,
+            )
+
+        # ── 3. Fetch task detail from backend ──────────────────────────
+        session = get_http_session()
+        detail_url = f'{BACKEND_URL}pdf-tasks/bot/{task_id}/'
+
+        task_detail = None
+        try:
+            import aiohttp
+            async with session.get(
+                detail_url,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status != 200:
+                    logger.error('Failed to fetch task %s: %s', task_id, resp.status)
+                    return web.json_response(
+                        {'error': 'Task not found'},
+                        status=404,
+                    )
+                task_detail = await resp.json()
+        except Exception:
+            logger.exception('Failed to reach backend for task %s', task_id)
+            return web.json_response(
+                {'error': 'Backend unreachable'},
+                status=502,
+            )
+
+        parts = task_detail.get('parts', [])
+        part_map = {p['part_id']: p for p in parts}
+
+        # ── 4. Mark task as delivering ─────────────────────────────────
+        await self._patch_task_status(task_id, 'delivering')
+
+        # ── 5. Deliver PDFs via DM ────────────────────────────────────
+        all_succeeded = True
+        for result in results:
+            part_id = result.get('part_id', '')
+            pdf_b64 = result.get('pdf_bytes', '')
+
+            part_info = part_map.get(part_id)
+            if not part_info:
+                logger.warning('Unknown part_id %s in task %s', part_id, task_id)
+                all_succeeded = False
+                continue
+
+            recipient_id = part_info.get('recipient_discord_id', '')
+            recipient_name = part_info.get('recipient_name', '')
+            embed_title = part_info.get('embed_title', 'Document')
+            embed_description = part_info.get('embed_description', '')
+            filename = part_info.get('filename', 'Document.pdf')
+
+            try:
+                pdf_bytes = base64.b64decode(pdf_b64)
+            except Exception:
+                logger.error('Invalid base64 PDF for part %s in task %s', part_id, task_id)
+                all_succeeded = False
+                continue
+
+            try:
+                user = self.bot.get_user(int(recipient_id))
+                if not user:
+                    user = await self.bot.fetch_user(int(recipient_id))
+
+                embed = create_embed(
+                    title=embed_title,
+                    description=embed_description,
+                    color=BrandColor.PRIMARY,
+                )
+                await user.send(
+                    embed=embed,
+                    file=discord.File(io.BytesIO(pdf_bytes), filename=filename),
+                )
+                logger.info(
+                    'PDF delivered to %s (%s) for task %s part %s',
+                    recipient_name, recipient_id, task_id, part_id,
+                )
+            except discord.Forbidden:
+                logger.warning(
+                    'Cannot DM %s (%s) for task %s, DMs may be disabled.',
+                    recipient_name, recipient_id, task_id,
+                )
+                all_succeeded = False
+            except Exception:
+                logger.exception(
+                    'Failed to send PDF to %s (%s) for task %s',
+                    recipient_name, recipient_id, task_id,
+                )
+                all_succeeded = False
+
+        # ── 6. Update final status ─────────────────────────────────────
+        if all_succeeded:
+            await self._patch_task_status(task_id, 'completed')
+        else:
+            await self._patch_task_status(
+                task_id, 'failed', error_message='One or more deliveries failed',
+            )
+
+        return web.json_response({'status': 'ok'})
+
+    async def _patch_task_status(
+        self, task_id: str, status: str, error_message: str = '',
+    ) -> None:
+        """PATCH the task status on the backend (fire-and-forget)."""
+        from config import BACKEND_URL
+        from utils.http import get_http_session
+
+        session = get_http_session()
+        url = f'{BACKEND_URL}pdf-tasks/bot/{task_id}/status/'
+        payload = {'status': status}
+        if error_message:
+            payload['error_message'] = error_message
+
+        try:
+            import aiohttp
+            async with session.patch(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.json()
+                    logger.warning(
+                        'PATCH status %s for task %s returned %s: %s',
+                        status, task_id, resp.status, body,
+                    )
+        except Exception:
+            logger.exception(
+                'Failed to PATCH status %s for task %s', status, task_id,
+            )
+
+    # ── Server lifecycle ───────────────────────────────────────────────
 
     async def start(self, host=None, port=None):
         from config import WEBHOOK_HOST, WEBHOOK_PORT

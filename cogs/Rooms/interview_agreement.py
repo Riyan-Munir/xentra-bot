@@ -19,7 +19,6 @@ Flow:
 """
 
 import asyncio
-import io
 import logging
 
 import discord
@@ -32,8 +31,7 @@ from utils.embeds import success_embed, error_embed, info_embed, create_embed, B
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
-from utils.agreement_pdf import generate_agreement_bytes
-from utils.pdf_compressor import compress_pdf
+from utils.pdf_service import create_pdf_task, build_agreement_parts
 from utils.room_closure import send_room_closure_and_transcript
 
 logger = logging.getLogger('bot.rooms.interview_agreement')
@@ -158,7 +156,9 @@ class AgreementConfirmView(discord.ui.View):
 
         # ── If both parties have signed, deliver signed PDF ────────────
         if body.get('both_accepted'):
-            await self._deliver_signed_pdf(interaction, body)
+            asyncio.create_task(
+                self._deliver_signed_pdf(interaction, body),
+            )
 
     # ------------------------------------------------------------------
     # Signed PDF delivery
@@ -169,11 +169,18 @@ class AgreementConfirmView(discord.ui.View):
         interaction: discord.Interaction,
         body: dict,
     ) -> None:
-        """Generate signed PDF with stamps and deliver to both parties."""
+        """Create signed agreement PDF task and deliver to both parties via PDF service."""
         # Store agreement_id for closure sequence
         self._agreement_id = body.get('agreement_id', '')
 
-        pdf_data = {
+        parts = build_agreement_parts(
+            client_discord_id=str(self.client_discord_id),
+            client_name=self.client_name,
+            freelancer_discord_id=str(self.freelancer_discord_id),
+            freelancer_name=self.freelancer_name,
+        )
+
+        payload = {
             'agreement_id': self._agreement_id,
             'job_id': body.get('job_id', ''),
             'job_application_id': body.get('job_application_id', ''),
@@ -187,46 +194,25 @@ class AgreementConfirmView(discord.ui.View):
             'is_signed': True,
         }
 
-        try:
-            pdf_bytes = generate_agreement_bytes(pdf_data)
-            pdf_bytes = compress_pdf(pdf_bytes)
-        except Exception:
-            logger.exception('Failed to generate signed agreement PDF')
+        task_id = await create_pdf_task(
+            task_type='signed_agreement',
+            room_id=self.room_id,
+            requester_discord_id=str(interaction.user.id),
+            parts=parts,
+            payload=payload,
+        )
+
+        if not task_id:
+            logger.error(
+                'Failed to create signed agreement PDF task for room %s',
+                self.room_id,
+            )
             return
 
-        pdf_embed = success_embed('Review the attached Job Agreement document.')
-
-        targets = [
-            (str(self.client_discord_id), self.client_name),
-            (str(self.freelancer_discord_id), self.freelancer_name),
-        ]
-
-        failed_ids = set()
-        failed_names = []
-
-        for did, display_name in targets:
-            try:
-                user = interaction.client.get_user(int(did))
-                if not user:
-                    user = await interaction.client.fetch_user(int(did))
-                await user.send(
-                    embed=pdf_embed,
-                    file=discord.File(io.BytesIO(pdf_bytes), filename='Job-Agreement.pdf'),
-                )
-            except discord.Forbidden:
-                logger.warning(
-                    'Cannot DM %s (%s), DMs may be disabled.',
-                    display_name, did,
-                )
-                failed_ids.add(did)
-                failed_names.append(display_name)
-            except Exception:
-                logger.exception(
-                    'Failed to send PDF to %s (%s)',
-                    display_name, did,
-                )
-                failed_ids.add(did)
-                failed_names.append(display_name)
+        logger.info(
+            'Signed agreement task %s created for room %s',
+            task_id, self.room_id,
+        )
 
         # ── Log system message ─────────────────────────────────────────
         from .create_rooms import CreateRooms
@@ -238,39 +224,8 @@ class AgreementConfirmView(discord.ui.View):
                 'The Job Agreement has been signed by both parties. '
                 'The signed document has been delivered.'
             ),
+            show_to='both',
         )
-
-        # ── Notify the other party if one delivery failed ──────────────
-        for failed_id, failed_name in zip(failed_ids, failed_names):
-            if failed_id == str(self.client_discord_id):
-                other_id = str(self.freelancer_discord_id)
-                other_name = self.freelancer_name
-            else:
-                other_id = str(self.client_discord_id)
-                other_name = self.client_name
-
-            if other_id in failed_ids:
-                continue  # Both failed, can't notify either
-
-            try:
-                other_user = interaction.client.get_user(int(other_id))
-                if not other_user:
-                    other_user = await interaction.client.fetch_user(int(other_id))
-                blocked_embed = create_embed(
-                    title='System Notification',
-                    description=(
-                        f'{failed_name} didn\'t receive the document due to a DM block. '
-                        f'You are required to share this document for awareness '
-                        f'as this room is being closed.'
-                    ),
-                    color=BrandColor.ERROR,
-                )
-                await other_user.send(embed=blocked_embed)
-            except Exception:
-                logger.exception(
-                    'Failed to notify %s about blocked DM for %s',
-                    other_name, failed_name,
-                )
 
         # ── Room Closure Sequence (fire-and-forget) ───────────────────
         async def _run_closure():
@@ -480,40 +435,33 @@ class InterviewAgreement(commands.Cog):
                         from .create_rooms import CreateRooms
                         # Store agreement_id on self for closure sequence
                         self._agreement_id = pdf_body.get('agreement_id', '')
-                        # Generate and send PDF
-                        try:
-                            pdf_bytes = generate_agreement_bytes(pdf_body)
-                            pdf_bytes = compress_pdf(pdf_bytes)
-                        except Exception:
-                            logger.exception('Failed to generate signed agreement PDF')
+
+                        parts = build_agreement_parts(
+                            client_discord_id=str(self.client_discord_id),
+                            client_name=self.client_name,
+                            freelancer_discord_id=str(self.freelancer_discord_id),
+                            freelancer_name=self.freelancer_name,
+                        )
+
+                        task_id = await create_pdf_task(
+                            task_type='signed_agreement',
+                            room_id=self.room_id,
+                            requester_discord_id=str(interaction.user.id),
+                            parts=parts,
+                            payload=pdf_body,
+                        )
+
+                        if not task_id:
+                            logger.error(
+                                'Failed to create signed agreement PDF task for room %s (ALREADY_SIGNED path)',
+                                self.room_id,
+                            )
                             return
 
-                        pdf_embed = success_embed('Review the attached Job Agreement document.')
-
-                        targets = [
-                            (str(self.client_discord_id), self.client_name),
-                            (str(self.freelancer_discord_id), self.freelancer_name),
-                        ]
-
-                        failed_ids = set()
-                        failed_names = []
-
-                        for did, display_name in targets:
-                            try:
-                                user = interaction.client.get_user(int(did))
-                                if not user:
-                                    user = await interaction.client.fetch_user(int(did))
-                                await user.send(
-                                    embed=pdf_embed,
-                                    file=discord.File(io.BytesIO(pdf_bytes), filename='Job-Agreement.pdf'),
-                                )
-                            except discord.Forbidden:
-                                failed_ids.add(did)
-                                failed_names.append(display_name)
-                            except Exception:
-                                logger.exception('Failed to send PDF to %s (%s)', display_name, did)
-                                failed_ids.add(did)
-                                failed_names.append(display_name)
+                        logger.info(
+                            'Signed agreement task %s created for room %s (ALREADY_SIGNED path)',
+                            task_id, self.room_id,
+                        )
 
                         # Log system message
                         await CreateRooms._log_system_message(
@@ -524,39 +472,8 @@ class InterviewAgreement(commands.Cog):
                                 'The Job Agreement has been signed by both parties. '
                                 'The signed document has been delivered.'
                             ),
+                            show_to='both',
                         )
-
-                        # Notify other if one delivery failed
-                        for failed_id, failed_name in zip(failed_ids, failed_names):
-                            if failed_id == str(self.client_discord_id):
-                                other_id = str(self.freelancer_discord_id)
-                                other_name_dm = self.freelancer_name
-                            else:
-                                other_id = str(self.client_discord_id)
-                                other_name_dm = self.client_name
-
-                            if other_id in failed_ids:
-                                continue
-
-                            try:
-                                other_user = interaction.client.get_user(int(other_id))
-                                if not other_user:
-                                    other_user = await interaction.client.fetch_user(int(other_id))
-                                blocked_embed = create_embed(
-                                    title='System Notification',
-                                    description=(
-                                        f'{failed_name} didn\'t receive the document due to a DM block. '
-                                        f'You are required to share this document for awareness '
-                                        f'as this room is being closed.'
-                                    ),
-                                    color=BrandColor.ERROR,
-                                )
-                                await other_user.send(embed=blocked_embed)
-                            except Exception:
-                                logger.exception(
-                                    'Failed to notify %s about blocked DM for %s',
-                                    other_name_dm, failed_name,
-                                )
 
                         # Closure sequence (fire-and-forget)
                         async def _run_inline_closure():

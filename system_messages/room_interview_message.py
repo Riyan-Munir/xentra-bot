@@ -136,6 +136,8 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         msg_id = data.get("msg_id", "N/A")
         msg_text = data.get("msg_text", "")
         attachments = data.get("attachments", "")
+        target_msg_id = data.get("target_msg_id", "")
+        target_complain_id = data.get("target_complain_id", "")
 
         role_label = "Client" if sender_role == "client" else "Freelancer"
 
@@ -144,9 +146,17 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
             "",
             f"**From:** `{role_label}` — `{sender_name}`",
             f"**Message ID:** `{msg_id}`",
+        ]
+
+        if target_msg_id:
+            body_parts.append(f"**Reply to Message ID:** `{target_msg_id}`")
+        if target_complain_id:
+            body_parts.append(f"**Reply to Complaint ID:** `{target_complain_id}`")
+
+        body_parts.extend([
             "",
             "**Message:**",
-        ]
+        ])
 
         # Truncate msg_text to ensure total description stays under Discord's 4096 limit.
         boilerplate = "\n".join(body_parts) + "\n"

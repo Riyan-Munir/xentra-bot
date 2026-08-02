@@ -35,21 +35,16 @@ Usage:
 """
 
 import asyncio
-import io
 import logging
-import os
-import tempfile
-from datetime import datetime
 
 import aiohttp
 import discord
 from discord.ext import commands
 
 from config import BACKEND_URL
-from utils.embeds import info_embed
+from utils.embeds import create_embed, BrandColor
 from utils.http import get_http_session
-from utils.transcript_generator import generate_transcript
-from utils.pdf_compressor import compress_pdf
+from utils.pdf_service import create_pdf_task, build_transcript_parts
 from utils.failed_delivery import log_failed_delivery
 from system_messages.room_closure import build_embed as build_closure_embed
 
@@ -110,12 +105,12 @@ async def send_room_closure_and_transcript(
         'left_by': left_by,
     }
     _, closure_body_text = build_closure_embed(closure_build_data)
-    await CreateRooms._log_system_message(room_id, sys_msg_type, {}, msg_text=closure_body_text)
+    await CreateRooms._log_system_message(room_id, sys_msg_type, {}, msg_text=closure_body_text, show_to='both')
 
     # ── 1b. Log "Room Transcript" BEFORE fetching data ──────────────
     # Ensures this message appears in the session JSON used for PDF generation
     transcript_label = 'A transcript of this room is being generated and will be delivered to both parties.'
-    await CreateRooms._log_system_message(room_id, 'Room Transcript', {}, msg_text=transcript_label)
+    await CreateRooms._log_system_message(room_id, 'Room Transcript', {}, msg_text=transcript_label, show_to='both')
 
     # ── 2. Fetch transcript data from backend ────────────────────────
     transcript_data = await _fetch_transcript_data(room_id, headers, session)
@@ -149,127 +144,29 @@ async def send_room_closure_and_transcript(
     ]:
         await _send_dm(bot, did, display_name, embed=closure_embed)
 
-    # ── 5. Generate Room-Transcript.pdf (2 versions) ─────────────────
-    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M') + ' UTC'
-    base_messages = transcript_data.get('freelancer_messages', [])
+    # ── 5. Create transcript PDF task (fire-and-forget) ─────────────
+    parts = build_transcript_parts(
+        client_discord_id=client_discord_id,
+        client_name=client_name,
+        freelancer_discord_id=freelancer_discord_id,
+        freelancer_name=freelancer_name,
+        room_id=room_id,
+    )
 
-    # Freelancer view, freelancer msgs on right
-    freelancer_pdf_data = {
-        'transcript_id': transcript_data.get('transcript_id', f'XEN-TRX-{room_id}'),
-        'room_id': room_id,
-        'client_name': client_name,
-        'freelancer_name': freelancer_name,
-        'client_avatar_url': client_avatar_url,
-        'freelancer_avatar_url': freelancer_avatar_url,
-        'viewer_role': 'freelancer',
-        'generated_on': now_str,
-        'messages': base_messages,
-        'watermark_b64': transcript_data.get('watermark_b64', ''),
-        'logo_b64': transcript_data.get('logo_b64', ''),
-    }
+    task_id = await create_pdf_task(
+        task_type='transcript',
+        room_id=room_id,
+        requester_discord_id=client_discord_id or freelancer_discord_id,
+        parts=parts,
+    )
 
-    # Client view, client msgs on right
-    client_pdf_data = {
-        'transcript_id': transcript_data.get('transcript_id', f'XEN-TRX-{room_id}'),
-        'room_id': room_id,
-        'client_name': client_name,
-        'freelancer_name': freelancer_name,
-        'client_avatar_url': client_avatar_url,
-        'freelancer_avatar_url': freelancer_avatar_url,
-        'viewer_role': 'client',
-        'generated_on': now_str,
-        'messages': base_messages,
-        'watermark_b64': transcript_data.get('watermark_b64', ''),
-        'logo_b64': transcript_data.get('logo_b64', ''),
-    }
-
-    transcript_paths = {}
-    loop = asyncio.get_event_loop()
-    try:
-        with tempfile.NamedTemporaryFile(
-            suffix='_freelancer.pdf', delete=False,
-        ) as tmp_f:
-            freelancer_path = tmp_f.name
-        await loop.run_in_executor(
-            None, generate_transcript, freelancer_pdf_data, freelancer_path
-        )
-        transcript_paths['freelancer'] = freelancer_path
-
-        with tempfile.NamedTemporaryFile(
-            suffix='_client.pdf', delete=False,
-        ) as tmp_c:
-            client_path = tmp_c.name
-        await loop.run_in_executor(
-            None, generate_transcript, client_pdf_data, client_path
-        )
-        transcript_paths['client'] = client_path
-    except Exception:
-        logger.exception('Transcript generation failed for room %s', room_id)
-        for path in transcript_paths.values():
-            try:
-                os.unlink(path)
-            except Exception:
-                pass
+    if not task_id:
+        logger.error('Failed to create transcript PDF task for room %s', room_id)
         return False
 
-    # ── 6. Send Room-Transcript.pdf to each party ────────────────────
-    transcript_msg = (
-        'Review the attached transcript of your '
-        f'Interview Room **{room_id}**.\n\n'
-        'This document records all correspondence exchanged '
-        'during the interview phase.'
-    )
-    transcript_embed = info_embed(message=transcript_msg)
+    logger.info('Transcript task %s created for room %s', task_id, room_id)
 
-    targets = [
-        (freelancer_discord_id, freelancer_name, 'freelancer'),
-        (client_discord_id, client_name, 'client'),
-    ]
-
-    for did, display_name, viewer in targets:
-        pdf_path = transcript_paths.get(viewer)
-        if not pdf_path or not os.path.exists(pdf_path):
-            logger.error('Transcript PDF not found for %s in room %s', viewer, room_id)
-            continue
-
-        try:
-            with open(pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
-            pdf_bytes = compress_pdf(pdf_bytes)
-
-            await _send_dm(
-                bot, did, display_name,
-                embed=transcript_embed,
-                file=discord.File(
-                    io.BytesIO(pdf_bytes),
-                    filename='Room-Transcript.pdf',
-                ),
-            )
-            logger.info(
-                'Transcript sent to %s (%s) for room %s',
-                display_name, did, room_id,
-            )
-        except Exception:
-            logger.exception(
-                'Failed to send transcript to %s (%s)',
-                display_name, did,
-            )
-            await log_failed_delivery(
-                room_id=room_id,
-                message_type='transcript',
-                target_discord_id=did,
-                session=session,
-                headers=headers,
-            )
-
-    # Clean up temp files
-    for path in transcript_paths.values():
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
-
-    # ── 7. Call backend to finalise closure (agreement only) ─────────
+    # ── 6. Call backend to finalise closure (agreement only) ─────────
     if closure_type == 'agreement':
         finalize_url = f'{BACKEND_URL}rooms/bot/finalize-closure/'
         finalize_payload = {
@@ -290,7 +187,7 @@ async def send_room_closure_and_transcript(
                         result.get('message', ''),
                     )
 
-                    # ── 7b. Process system-closed rooms ──────────────
+                    # ── 6b. Process system-closed rooms ──────────────
                     system_closed = result.get('system_closed_rooms', [])
                     if system_closed:
                         closure_reason = result.get('closure_reason', '')
@@ -299,7 +196,7 @@ async def send_room_closure_and_transcript(
                             bot, headers, session,
                         )
 
-                    # ── 7c. Mark winning room closure completed ──────
+                    # ── 6c. Mark winning room closure completed ──────
                     await _mark_closure_completed(room_id, headers, session)
                 else:
                     logger.warning(
@@ -309,7 +206,7 @@ async def send_room_closure_and_transcript(
         except Exception:
             logger.exception('Failed to finalize closure for room %s', room_id)
 
-    # ── 8. Mark closure process completed for leave rooms ────────────
+    # ── 7. Mark closure process completed for leave rooms ────────────
     if closure_type == 'leave':
         await _mark_closure_completed(room_id, headers, session)
 
@@ -326,7 +223,12 @@ async def _fetch_transcript_data(
     headers: dict,
     session: aiohttp.ClientSession,
 ) -> dict | None:
-    """Call ``fetch-transcript-data/`` and return the parsed JSON."""
+    """Fetch participant info from the backend ``fetch-transcript-data/`` endpoint.
+
+    Used to obtain client/freelancer names and Discord IDs for building
+    transcript parts and closure notifications.  The actual PDF generation
+    is handled by the remote PDF Generator service.
+    """
     url = f'{BACKEND_URL}rooms/bot/fetch-transcript-data/'
     try:
         async with session.get(
@@ -450,140 +352,39 @@ async def _process_system_closed_rooms(
         ]:
             await _send_dm(bot, did, display_name, embed=closure_embed)
 
-        # Generate and deliver transcript (reuse same logic as main room)
-        transcript_data = await _fetch_transcript_data(
-            closed_room_id, headers, session,
+        # Create transcript PDF task via PDF service (fire-and-forget)
+        client_id = closed_room.get('client_discord_id', '')
+        freelancer_id = closed_room.get('freelancer_discord_id', '')
+        client_nm = closed_room.get('client_name', 'Client')
+        freelancer_nm = closed_room.get('freelancer_name', 'Freelancer')
+
+        parts = build_transcript_parts(
+            client_discord_id=client_id,
+            client_name=client_nm,
+            freelancer_discord_id=freelancer_id,
+            freelancer_name=freelancer_nm,
+            room_id=closed_room_id,
         )
-        if transcript_data:
-            await _deliver_transcript_pdfs(
-                transcript_data, closed_room_id,
-                bot, headers, session,
+
+        task_id = await create_pdf_task(
+            task_type='transcript',
+            room_id=closed_room_id,
+            requester_discord_id=client_id or freelancer_id,
+            parts=parts,
+        )
+
+        if task_id:
+            logger.info(
+                'System-closed room %s: transcript task %s created',
+                closed_room_id, task_id,
+            )
+        else:
+            logger.error(
+                'System-closed room %s: failed to create transcript task',
+                closed_room_id,
             )
 
         # Mark closure process completed
         await _mark_closure_completed(
             closed_room_id, headers, session,
         )
-
-
-async def _deliver_transcript_pdfs(
-    transcript_data: dict,
-    room_id: str,
-    bot: commands.Bot,
-    headers: dict,
-    session: aiohttp.ClientSession,
-) -> None:
-    """Generate viewer-specific transcript PDFs and send to both parties."""
-    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M') + ' UTC'
-    base_messages = transcript_data.get('freelancer_messages', [])
-
-    client_name = transcript_data.get('client_name', 'Client')
-    freelancer_name = transcript_data.get('freelancer_name', 'Freelancer')
-    client_discord_id = transcript_data.get('client_discord_id', '')
-    freelancer_discord_id = transcript_data.get('freelancer_discord_id', '')
-    client_avatar_url = transcript_data.get('client_avatar_url')
-    freelancer_avatar_url = transcript_data.get('freelancer_avatar_url')
-
-    freelancer_pdf_data = {
-        'transcript_id': transcript_data.get('transcript_id', f'XEN-TRX-{room_id}'),
-        'room_id': room_id,
-        'client_name': client_name,
-        'freelancer_name': freelancer_name,
-        'client_avatar_url': client_avatar_url,
-        'freelancer_avatar_url': freelancer_avatar_url,
-        'viewer_role': 'freelancer',
-        'generated_on': now_str,
-        'messages': base_messages,
-        'watermark_b64': transcript_data.get('watermark_b64', ''),
-        'logo_b64': transcript_data.get('logo_b64', ''),
-    }
-
-    client_pdf_data = {
-        'transcript_id': transcript_data.get('transcript_id', f'XEN-TRX-{room_id}'),
-        'room_id': room_id,
-        'client_name': client_name,
-        'freelancer_name': freelancer_name,
-        'client_avatar_url': client_avatar_url,
-        'freelancer_avatar_url': freelancer_avatar_url,
-        'viewer_role': 'client',
-        'generated_on': now_str,
-        'messages': base_messages,
-        'watermark_b64': transcript_data.get('watermark_b64', ''),
-        'logo_b64': transcript_data.get('logo_b64', ''),
-    }
-
-    transcript_paths = {}
-    loop = asyncio.get_event_loop()
-    try:
-        with tempfile.NamedTemporaryFile(
-            suffix='_freelancer.pdf', delete=False,
-        ) as tmp_f:
-            freelancer_path = tmp_f.name
-        await loop.run_in_executor(
-            None, generate_transcript, freelancer_pdf_data, freelancer_path,
-        )
-        transcript_paths['freelancer'] = freelancer_path
-
-        with tempfile.NamedTemporaryFile(
-            suffix='_client.pdf', delete=False,
-        ) as tmp_c:
-            client_path = tmp_c.name
-        await loop.run_in_executor(
-            None, generate_transcript, client_pdf_data, client_path,
-        )
-        transcript_paths['client'] = client_path
-    except Exception:
-        logger.exception(
-            'Transcript generation failed for system-closed room %s', room_id,
-        )
-        for path in transcript_paths.values():
-            try:
-                os.unlink(path)
-            except Exception:
-                pass
-        return
-
-    transcript_msg = (
-        'Review the attached transcript of your '
-        f'Interview Room **{room_id}**.\n\n'
-        'This document records all correspondence exchanged '
-        'during the interview phase.'
-    )
-    transcript_embed = info_embed(message=transcript_msg)
-
-    for did, display_name, viewer in [
-        (freelancer_discord_id, freelancer_name, 'freelancer'),
-        (client_discord_id, client_name, 'client'),
-    ]:
-        pdf_path = transcript_paths.get(viewer)
-        if not pdf_path or not os.path.exists(pdf_path):
-            continue
-        try:
-            with open(pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
-            pdf_bytes = compress_pdf(pdf_bytes)
-            await _send_dm(
-                bot, did, display_name,
-                embed=transcript_embed,
-                file=discord.File(
-                    io.BytesIO(pdf_bytes),
-                    filename='Room-Transcript.pdf',
-                ),
-            )
-        except Exception:
-            logger.exception(
-                'Failed to send transcript to %s (%s)', display_name, did,
-            )
-            await log_failed_delivery(
-                room_id=room_id,
-                message_type='transcript',
-                target_discord_id=did,
-                session=session,
-                headers=headers,
-            )
-
-    for path in transcript_paths.values():
-        try:
-            os.unlink(path)
-        except Exception:
-            pass

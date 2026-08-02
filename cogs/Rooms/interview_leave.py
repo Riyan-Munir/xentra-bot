@@ -212,6 +212,7 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             await CreateRooms._log_system_message(
                 self.room_id, 'leave', {},
                 msg_text=leave_log_text,
+                show_to='both',
             )
         except Exception:
             logger.exception('Failed to log leave system message')

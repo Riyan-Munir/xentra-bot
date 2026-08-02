@@ -12,7 +12,7 @@ Flow:
      sends a DM notification to the other party, and returns a simple success embed.
 """
 
-import io
+import asyncio
 import logging
 
 import discord
@@ -25,7 +25,7 @@ from utils.embeds import success_embed, error_embed
 from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
-from utils.agreement_pdf import generate_agreement_bytes
+from utils.pdf_service import create_pdf_task, build_single_agreement_parts
 
 logger = logging.getLogger('bot.rooms.interview_review')
 
@@ -251,49 +251,33 @@ class InterviewReview(commands.Cog):
                         headers=headers,
                     )
 
-            # ── 5. Generate agreement PDF and send to executor ────────────
-            try:
-                pdf_bytes = generate_agreement_bytes(body)
-                pdf_file = discord.File(io.BytesIO(pdf_bytes), filename='Job-Agreement.pdf')
-
-                # Create embed explaining the PDF
-                pdf_embed = success_embed(
-                    'Review the attached Job Agreement document.',
-                )
-
-                # Send to the executor (command caller) via DM
-                pdf_delivered = False
+            # ── 5. Generate agreement PDF in background via PDF service ──
+            async def _generate_and_deliver_pdf():
                 try:
-                    await interaction.user.send(
-                        embed=pdf_embed,
-                        file=pdf_file,
-                    )
-                    pdf_delivered = True
-                except discord.Forbidden:
-                    logger.warning(
-                        'Cannot DM executor %s, DMs may be disabled.',
-                        interaction.user.id,
-                    )
-                    # Fallback: send in the interaction channel with ephemeral
-                    await interaction.followup.send(
-                        embed=pdf_embed,
-                        file=pdf_file,
-                        ephemeral=True,
-                    )
-                    pdf_delivered = True
-                except Exception:
-                    logger.exception(
-                        'Failed to send PDF to executor %s',
-                        interaction.user.id,
-                    )
-                    # At least return the success embed
-                    return success_embed(
-                        'Review request has been submitted. '
-                        'Could not send the PDF file, check your DM settings.',
+                    executor_name = body.get('executor_name', 'Someone')
+                    viewer_role = active_role
+
+                    parts = build_single_agreement_parts(
+                        recipient_discord_id=str(interaction.user.id),
+                        recipient_name=executor_name,
+                        viewer_role=viewer_role,
                     )
 
-                # ── 6. Log PDF delivery as a system message ──────────────
-                if pdf_delivered:
+                    task_id = await create_pdf_task(
+                        task_type='agreement',
+                        room_id=room_id,
+                        requester_discord_id=str(interaction.user.id),
+                        parts=parts,
+                        payload=body,
+                    )
+
+                    if not task_id:
+                        logger.error(
+                            'Agreement review: failed to create PDF task for room %s',
+                            room_id,
+                        )
+                        return
+
                     other_party_name = body.get(
                         'client_name' if is_freelancer else 'freelancer_name',
                         'User',
@@ -307,14 +291,19 @@ class InterviewReview(commands.Cog):
                             f'The Job Agreement document has been reviewed '
                             f'and delivered to {other_party_name}.'
                         ),
+                        show_to=active_role,
                     )
 
-            except Exception:
-                logger.exception('Failed to generate agreement PDF')
-                # Still show success, just without the PDF
-                return success_embed('Review request has been submitted.')
+                    logger.info(
+                        'Agreement review task %s created for room %s',
+                        task_id, room_id,
+                    )
+                except Exception:
+                    logger.exception('Failed to create agreement PDF task')
 
-            # Return the final embed (already sent via DM/channel above)
+            asyncio.create_task(_generate_and_deliver_pdf())
+
+            # Return success immediately, PDF is generated in background
             return success_embed('Review request has been submitted.')
 
         await validate_and_respond(interaction, callback)

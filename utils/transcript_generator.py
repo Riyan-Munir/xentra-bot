@@ -376,12 +376,42 @@ def render_title_page(c, data):
     c.restoreState()
 
     logo_cy = PAGE_H - 66*mm
-    c.setStrokeColor(XENTRA_GOLD)
-    c.setLineWidth(1.1)
-    c.circle(PAGE_W/2, logo_cy, 13*mm, stroke=1, fill=0)
-    c.setFillColor(colors.white)
-    c.setFont(FONT_BOLD, 20)
-    c.drawCentredString(PAGE_W/2, logo_cy - 7, "X")
+
+    # Try to draw the Xentra logo image as a round avatar
+    logo_b64 = data.get("logo_b64", "")
+    drawn_logo = False
+    if logo_b64:
+        try:
+            from PIL import Image as PILImage
+            img_bytes = base64.b64decode(logo_b64)
+            img = PILImage.open(io.BytesIO(img_bytes)).convert("RGBA")
+            radius = 13 * mm
+            side = int(radius * 2 * 4)
+            img = img.resize((side, side), PILImage.LANCZOS)
+            c.saveState()
+            p = c.beginPath()
+            p.circle(PAGE_W / 2, logo_cy, radius)
+            c.clipPath(p, stroke=0, fill=0)
+            c.drawInlineImage(img,
+                              PAGE_W / 2 - radius, logo_cy - radius,
+                              width=radius * 2, height=radius * 2)
+            c.restoreState()
+            # Gold border around the clipped logo
+            c.setStrokeColor(XENTRA_GOLD)
+            c.setLineWidth(1.1)
+            c.circle(PAGE_W / 2, logo_cy, radius, stroke=1, fill=0)
+            drawn_logo = True
+        except Exception:
+            pass
+
+    if not drawn_logo:
+        # Fallback: gold circle with "X" letter
+        c.setStrokeColor(XENTRA_GOLD)
+        c.setLineWidth(1.1)
+        c.circle(PAGE_W / 2, logo_cy, 13 * mm, stroke=1, fill=0)
+        c.setFillColor(colors.white)
+        c.setFont(FONT_BOLD, 20)
+        c.drawCentredString(PAGE_W / 2, logo_cy - 7, "X")
 
     c.setFillColor(XENTRA_GOLD)
     c.setFont(FONT_BOLD, 9.5)
@@ -962,6 +992,7 @@ def _sanitise_message(msg):
     msg.setdefault("avatar_url", None)
     msg.setdefault("left_by", "")
     msg.setdefault("reason", "")
+    msg.setdefault("show_to", "both")
     # Ensure string fields are actually strings
     if msg["data"] is None:
         msg["data"] = ""

@@ -688,6 +688,7 @@ class CreateRooms(commands.Cog):
             {
                 "discord_id": result['freelancer_discord_id'],
                 "room_id": result['room_id'],
+                "job_title": result['job_title'],
             },
             interaction.client,
         )
@@ -698,6 +699,7 @@ class CreateRooms(commands.Cog):
                 {
                     "discord_id": str(interaction.user.id),
                     "room_id": result['room_id'],
+                    "job_title": result['job_title'],
                 },
                 interaction.client,
             )
@@ -879,6 +881,7 @@ class CreateRooms(commands.Cog):
         msg_type: str,
         flags: dict,
         msg_text: str = '',
+        show_to: str = 'both',
     ) -> None:
         """Fire-and-forget log of a system message delivery to the backend.
 
@@ -893,6 +896,9 @@ class CreateRooms(commands.Cog):
         msg_text : str, optional
             The actual body-only message text (no room headers).
             If empty, the backend falls back to a placeholder.
+        show_to : str, optional
+            Transcript visibility: ``"both"`` (default), ``"freelancer"``,
+            or ``"client"``.
         """
         log_packet = BotPacketFactory.create_packet(
             packet_type="log_system_message",
@@ -901,6 +907,7 @@ class CreateRooms(commands.Cog):
                 "msg_type": msg_type,
                 "flags": flags,
                 "msg_text": msg_text,
+                "show_to": show_to,
             },
             provider="bot",
         )

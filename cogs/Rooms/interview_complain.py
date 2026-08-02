@@ -270,14 +270,22 @@ class InterviewComplain(commands.Cog):
             room_data = user_data['_selected_room']
 
             # ── 2. Show start view with Write Complaint button ──────────
+            desc_parts = [
+                'You are about to submit a complaint in the interview chat.\n\n'
+                f'**Room:** `{room_data.get("room_id", "")}`\n'
+                f'**Job:** {room_data.get("job_title", "")}',
+            ]
+            if message_id:
+                desc_parts.append(f'**Target Message ID:** `{message_id}`')
+            if complain_id:
+                desc_parts.append(f'**Target Complaint ID:** `{complain_id}`')
+            desc_parts.append(
+                '\n\nClick **Write Complaint** to compose your complaint.'
+            )
+
             embed = create_embed(
                 title='Interview Complaint',
-                description=(
-                    '> You are about to submit a complaint in the interview chat.\n\n'
-                    f'> **Room:** `{room_data.get("room_id", "")}`\n'
-                    f'> **Job:** {room_data.get("job_title", "")}\n\n'
-                    '> Click **Write Complaint** to compose your complaint.'
-                ),
+                description='\n'.join(desc_parts),
                 color=BrandColor.PRIMARY,
                 footer='Xentra • Rooms',
             )

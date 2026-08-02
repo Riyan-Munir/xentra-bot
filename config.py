@@ -57,6 +57,13 @@ if not WEBHOOK_SECRET:
         "Set it in bot/.env or the system environment."
     )
 
+# ── PDF Service ──────────────────────────────────────────────────────
+# URL of the standalone PDF Generator microservice (HuggingFace).
+# When set, the bot delegates PDF generation instead of rendering locally.
+PDF_SERVICE_URL = os.getenv('PDF_SERVICE_URL', '')
+# Shared secret for HMAC-SHA256 signing between bot ↔ PDF Generator.
+PDF_SERVICE_SECRET = os.getenv('PDF_SERVICE_SECRET', '')
+
 # ── Cluster / Sharding ──────────────────────────────────────────────
 CLUSTER_ENABLED = os.getenv('CLUSTER_ENABLED', 'False').lower() in ('1', 'true', 'yes')
 CLUSTER_NODE_ID = os.getenv('CLUSTER_NODE_ID', '')

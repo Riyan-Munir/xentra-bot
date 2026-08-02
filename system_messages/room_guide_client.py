@@ -21,7 +21,6 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
     Returns ``(embed, body_text)`` where ``body_text`` is the
     transcript-safe version without room headers.
     """
-    room_id = data.get("room_id", "N/A")
     freelancer_name = data.get("freelancer_name", "Freelancer")
     job_title = data.get("job_title", "the job")
 
@@ -34,7 +33,6 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
     )
 
     description = (
-        f"> ***Room: `{room_id}`***\n"
         f"> ***Job: `{job_title}`***\n"
         f"\n"
         f"{body}"
