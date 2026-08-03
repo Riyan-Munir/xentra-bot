@@ -420,10 +420,28 @@ class InterviewMessageConfirmView(discord.ui.View):
         room = self.room_data
         my_discord_id = str(interaction.user.id)
 
-        # Determine receiver's discord_id
+        try:
+            await self._do_send_inner(interaction)
+        except Exception:
+            logger.exception('Unexpected error in _do_send')
+            await _edit_msg_done(
+                self,
+                error_embed(
+                    message='Something went wrong while sending your message.',
+                ),
+            )
+            self.stop()
+
+    async def _do_send_inner(self, interaction: discord.Interaction) -> None:
+        room = self.room_data
+        my_discord_id = str(interaction.user.id)
+
+        # Determine sender role and receiver's discord_id
         if room.get('client_discord_id') == my_discord_id:
+            role = 'client'
             receiver_discord_id = room.get('freelancer_discord_id')
         else:
+            role = 'freelancer'
             receiver_discord_id = room.get('client_discord_id')
 
         if not receiver_discord_id:
