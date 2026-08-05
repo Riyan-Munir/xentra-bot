@@ -7,20 +7,16 @@ Flow:
   3. Calls ``BotProcessAgreementView`` GET to check review flags.
   4. If reviews incomplete, error with notification to the other party.
   5. If both reviewed, shows confirmation embed with Accept / Decline.
-  6. On **Accept**, POST to ``BotAcceptAgreementView``, show success embed:
-     *"You've signed the Job Agreement. Xentra will share signed agreement soon."*
-  7. Sends a DM notification to the other party with the identical success text
-     shown to the executor.
-  8. If **both** parties have now accepted, generates signed PDF with stamps
-     from the database, sends it to **both** client and freelancer via DM.
-  9. Logs *"Sent signed Job Agreement"* as a system message.
- 10. If DM delivery fails for one person, sends a notification to the other
-     party with heading *"Sender: Xentra"* and a message about the blocked DM.
+  6. On **Accept**, POST to ``BotAcceptAgreementView``, show success embed.
+  7. Records the command message and DM-notifies the other party.
+  8. If **both** parties have now accepted, fires the signed PDF request via
+     ``request_pdf()`` (fire-and-forget) and keeps the closure process.
 """
 
 import asyncio
 import logging
 
+import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -29,12 +25,46 @@ from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import success_embed, error_embed, info_embed, create_embed, BrandColor
 from utils.http import get_http_session
-from utils.system_message_handler import handle_system_message
-from utils.failed_delivery import log_failed_delivery
-from utils.pdf_service import create_pdf_task, build_agreement_parts
 from utils.room_closure import send_room_closure_and_transcript
+from ._shared import record_and_notify, request_pdf
 
 logger = logging.getLogger('bot.rooms.interview_agreement')
+
+
+async def _finalize_agreement_closure(
+    room_id: str,
+    agreement_id: str,
+    headers: dict,
+) -> list[str]:
+    """Call ``finalize-closure/`` and return the resulting ``closure_ids`` list.
+
+    The backend persists everything in one atomic transaction (winning room
+    closure + all system-closed rooms) and returns their closure ids.  The
+    closure utility then only delivers notifications + transcripts.
+    """
+    session = get_http_session()
+    try:
+        async with session.post(
+            f'{BACKEND_URL}rooms/bot/finalize-closure/',
+            json={'room_id': room_id, 'agreement_id': agreement_id},
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                if data.get('success'):
+                    return data.get('closure_ids', [])
+                logger.warning(
+                    'finalize-closure failed: %s', data.get('message', ''),
+                )
+            else:
+                logger.warning(
+                    'finalize-closure returned %s for room %s',
+                    resp.status, room_id,
+                )
+    except Exception:
+        logger.exception('Failed to finalize closure for room %s', room_id)
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -123,36 +153,23 @@ class AgreementConfirmView(discord.ui.View):
             return
 
         # ── Success embed ──────────────────────────────────────────────
-        success_msg = "You've signed the Job Agreement. We will share the signed agreement soon."
+        success_msg = "You've signed the Job Agreement."
         success = success_embed(success_msg)
         await interaction.edit_original_response(embed=success, view=None)
 
-        # ── Notify the other party ──────────────────────────────────────
-        notify_data = {
-            'discord_id': self.other_discord_id,
-            'room_id': self.room_id,
-            'job_title': self.job_title,
-            'command_name': 'interview_agreement',
-            'executor_name': self.executor_name,
-            'msg_data': success_msg,
-        }
-
-        delivery_ok = await handle_system_message(
-            message_type='room_interview_message',
-            data=notify_data,
+        # ── Record + notify the other party ──────────────────────────────
+        await record_and_notify(
+            room_id=self.room_id,
+            sender_role=self.active_role,
+            msg_data=success_msg,
+            command_name='interview_agreement',
+            target_discord_id=self.other_discord_id,
+            executor_name=self.executor_name,
+            job_title=self.job_title,
             bot=interaction.client,
+            session=session,
+            headers=self.headers,
         )
-
-        msg_id = body.get('msg_id', '')
-        if not delivery_ok and msg_id:
-            await log_failed_delivery(
-                room_id=self.room_id,
-                message_type='notification',
-                target_discord_id=self.other_discord_id,
-                msg_id=msg_id,
-                session=session,
-                headers=self.headers,
-            )
 
         # ── If both parties have signed, deliver signed PDF ────────────
         if body.get('both_accepted'):
@@ -169,37 +186,17 @@ class AgreementConfirmView(discord.ui.View):
         interaction: discord.Interaction,
         body: dict,
     ) -> None:
-        """Create signed agreement PDF task and deliver to both parties via PDF service."""
+        """Fire the signed agreement PDF request and run the closure sequence."""
         # Store agreement_id for closure sequence
         self._agreement_id = body.get('agreement_id', '')
 
-        parts = build_agreement_parts(
-            client_discord_id=str(self.client_discord_id),
-            client_name=self.client_name,
-            freelancer_discord_id=str(self.freelancer_discord_id),
-            freelancer_name=self.freelancer_name,
-        )
-
-        payload = {
-            'agreement_id': self._agreement_id,
-            'job_id': body.get('job_id', ''),
-            'job_application_id': body.get('job_application_id', ''),
-            'interview_room_id': body.get('interview_room_id', ''),
-            'client_name': body.get('client_name', self.client_name),
-            'freelancer_name': body.get('freelancer_name', self.freelancer_name),
-            'final_budget': body.get('final_budget', '0'),
-            'milestones': body.get('milestones', []),
-            'stamp_b64': body.get('stamp_b64', ''),
-            'watermark_b64': body.get('watermark_b64', ''),
-            'is_signed': True,
-        }
-
-        task_id = await create_pdf_task(
+        task_id = await request_pdf(
             task_type='signed_agreement',
             room_id=self.room_id,
+            room_type='interview',
             requester_discord_id=str(interaction.user.id),
-            parts=parts,
-            payload=payload,
+            client_discord_id=str(self.client_discord_id),
+            freelancer_discord_id=str(self.freelancer_discord_id),
         )
 
         if not task_id:
@@ -214,28 +211,27 @@ class AgreementConfirmView(discord.ui.View):
             task_id, self.room_id,
         )
 
-        # ── Log system message ─────────────────────────────────────────
-        from .create_rooms import CreateRooms
-        await CreateRooms._log_system_message(
-            self.room_id,
-            'signed Job Agreement',
-            {},
-            msg_text=(
-                'The Job Agreement has been signed by both parties. '
-                'The signed document has been delivered.'
-            ),
-            show_to='both',
-        )
-
         # ── Room Closure Sequence (fire-and-forget) ───────────────────
+        # The backend persists every closure record (winning + system) in
+        # one request and returns their ids; the utility only delivers.
         async def _run_closure():
             try:
-                await send_room_closure_and_transcript(
+                await asyncio.sleep(30)
+                closure_ids = await _finalize_agreement_closure(
                     room_id=self.room_id,
+                    agreement_id=self._agreement_id,
+                    headers=self.headers,
+                )
+                if not closure_ids:
+                    logger.error(
+                        'No closure ids returned for room %s, skipping closure delivery',
+                        self.room_id,
+                    )
+                    return
+                await send_room_closure_and_transcript(
+                    closure_ids=closure_ids,
                     bot=interaction.client,
                     headers=self.headers,
-                    closure_type='agreement',
-                    agreement_id=self._agreement_id,
                 )
             except KeyboardInterrupt:
                 logger.warning('Room closure task interrupted by shutdown')
@@ -260,6 +256,21 @@ class AgreementConfirmView(discord.ui.View):
             view=None,
         )
 
+        # ── Record the decline (save-only) ─────────────────────────────
+        session = get_http_session()
+        await record_and_notify(
+            room_id=self.room_id,
+            sender_role=self.active_role,
+            msg_data='Agreement signing cancelled.',
+            command_name='interview_agreement',
+            target_discord_id='',
+            executor_name=self.executor_name,
+            job_title=self.job_title,
+            bot=interaction.client,
+            session=session,
+            headers=self.headers,
+        )
+
 
 # ---------------------------------------------------------------------------
 # Cog
@@ -273,62 +284,6 @@ class InterviewAgreement(commands.Cog):
 
     async def cog_load(self) -> None:
         sync_cog_commands(self)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    async def _notify_other_party(
-        body: dict,
-        room_id: str,
-        job_title: str,
-        bot: discord.Client,
-        session,
-        headers: dict,
-        msg_data: str = '',
-    ) -> None:
-        """Send a DM notification to the other party.
-
-        Uses the provided ``msg_data`` (which must be identical to the
-        executor's response text).  If the DM fails (DMs blocked /
-        disabled), logs a failed delivery record so it can be retried.
-        """
-        notify_discord_id = body.get('notify_discord_id')
-        if not notify_discord_id:
-            return
-
-        notify_data = {
-            'discord_id': notify_discord_id,
-            'room_id': room_id,
-            'job_title': job_title,
-            'command_name': 'interview_agreement',
-            'executor_name': body.get('notify_receiver_name', 'Someone'),
-            'msg_data': msg_data or body.get('notify_msg_data', ''),
-        }
-
-        delivery_ok = await handle_system_message(
-            message_type='room_interview_message',
-            data=notify_data,
-            bot=bot,
-        )
-
-        if not delivery_ok:
-            msg_id = body.get('msg_id', '')
-            if msg_id:
-                await log_failed_delivery(
-                    room_id=room_id,
-                    message_type='notification',
-                    target_discord_id=notify_discord_id,
-                    msg_id=msg_id,
-                    session=session,
-                    headers=headers,
-                )
-            else:
-                logger.warning(
-                    'No msg_id in response, cannot log failed delivery for %s in room %s',
-                    notify_discord_id, room_id,
-                )
 
     # ------------------------------------------------------------------
     # Command
@@ -355,6 +310,12 @@ class InterviewAgreement(commands.Cog):
             room_id = room_data.get('room_id', '')
             job_title = room_data.get('job_title', '')
 
+            # ── Determine sender display name ────────────────────────────
+            if active_role == 'client':
+                sender_name = room_data.get('client_name', 'Client')
+            else:
+                sender_name = room_data.get('freelancer_name', 'Freelancer')
+
             # ── 2. Call backend process-agreement endpoint ──────────────
             session = get_http_session()
             url = f'{BACKEND_URL}rooms/bot/process-agreement/'
@@ -368,9 +329,20 @@ class InterviewAgreement(commands.Cog):
                     body = await resp.json()
             except Exception:
                 logger.exception('Failed to reach process-agreement endpoint')
-                return error_embed(
-                    message='The service is temporarily unavailable.',
+                error_msg = 'The service is temporarily unavailable.'
+                await record_and_notify(
+                    room_id=room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_agreement',
+                    target_discord_id='',
+                    executor_name=sender_name,
+                    job_title=job_title,
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
                 )
+                return error_embed(message=error_msg)
 
             # ── 3. Handle error codes with role-aware messages ──────────
             if body.get('status') == 'error':
@@ -387,131 +359,54 @@ class InterviewAgreement(commands.Cog):
                     else:
                         error_msg = 'Could not sign the agreement. The agreement has not been reviewed by one or more participants.'
 
-                    # Notify the other party (the one who needs to act)
-                    await self._notify_other_party(
-                        body, room_id, job_title,
-                        interaction.client,
-                        session, headers,
+                    # Record + notify the other party (the one who needs to act)
+                    notify_discord_id = body.get('notify_discord_id', '')
+                    await record_and_notify(
+                        room_id=room_id,
+                        sender_role=active_role,
                         msg_data=error_msg,
+                        command_name='interview_agreement',
+                        target_discord_id=notify_discord_id,
+                        executor_name=body.get('notify_executor_name', body.get('notify_receiver_name', 'Someone')),
+                        job_title=job_title,
+                        bot=interaction.client,
+                        session=session,
+                        headers=headers,
                     )
                     return error_embed(message=error_msg)
 
                 # Fallback for unknown error codes
-                return error_embed(
-                    message=body.get('message', 'The service is temporarily unavailable.'),
+                error_msg = body.get('message', 'The service is temporarily unavailable.')
+                await record_and_notify(
+                    room_id=room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_agreement',
+                    target_discord_id='',
+                    executor_name=sender_name,
+                    job_title=job_title,
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
                 )
+                return error_embed(message=error_msg)
 
-            # ── 4. Both reviews complete, handle ALREADY_SIGNED ─────────
-            if body.get('code') == 'ALREADY_SIGNED':
-                both_accepted = body.get('both_accepted', False)
-                other_name = body.get('notify_receiver_name', 'The other party')
-
-                # Notify the other party regardless
-                await self._notify_other_party(
-                    body, room_id, job_title,
-                    interaction.client,
-                    session, headers,
-                )
-
-                if both_accepted:
-                    # Both parties have signed, deliver signed PDF
-                    # Construct a minimal body for _deliver_signed_pdf
-                    pdf_body = {
-                        'agreement_id': body.get('agreement_id', ''),
-                        'job_id': body.get('job_id', ''),
-                        'job_application_id': body.get('job_application_id', ''),
-                        'interview_room_id': body.get('interview_room_id', ''),
-                        'client_name': body.get('client_name', 'Client'),
-                        'freelancer_name': body.get('freelancer_name', 'Freelancer'),
-                        'final_budget': body.get('final_budget', '0'),
-                        'milestones': body.get('milestones', []),
-                        'stamp_b64': body.get('stamp_b64', ''),
-                        'watermark_b64': body.get('watermark_b64', ''),
-                        'is_signed': True,
-                    }
-
-                    # We need a view instance; create one inline for _deliver_signed_pdf
-                    async def _handle_both_signed():
-                        from .create_rooms import CreateRooms
-                        # Store agreement_id on self for closure sequence
-                        self._agreement_id = pdf_body.get('agreement_id', '')
-
-                        parts = build_agreement_parts(
-                            client_discord_id=str(self.client_discord_id),
-                            client_name=self.client_name,
-                            freelancer_discord_id=str(self.freelancer_discord_id),
-                            freelancer_name=self.freelancer_name,
-                        )
-
-                        task_id = await create_pdf_task(
-                            task_type='signed_agreement',
-                            room_id=self.room_id,
-                            requester_discord_id=str(interaction.user.id),
-                            parts=parts,
-                            payload=pdf_body,
-                        )
-
-                        if not task_id:
-                            logger.error(
-                                'Failed to create signed agreement PDF task for room %s (ALREADY_SIGNED path)',
-                                self.room_id,
-                            )
-                            return
-
-                        logger.info(
-                            'Signed agreement task %s created for room %s (ALREADY_SIGNED path)',
-                            task_id, self.room_id,
-                        )
-
-                        # Log system message
-                        await CreateRooms._log_system_message(
-                            self.room_id,
-                            'signed Job Agreement',
-                            {},
-                            msg_text=(
-                                'The Job Agreement has been signed by both parties. '
-                                'The signed document has been delivered.'
-                            ),
-                            show_to='both',
-                        )
-
-                        # Closure sequence (fire-and-forget)
-                        async def _run_inline_closure():
-                            try:
-                                await send_room_closure_and_transcript(
-                                    room_id=self.room_id,
-                                    bot=interaction.client,
-                                    headers=self.headers,
-                                    closure_type='agreement',
-                                    agreement_id=self._agreement_id,
-                                )
-                            except KeyboardInterrupt:
-                                logger.warning('Room closure task interrupted by shutdown')
-                            except BaseException:
-                                logger.exception('Failed during room closure sequence')
-                        asyncio.create_task(_run_inline_closure())
-
-                    await _handle_both_signed()
-                    # Return success to prevent fall-through to confirm embed
-                    return success_embed(
-                        'The Job Agreement has been signed by both parties. '
-                        'The room will be closed shortly.',
-                    )
-                else:
-                    # Already signed but other party hasn't, just notify
-                    await self._notify_other_party(
-                        body, room_id, job_title,
-                        interaction.client,
-                        session, headers,
-                        msg_data='You have already signed the agreement.',
-                    )
-                    return info_embed(message='You have already signed the agreement.')
-
-            # ── 5. Both reviews complete, show confirmation embed ──────
+            # ── 4. Both reviews complete, show confirmation embed ──────
             if body.get('status') != 'ok':
-                return error_embed(
-                    message='The service is temporarily unavailable.',
+                error_msg = 'The service is temporarily unavailable.'
+                await record_and_notify(
+                    room_id=room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_agreement',
+                    target_discord_id='',
+                    executor_name=sender_name,
+                    job_title=job_title,
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
                 )
+                return error_embed(message=error_msg)
 
             client_discord_id = body.get('client_discord_id', '')
             freelancer_discord_id = body.get('freelancer_discord_id', '')

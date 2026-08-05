@@ -1,5 +1,5 @@
 """
-Embed builder for ``room_guide_client`` system messages.
+Embed builder for ``interview_room_guide_client`` system messages.
 
 Sent to the client when an interview room has been successfully created.
 
@@ -12,17 +12,19 @@ Expected data keys
 """
 
 import discord
-from utils.embeds import create_embed, BrandColor
+from system_messages.interview_room_system import create_room_embed
+
+TITLE = "Interview Room Created"
 
 
-def build_embed(data: dict) -> tuple[discord.Embed, str]:
+def build_embed(data: dict) -> tuple[discord.Embed, str, str]:
     """Construct a confirmation embed for the client.
 
-    Returns ``(embed, body_text)`` where ``body_text`` is the
-    transcript-safe version without room headers.
+    Returns ``(embed, body_text, title)`` where ``body_text`` is the
+    transcript-safe version without room headers and ``title`` is the
+    message title used when persisting (``"Title\n\nBody"``).
     """
     freelancer_name = data.get("freelancer_name", "Freelancer")
-    job_title = data.get("job_title", "the job")
 
     body = (
         f"> ***A new interview room has been opened for your application.***\n"
@@ -32,16 +34,9 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         f"> __Use /interview message to communicate with the freelancer.__"
     )
 
-    description = (
-        f"> ***Job: `{job_title}`***\n"
-        f"\n"
-        f"{body}"
+    embed = create_room_embed(
+        title=TITLE,
+        body=body,
+        data=data,
     )
-
-    embed = create_embed(
-        title="Interview Room Created",
-        description=description,
-        color=BrandColor.PRIMARY,
-        footer="Xentra • Room system",
-    )
-    return embed, body
+    return embed, body, TITLE

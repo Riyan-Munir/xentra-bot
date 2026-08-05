@@ -992,7 +992,6 @@ def _sanitise_message(msg):
     msg.setdefault("avatar_url", None)
     msg.setdefault("left_by", "")
     msg.setdefault("reason", "")
-    msg.setdefault("show_to", "both")
     # Ensure string fields are actually strings
     if msg["data"] is None:
         msg["data"] = ""

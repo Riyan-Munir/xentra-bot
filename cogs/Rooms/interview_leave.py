@@ -24,15 +24,12 @@ from utils.embeds import (
     error_embed,
     success_embed,
     info_embed,
-    warning_embed,
     create_embed,
     BrandColor,
-    dm_blocked_embed,
 )
 from utils.http import get_http_session
-from utils.system_message_handler import handle_system_message
-from utils.failed_delivery import log_failed_delivery
 from utils.room_closure import send_room_closure_and_transcript
+from ._shared import record_and_notify
 
 logger = logging.getLogger('bot.rooms.interview_leave')
 
@@ -142,9 +139,9 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         reason_text = self.reason.value.strip()
         if not reason_text:
             try:
-                await interaction.response.edit_message(
+                await interaction.response.send_message(
                     embed=error_embed(message='Reason must not be empty.'),
-                    view=None,
+                    ephemeral=True,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):
                 pass
@@ -157,6 +154,12 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         session = get_http_session()
 
         active_role = self.user_data.get('active_role', '')
+
+        # ── Determine sender display name ────────────────────────────
+        if active_role == 'client':
+            sender_name = self.room_data.get('client_name', 'Client')
+        else:
+            sender_name = self.room_data.get('freelancer_name', 'Freelancer')
 
         # ── Call backend to persist leave + close room ──────────────
         payload = {
@@ -174,6 +177,18 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                 if resp.status != 200:
                     err_data = await resp.json()
                     err_msg = err_data.get('error', 'The service is temporarily unavailable.')
+                    await record_and_notify(
+                        room_id=self.room_id,
+                        sender_role=active_role,
+                        msg_data=err_msg,
+                        command_name='interview_leave',
+                        target_discord_id='',
+                        executor_name=sender_name,
+                        job_title=self.job_title,
+                        bot=interaction.client,
+                        session=session,
+                        headers=self.headers,
+                    )
                     # interaction already deferred, edit the original message
                     await interaction.edit_original_response(
                         embed=error_embed(message=err_msg),
@@ -183,81 +198,44 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                 leave_data = await resp.json()
         except Exception:
             logger.exception('Failed to call room-leave backend')
+            err_msg = 'The service is temporarily unavailable.'
+            await record_and_notify(
+                room_id=self.room_id,
+                sender_role=active_role,
+                msg_data=err_msg,
+                command_name='interview_leave',
+                target_discord_id='',
+                executor_name=sender_name,
+                job_title=self.job_title,
+                bot=interaction.client,
+                session=session,
+                headers=self.headers,
+            )
             await interaction.edit_original_response(
-                embed=error_embed(
-                    message='The service is temporarily unavailable.',
-                ),
+                embed=error_embed(message=err_msg),
                 view=None,
             )
             return
 
         closure_id = leave_data.get('closure_id', '')
         other_discord_id = leave_data.get('other_discord_id', '')
-        other_role = leave_data.get('other_role', '')
-        other_name = leave_data.get('other_name', 'The other party')
 
-        # ── Determine sender display name ────────────────────────────
-        if active_role == 'client':
-            sender_name = self.room_data.get('client_name', 'Client')
-        else:
-            sender_name = self.room_data.get('freelancer_name', 'Freelancer')
+        # ── Build success message (same text used for executor + record)
+        success_msg = f'You have left interview room `{self.room_id}`.'
 
-        # ── Log leave execution to transcript ─────────────────────────
-        try:
-            from .create_rooms import CreateRooms
-            leave_log_text = (
-                f'**{sender_name}** has left the room.\n'
-                f'> ***Reason:*** {reason_text}'
-            )
-            await CreateRooms._log_system_message(
-                self.room_id, 'leave', {},
-                msg_text=leave_log_text,
-                show_to='both',
-            )
-        except Exception:
-            logger.exception('Failed to log leave system message')
-
-        # ── Send notification to the other party ─────────────────────
-        other_notified = True
-        if other_discord_id:
-            notify_data = {
-                'discord_id': other_discord_id,
-                'room_id': self.room_id,
-                'job_title': self.job_title,
-                'command_name': 'interview_leave',
-                'executor_name': sender_name,
-                'closure_id': closure_id,
-                'reason': reason_text,
-            }
-
-            delivery_ok = await handle_system_message(
-                message_type='room_interview_message',
-                data=notify_data,
-                bot=interaction.client,
-            )
-
-            if not delivery_ok:
-                other_notified = False
-                await log_failed_delivery(
-                    room_id=self.room_id,
-                    message_type='notification',
-                    target_discord_id=other_discord_id,
-                    msg_id=closure_id,
-                    session=session,
-                    headers=self.headers,
-                )
-
-        # ── Show executor success, edit the original message ────────
-        success_msg = (
-            f'You have left room `{self.room_id}`.\n'
-            f'**Reason:** {reason_text}\n\n'
-            'The room has been closed. A transcript will be delivered shortly.'
+        # ── Record message + notify other party ─────────────────────
+        await record_and_notify(
+            room_id=self.room_id,
+            sender_role=active_role,
+            msg_data=success_msg,
+            command_name='interview_leave',
+            target_discord_id=other_discord_id,
+            executor_name=sender_name,
+            job_title=self.job_title,
+            bot=interaction.client,
+            session=session,
+            headers=self.headers,
         )
-        if not other_notified and other_name:
-            success_msg += (
-                f'\n\n\u26a0\ufe0f Could not notify **{other_name}** directly. '
-                'A transcript has been queued for delivery.'
-            )
 
         await interaction.edit_original_response(
             embed=success_embed(message=success_msg),
@@ -265,15 +243,15 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         )
 
         # ── Fire-and-forget: unified closure + transcript delivery ──
+        # The closure record was already persisted by room-leave/ (single
+        # point of persistence); the utility only delivers + marks complete.
         async def _run_closure():
             try:
+                await asyncio.sleep(30)
                 await send_room_closure_and_transcript(
-                    room_id=self.room_id,
+                    closure_ids=[closure_id],
                     bot=interaction.client,
                     headers=self.headers,
-                    closure_type='leave',
-                    leave_reason=reason_text,
-                    left_by=active_role,
                 )
             except KeyboardInterrupt:
                 logger.warning('Room closure task interrupted by shutdown')

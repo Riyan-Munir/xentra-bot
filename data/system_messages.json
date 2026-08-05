@@ -45,7 +45,7 @@
     ]
   },
   {
-    "name": "room_guide_client",
+    "name": "interview_room_guide_client",
     "description": "Notify the client that an interview room has been created.",
     "context": [
       "dm"
@@ -71,7 +71,7 @@
     ]
   },
   {
-    "name": "room_guide_freelancer",
+    "name": "interview_room_guide_freelancer",
     "description": "Notify the freelancer that they have been invited to an interview room.",
     "context": [
       "dm"
@@ -97,7 +97,7 @@
     ]
   },
   {
-    "name": "room_interview_message",
+    "name": "interview_room_message",
     "description": "Notify the receiver of a new interview room message or command notification. Builder returns (embed, body_text) tuple — body_text is the DM description without room headers, used for transcript logging.",
     "context": [
       "dm"
@@ -158,7 +158,82 @@
     ]
   },
   {
-    "name": "room_rules",
+    "name": "interview_room_transcript",
+    "description": "Fire-and-forget notification that the interview transcript has been generated. Constant text only — no receiver names, IDs, or room references in the body. The builder adds the Room / Job header when available; the Room header is skipped when room_id is not obtainable.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the receiver",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID (adds the Room header; optional when not obtainable)",
+        "mandatory": false
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job (adds the Job header)",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "interview_room_signed_agreement",
+    "description": "Fire-and-forget notification that the interview agreement has been signed. Constant text only — no receiver names, IDs, or room references in the body. The builder adds the Room / Job header when available; the Room header is skipped when room_id is not obtainable.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the receiver",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID (adds the Room header; optional when not obtainable)",
+        "mandatory": false
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job (adds the Job header)",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "interview_room_review_agreement",
+    "description": "Fire-and-forget notification that the interview agreement is ready for review. Constant text only — no receiver names, IDs, or room references in the body. The builder adds the Room / Job header when available; the Room header is skipped when room_id is not obtainable.",
+    "context": [
+      "dm"
+    ],
+    "requires_user": true,
+    "fields": [
+      {
+        "name": "discord_id",
+        "description": "Snowflake of the receiver",
+        "mandatory": true
+      },
+      {
+        "name": "room_id",
+        "description": "The interview room ID (adds the Room header; optional when not obtainable)",
+        "mandatory": false
+      },
+      {
+        "name": "job_title",
+        "description": "Title of the job (adds the Job header)",
+        "mandatory": false
+      }
+    ]
+  },
+  {
+    "name": "interview_room_rules",
     "description": "Send interview room rules to both parties. Builder returns (embed, body_text) tuple — body_text is the rules body without room headers, used for transcript logging.",
     "context": [
       "dm"
@@ -179,7 +254,7 @@
     ]
   },
   {
-    "name": "room_job_details",
+    "name": "interview_room_job_details",
     "description": "Send job details to both parties in the interview room. Builder returns (embed, body_text) tuple — body_text is the details body without room headers, used for transcript logging.",
     "context": [
       "dm"
@@ -255,8 +330,8 @@
     ]
   },
   {
-    "name": "room_closure",
-    "description": "Notify both parties when an interview room is concluded (agreement signed or party left). Builder returns (embed, body_text) tuple — body_text is the closure body without room headers, used for transcript logging.",
+    "name": "interview_room_closure",
+    "description": "Notify both parties when an interview room is concluded (agreement signed, party left, or system-closed). Builder reads everything from the closure record returned by /rooms/bot/closure-details/. Returns (embed, body_text) tuple — body_text is the closure body without room headers, used for transcript logging.",
     "context": [
       "dm"
     ],
@@ -269,14 +344,34 @@
         "mandatory": true
       },
       {
+        "name": "closure_id",
+        "description": "The closure record ID",
+        "mandatory": true
+      },
+      {
+        "name": "closure_type",
+        "description": "\"agreement\", \"leave\", or \"system\"",
+        "mandatory": true
+      },
+      {
         "name": "room_id",
         "description": "The interview room ID",
         "mandatory": true
       },
       {
-        "name": "closure_type",
-        "description": "\"agreement\" or \"leave\"",
-        "mandatory": true
+        "name": "job_title",
+        "description": "Title of the job",
+        "mandatory": false
+      },
+      {
+        "name": "closed_by",
+        "description": "\"client\", \"freelancer\", or \"system\"",
+        "mandatory": false
+      },
+      {
+        "name": "reason",
+        "description": "Leave reason (leave closure only)",
+        "mandatory": false
       },
       {
         "name": "client_name",
@@ -286,21 +381,6 @@
       {
         "name": "freelancer_name",
         "description": "Display name of the freelancer",
-        "mandatory": false
-      },
-      {
-        "name": "agreement_id",
-        "description": "Agreement ID (agreement closure only)",
-        "mandatory": false
-      },
-      {
-        "name": "leave_reason",
-        "description": "Reason provided for leaving (leave closure only)",
-        "mandatory": false
-      },
-      {
-        "name": "left_by",
-        "description": "\"client\" or \"freelancer\" (leave closure only)",
         "mandatory": false
       }
     ]

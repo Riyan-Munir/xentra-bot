@@ -452,6 +452,9 @@ class InterviewMessageConfirmView(discord.ui.View):
             self.stop()
             return
 
+        # Determine receiver (opposite of sender)
+        receiver = 'freelancer' if role == 'client' else 'client'
+
         # Build attachment metadata string
         attachment_metadata = ''
         if self.attachments:
@@ -474,6 +477,7 @@ class InterviewMessageConfirmView(discord.ui.View):
         payload = {
             'discord_id': my_discord_id,
             'room_id': room.get('room_id', ''),
+            'receiver': receiver,
             'msg_data': self.msg_text,
             'attachment_metadata': attachment_metadata,
         }
@@ -510,6 +514,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             'discord_id': receiver_discord_id,
             'room_id': room.get('room_id', ''),
             'job_title': room.get('job_title', ''),
+            'sender_role': role,
             'sender_name': sender_name,
             'msg_id': msg_id,
             'msg_text': self.msg_text,
@@ -532,7 +537,7 @@ class InterviewMessageConfirmView(discord.ui.View):
 
         # ── 3. Deliver via system message handler ────────────────────
         delivery_ok = await handle_system_message(
-            message_type='room_interview_message',
+            message_type='interview_room_message',
             data=system_data,
             bot=interaction.client,
             files=discord_files or None,

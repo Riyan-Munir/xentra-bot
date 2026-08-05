@@ -5,12 +5,12 @@ Flow:
   1. ``validate_and_respond`` validates the user, role, and room context.
   2. Checks premium tier, on-demand transcript generation requires Premium.
   3. Fetches the selected interview room via the shared resolver.
-  4. Calls the backend ``BotRoomTranscriptView`` to log the command execution
-     and persist the ``InterviewRoomMsg`` record.
-  5. Fetches the full transcript data from the backend via
-     ``fetch-transcript-data/``.
-  6. Generates the PDF file (requester-view) and sends it as a DM.
-  7. Sends a DM notification to the other party via ``handle_system_message``.
+  4. Calls the backend ``BotRoomTranscriptView`` to validate the user
+     belongs to the room (no message recording — handled bot-side).
+  5. Calls ``record_and_notify()`` to persist the command message record
+     and DM-notify the other party.
+  6. Fires the PDF request via ``request_pdf()`` (fire-and-forget).
+  7. Returns an instant "request received" embed to the executor.
 """
 
 import asyncio
@@ -22,14 +22,9 @@ from discord import app_commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands
-from utils.embeds import info_embed, error_embed
+from utils.embeds import success_embed, error_embed
 from utils.http import get_http_session
-from utils.system_message_handler import handle_system_message
-from utils.failed_delivery import log_failed_delivery
-from utils.pdf_service import (
-    create_pdf_task,
-    build_single_transcript_parts,
-)
+from ._shared import record_and_notify, request_pdf
 
 logger = logging.getLogger('bot.rooms.interview_transcript')
 
@@ -42,55 +37,6 @@ class InterviewTranscript(commands.Cog):
 
     async def cog_load(self) -> None:
         sync_cog_commands(self)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    async def _notify_other_party(
-        room_id: str,
-        job_title: str,
-        executor_name: str,
-        other_discord_id: str,
-        msg_id: str,
-        bot: discord.Client,
-        session,
-        headers: dict,
-    ) -> None:
-        """Send a DM notification to the other party about the transcript request.
-
-        Uses the existing ``room_interview_message`` command notification template.
-        If the DM fails (DMs blocked / disabled), logs a failed delivery record
-        with the ``msg_id`` so it can be retried via ``/interview delivery``.
-        """
-        if not other_discord_id:
-            return
-
-        notify_data = {
-            'discord_id': other_discord_id,
-            'room_id': room_id,
-            'job_title': job_title,
-            'command_name': 'interview_transcript',
-            'executor_name': executor_name,
-            'msg_data': 'Your transcript request has been received and will be processed shortly.',
-        }
-
-        delivery_ok = await handle_system_message(
-            message_type='room_interview_message',
-            data=notify_data,
-            bot=bot,
-        )
-
-        if not delivery_ok and msg_id:
-            await log_failed_delivery(
-                room_id=room_id,
-                message_type='notification',
-                target_discord_id=other_discord_id,
-                msg_id=msg_id,
-                session=session,
-                headers=headers,
-            )
 
     # ------------------------------------------------------------------
     # Command
@@ -111,18 +57,6 @@ class InterviewTranscript(commands.Cog):
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             is_freelancer = active_role == 'freelancer'
 
-            # ── 1. Premium tier check ─────────────────────────────────────
-            role_ids = user_data.get('role_ids', {})
-            role_info = role_ids.get(active_role, {})
-            is_premium = role_info.get('is_premium', False)
-
-            if not is_premium:
-                return error_embed(
-                    'On-demand transcript generation is a **Premium** feature.\n\n'
-                    'Free-tier users automatically receive a transcript '
-                    'when the interview room is closed.',
-                )
-
             room_data = user_data['_selected_room']
 
             room_id = room_data.get('room_id', '')
@@ -132,116 +66,124 @@ class InterviewTranscript(commands.Cog):
             client_name = room_data.get('client_name', 'Client')
             freelancer_name = room_data.get('freelancer_name', 'Freelancer')
 
+            executor_name = (
+                client_name if active_role == 'client' else freelancer_name
+            )
+
             session = get_http_session()
 
-            # ── 3. Log command execution via backend ──────────────────────
+            # ── 1. Premium tier check ─────────────────────────────────────
+            role_ids = user_data.get('role_ids', {})
+            role_info = role_ids.get(active_role, {})
+            is_premium = role_info.get('is_premium', False)
+
+            if not is_premium:
+                error_msg = (
+                    'On-demand transcript generation is a **Premium** feature.\n\n'
+                    'Free-tier users automatically receive a transcript '
+                    'when the interview room is closed.'
+                )
+                await record_and_notify(
+                    room_id=room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_transcript',
+                    target_discord_id='',
+                    executor_name=executor_name,
+                    job_title=job_title,
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
+                )
+                return error_embed(error_msg)
+
+            # ── 2. Validate user belongs to room (no msg saving) ──────────
             log_url = f'{BACKEND_URL}rooms/bot/transcript/'
             log_payload = {
                 'discord_id': str(interaction.user.id),
                 'room_id': room_id,
             }
 
-            msg_id = ''
             try:
                 async with session.post(
                     log_url, json=log_payload, headers=headers,
                 ) as resp:
-                    body = await resp.json()
-                    if resp.status == 200:
-                        msg_id = body.get('msg_id', '')
-                    else:
+                    if resp.status != 200:
+                        body = await resp.json()
                         logger.warning(
-                            'Transcript logging returned %s: %s',
+                            'Transcript validation returned %s: %s',
                             resp.status, body.get('error', ''),
                         )
-                        return error_embed(
-                            'The service is temporarily unavailable.',
+                        error_msg = 'The service is temporarily unavailable.'
+                        await record_and_notify(
+                            room_id=room_id,
+                            sender_role=active_role,
+                            msg_data=error_msg,
+                            command_name='interview_transcript',
+                            target_discord_id='',
+                            executor_name=executor_name,
+                            job_title=job_title,
+                            bot=interaction.client,
+                            session=session,
+                            headers=headers,
                         )
+                        return error_embed(error_msg)
             except Exception:
-                logger.exception('Failed to reach transcript logging endpoint')
-                return error_embed(
-                    'The service is temporarily unavailable.',
+                logger.exception('Failed to reach transcript validation endpoint')
+                error_msg = 'The service is temporarily unavailable.'
+                await record_and_notify(
+                    room_id=room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_transcript',
+                    target_discord_id='',
+                    executor_name=executor_name,
+                    job_title=job_title,
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
                 )
+                return error_embed(error_msg)
 
-            # ── 4. Log "Room Transcript" BEFORE fetching data ─────────────
-            # (Requirement C: ensures this message appears in the retrieved
-            #  session JSON and generated PDF)
-            from .create_rooms import CreateRooms
-            transcript_label = (
-                'A transcript of this room has been requested '
-                'and will be delivered to both parties.'
+            # ── 3. Record command message + notify other party ────────────
+            other_discord_id = (
+                freelancer_discord_id if active_role == 'client'
+                else client_discord_id
             )
-            await CreateRooms._log_system_message(
-                room_id, 'Room Transcript', {}, msg_text=transcript_label,
-                show_to='both',
+            msg_data = (
+                'Transcript request has been received and will be '
+                'processed shortly.'
             )
 
-            # ── 5. Background task: fetch data → generate PDF → send DM ──
-            async def _run_transcript_task():
-                try:
-                    viewer_role = 'freelancer' if is_freelancer else 'client'
-                    viewer_name = freelancer_name if is_freelancer else client_name
-
-                    parts = build_single_transcript_parts(
-                        recipient_discord_id=str(interaction.user.id),
-                        recipient_name=viewer_name,
-                        viewer_role=viewer_role,
-                        room_id=room_id,
-                    )
-
-                    task_id = await create_pdf_task(
-                        task_type='transcript',
-                        room_id=room_id,
-                        requester_discord_id=str(interaction.user.id),
-                        parts=parts,
-                    )
-
-                    if not task_id:
-                        logger.error(
-                            'On-demand transcript: failed to create PDF task for room %s',
-                            room_id,
-                        )
-                        return
-
-                    logger.info(
-                        'On-demand transcript task %s created for room %s by %s',
-                        task_id, room_id, interaction.user.id,
-                    )
-
-                    # ── Notify the other party ─────────────────────────────
-                    executor_name = (
-                        client_name if active_role == 'client'
-                        else freelancer_name
-                    )
-                    other_discord_id = (
-                        freelancer_discord_id if active_role == 'client'
-                        else client_discord_id
-                    )
-
-                    await self._notify_other_party(
-                        room_id=room_id,
-                        job_title=job_title,
-                        executor_name=executor_name,
-                        other_discord_id=other_discord_id,
-                        msg_id=msg_id,
-                        bot=interaction.client,
-                        session=session,
-                        headers=headers,
-                    )
-
-                except Exception:
-                    logger.exception(
-                        'Failed during transcript background task for room %s',
-                        room_id,
-                    )
-
-            asyncio.create_task(_run_transcript_task())
-
-            # ── 6. Return instant "request received" message ──────────────
-            return info_embed(
-                'Your transcript request has been received and will be '
-                'processed shortly.',
+            await record_and_notify(
+                room_id=room_id,
+                sender_role=active_role,
+                msg_data=msg_data,
+                command_name='interview_transcript',
+                target_discord_id=other_discord_id,
+                executor_name=executor_name,
+                job_title=job_title,
+                bot=interaction.client,
+                session=session,
+                headers=headers,
             )
+
+            # ── 4. Fire PDF generation request (fire-and-forget) ─────────
+            viewer_role = 'freelancer' if is_freelancer else 'client'
+
+            asyncio.create_task(
+                request_pdf(
+                    task_type='transcript',
+                    room_id=room_id,
+                    room_type='interview',
+                    requester_discord_id=str(interaction.user.id),
+                    recipient_discord_id=str(interaction.user.id),
+                    viewer_role=viewer_role,
+                )
+            )
+
+            # ── 5. Return instant "request received" message ──────────────
+            return success_embed(msg_data)
 
         await validate_and_respond(interaction, callback)
 

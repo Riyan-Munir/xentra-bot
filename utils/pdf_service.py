@@ -37,7 +37,7 @@ async def create_pdf_task(
     room_id: str,
     requester_discord_id: str,
     parts: list[dict],
-    payload: dict | None = None,
+    room_type: str = 'interview',
 ) -> str | None:
     """
     Create a PDF task on the backend and hand it to the PDF Generator.
@@ -51,11 +51,10 @@ async def create_pdf_task(
     requester_discord_id:
         Discord ID of the user who triggered the request.
     parts:
-        List of delivery part dicts.  Each must contain at minimum:
-        ``part_id``, ``viewer_role``, ``recipient_discord_id``,
-        ``recipient_name``, ``embed_title``, ``embed_description``, ``filename``.
-    payload:
-        Agreement data (for agreement types).  ``None`` for transcripts.
+        List of 1-2 delivery part dicts.  Each part holds only:
+        ``part_id``, ``viewer_role``, ``recipient_discord_id``, ``filename``.
+    room_type:
+        ``'interview'`` or ``'job'``.  Defaults to ``'interview'``.
 
     Returns
     -------
@@ -67,17 +66,19 @@ async def create_pdf_task(
     create_url = f'{BACKEND_URL}pdf-tasks/bot/create/'
     create_body = {
         'task_type': task_type,
+        'room_type': room_type,
         'room_id': room_id,
         'requester_discord_id': requester_discord_id,
         'parts': parts,
-        'payload': payload or {},
     }
 
     try:
         import aiohttp
+        from config import WEBHOOK_SECRET
         async with session.post(
             create_url,
             json=create_body,
+            headers={'X-Webhook-Token': WEBHOOK_SECRET},
             timeout=aiohttp.ClientTimeout(total=_BACKEND_TIMEOUT),
         ) as resp:
             if resp.status != 201:
@@ -112,39 +113,20 @@ async def create_pdf_task(
 
 def build_transcript_parts(
     client_discord_id: str,
-    client_name: str,
     freelancer_discord_id: str,
-    freelancer_name: str,
-    room_id: str,
 ) -> list[dict]:
-    """Build parts list for a transcript task (both parties get their own view)."""
+    """Build parts list for a 2-party transcript task (each with its own view)."""
     return [
         {
             'part_id': 'p1',
             'viewer_role': 'client',
             'recipient_discord_id': client_discord_id,
-            'recipient_name': client_name,
-            'embed_title': 'Room Transcript',
-            'embed_description': (
-                f'Review the attached transcript of your interview room '
-                f'**{room_id}**.\n\n'
-                'This document records all correspondence exchanged '
-                'during the interview phase.'
-            ),
             'filename': 'Room-Transcript.pdf',
         },
         {
             'part_id': 'p2',
             'viewer_role': 'freelancer',
             'recipient_discord_id': freelancer_discord_id,
-            'recipient_name': freelancer_name,
-            'embed_title': 'Room Transcript',
-            'embed_description': (
-                f'Review the attached transcript of your interview room '
-                f'**{room_id}**.\n\n'
-                'This document records all correspondence exchanged '
-                'during the interview phase.'
-            ),
             'filename': 'Room-Transcript.pdf',
         },
     ]
@@ -152,9 +134,7 @@ def build_transcript_parts(
 
 def build_single_transcript_parts(
     recipient_discord_id: str,
-    recipient_name: str,
     viewer_role: str,
-    room_id: str,
 ) -> list[dict]:
     """Build parts list for a single-party transcript (on-demand /interview transcript)."""
     return [
@@ -162,14 +142,6 @@ def build_single_transcript_parts(
             'part_id': 'p1',
             'viewer_role': viewer_role,
             'recipient_discord_id': recipient_discord_id,
-            'recipient_name': recipient_name,
-            'embed_title': 'Room Transcript',
-            'embed_description': (
-                f'Review the attached transcript of your interview room '
-                f'**{room_id}**.\n\n'
-                'This document records all correspondence exchanged '
-                'during the interview phase.'
-            ),
             'filename': 'Room-Transcript.pdf',
         },
     ]
@@ -177,32 +149,25 @@ def build_single_transcript_parts(
 
 def build_agreement_parts(
     client_discord_id: str,
-    client_name: str,
     freelancer_discord_id: str,
-    freelancer_name: str,
 ) -> list[dict]:
-    """Build parts list for a signed agreement task (both parties get the same PDF)."""
+    """
+    Build parts list for a signed agreement task (2 recipients, 1 PDF).
+
+    The PDF Generator generates a single PDF and duplicates it to satisfy
+    both parts.
+    """
     return [
         {
             'part_id': 'p1',
             'viewer_role': 'client',
             'recipient_discord_id': client_discord_id,
-            'recipient_name': client_name,
-            'embed_title': 'Job Agreement',
-            'embed_description': (
-                'Review the attached Job Agreement document.'
-            ),
             'filename': 'Job-Agreement.pdf',
         },
         {
             'part_id': 'p2',
             'viewer_role': 'freelancer',
             'recipient_discord_id': freelancer_discord_id,
-            'recipient_name': freelancer_name,
-            'embed_title': 'Job Agreement',
-            'embed_description': (
-                'Review the attached Job Agreement document.'
-            ),
             'filename': 'Job-Agreement.pdf',
         },
     ]
@@ -210,7 +175,6 @@ def build_agreement_parts(
 
 def build_single_agreement_parts(
     recipient_discord_id: str,
-    recipient_name: str,
     viewer_role: str,
 ) -> list[dict]:
     """Build parts list for a single-party agreement review PDF."""
@@ -219,11 +183,6 @@ def build_single_agreement_parts(
             'part_id': 'p1',
             'viewer_role': viewer_role,
             'recipient_discord_id': recipient_discord_id,
-            'recipient_name': recipient_name,
-            'embed_title': 'Job Agreement',
-            'embed_description': (
-                'Review the attached Job Agreement document.'
-            ),
             'filename': 'Job-Agreement.pdf',
         },
     ]

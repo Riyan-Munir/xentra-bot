@@ -155,9 +155,11 @@ async def handle_system_message(
         logger.exception("build_embed(%s) raised an exception", message_type)
         return False
 
-    # Unpack tuple (embed, body_text) or plain embed
+    # Unpack tuple (embed, body_text[, title]) or plain embed.  The extra
+    # ``body_text`` / ``title`` members are only used by callers that need
+    # to persist a transcript record; the DM delivery only needs ``embed``.
     if isinstance(result, tuple):
-        embed, _body_text = result
+        embed = result[0]
     else:
         embed = result
 

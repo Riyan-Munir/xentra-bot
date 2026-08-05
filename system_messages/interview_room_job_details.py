@@ -1,5 +1,5 @@
 """
-Embed builder for ``room_job_details`` system messages.
+Embed builder for ``interview_room_job_details`` system messages.
 
 Sent to both parties when an interview room is created, showing the
 job's title, description, budget range, and deadline (if set).
@@ -16,17 +16,18 @@ Expected data keys
 """
 
 import discord
-from utils.embeds import create_embed, BrandColor
+from system_messages.interview_room_system import create_room_embed
+
+TITLE = "Job Details"
 
 
-def build_embed(data: dict) -> tuple[discord.Embed, str]:
+def build_embed(data: dict) -> tuple[discord.Embed, str, str]:
     """Construct a job-details embed for interview room participants.
 
-    Returns ``(embed, body_text)`` where ``body_text`` is the
-    transcript-safe version without room headers.
+    Returns ``(embed, body_text, title)`` where ``body_text`` is the
+    transcript-safe version without room headers and ``title`` is the
+    message title used when persisting (``"Title\n\nBody"``).
     """
-    room_id = data.get("room_id", "N/A")
-    job_title = data.get("job_title", "N/A")
     job_description = data.get("job_description", "No description provided.")
     budget_min = data.get("budget_min", "—")
     budget_max = data.get("budget_max", "—")
@@ -49,17 +50,9 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
 
     body = "\n".join(body_parts)
 
-    description = (
-        f"> ***Room: `{room_id}`***\n"
-        f"> ***Job: `{job_title}`***\n"
-        f"\n"
-        f"{body}"
+    embed = create_room_embed(
+        title=TITLE,
+        body=body,
+        data=data,
     )
-
-    embed = create_embed(
-        title="Job Details",
-        description=description,
-        color=BrandColor.PRIMARY,
-        footer="Xentra • Room system",
-    )
-    return embed, body
+    return embed, body, TITLE

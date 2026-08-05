@@ -16,8 +16,7 @@ from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands
 from utils.embeds import success_embed, error_embed
 from utils.http import get_http_session
-from utils.system_message_handler import handle_system_message
-from utils.failed_delivery import log_failed_delivery
+from ._shared import record_and_notify
 
 logger = logging.getLogger('bot.rooms.interview_budget')
 
@@ -47,72 +46,93 @@ class InterviewBudget(commands.Cog):
             active_role = user_data.get('active_role')
             client_name = user_data.get('discord_username', 'Client')
 
-            # --- budget validation ---
-            if budget < 50:
-                return error_embed(message='Could not set the budget. Minimum amount is $50.')
-
             room_data = user_data['_selected_room']
 
-            # 2. Call backend to set the budget
             session = get_http_session()
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+
+            # --- budget validation ---
+            if budget < 50:
+                error_msg = 'Could not set the budget. Minimum amount is $50.'
+                await record_and_notify(
+                    room_id=room_data['room_id'],
+                    sender_role='client',
+                    msg_data=error_msg,
+                    command_name='interview_budget',
+                    target_discord_id='',
+                    executor_name=client_name,
+                    job_title=room_data.get('job_title', ''),
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
+                )
+                return error_embed(message=error_msg)
+
+            # 2. Call backend to set the budget
             url = f'{BACKEND_URL}rooms/bot/set-budget/'
             payload = {
                 'discord_id': str(interaction.user.id),
                 'room_id': room_data['room_id'],
                 'budget': str(budget),
             }
-            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
 
             try:
                 async with session.post(url, json=payload, headers=headers) as resp:
                     body = await resp.json()
                     if resp.status == 200:
-                        # ── 3. Send notification to freelancer ─────────────
+                        # ── 3. Record message + notify freelancer ──────────
                         freelancer_discord_id = body.get('freelancer_discord_id', '')
-                        msg_id = body.get('msg_id', '')
 
-                        # Build the single final response text (used for
-                        # both the executor embed and the DM notification).
                         success_msg = (
                             f'Final budget set to **${budget:,.2f}** for job '
                             f'**{room_data.get("job_title", "")}**.'
                         )
 
-                        if freelancer_discord_id and msg_id:
-                            notify_data = {
-                                'discord_id': freelancer_discord_id,
-                                'room_id': room_data['room_id'],
-                                'job_title': room_data.get('job_title', ''),
-                                'command_name': 'interview_budget',
-                                'executor_name': client_name,
-                                'msg_data': success_msg,
-                            }
-
-                            delivery_ok = await handle_system_message(
-                                message_type='room_interview_message',
-                                data=notify_data,
-                                bot=interaction.client,
-                            )
-
-                            if not delivery_ok:
-                                await log_failed_delivery(
-                                    room_id=room_data['room_id'],
-                                    message_type='notification',
-                                    target_discord_id=freelancer_discord_id,
-                                    msg_id=msg_id,
-                                    session=session,
-                                    headers=headers,
-                                )
+                        await record_and_notify(
+                            room_id=room_data['room_id'],
+                            sender_role='client',
+                            msg_data=success_msg,
+                            command_name='interview_budget',
+                            target_discord_id=freelancer_discord_id,
+                            executor_name=client_name,
+                            job_title=room_data.get('job_title', ''),
+                            bot=interaction.client,
+                            session=session,
+                            headers=headers,
+                        )
 
                         return success_embed(success_msg)
-                    return error_embed(
-                        body.get('error', 'Could not set the budget.')
+
+                    error_msg = body.get('error', 'Could not set the budget.')
+                    await record_and_notify(
+                        room_id=room_data['room_id'],
+                        sender_role='client',
+                        msg_data=error_msg,
+                        command_name='interview_budget',
+                        target_discord_id='',
+                        executor_name=client_name,
+                        job_title=room_data.get('job_title', ''),
+                        bot=interaction.client,
+                        session=session,
+                        headers=headers,
                     )
+                    return error_embed(error_msg)
             except Exception as e:
                 logger.exception('Error setting budget: %s', e)
-                return error_embed(
-                    'The service is temporarily unavailable.'
+                error_msg = 'The service is temporarily unavailable.'
+                await record_and_notify(
+                    room_id=room_data['room_id'],
+                    sender_role='client',
+                    msg_data=error_msg,
+                    command_name='interview_budget',
+                    target_discord_id='',
+                    executor_name=client_name,
+                    job_title=room_data.get('job_title', ''),
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
                 )
+                return error_embed(error_msg)
 
         await validate_and_respond(interaction, callback)
 

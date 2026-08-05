@@ -32,8 +32,7 @@ from utils.embeds import (
     info_embed,
 )
 from utils.http import get_http_session
-from utils.system_message_handler import handle_system_message
-from utils.failed_delivery import log_failed_delivery
+from ._shared import record_and_notify
 
 logger = logging.getLogger('bot.rooms.interview_milestone')
 
@@ -290,49 +289,48 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             async with session.post(url, json=payload, headers=headers) as resp:
                 body = await resp.json()
                 if resp.status != 200:
+                    error_msg = 'The service is temporarily unavailable.'
+                    await record_and_notify(
+                        room_id=self.room_data.get('room_id', ''),
+                        sender_role='freelancer',
+                        msg_data=error_msg,
+                        command_name='interview_milestone',
+                        target_discord_id='',
+                        executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                        job_title=self.room_data.get('job_title', ''),
+                        bot=interaction.client,
+                        session=session,
+                        headers=headers,
+                    )
                     await interaction.response.edit_message(
-                        embed=error_embed(
-                            message='The service is temporarily unavailable.',
-                        ),
+                        embed=error_embed(message=error_msg),
                         view=None,
                     )
                     return
 
                 count = body.get('milestone_count', 0)
-                msg_id = body.get('msg_id', '')
 
                 # Build the single final response text (used for both
                 # the executor embed and the DM notification).
                 success_msg = (
-                    f'**{count} milestone(s)** configured for room '
-                    f'`{self.room_data.get("room_id", "")}`.'
+                    f'**{count} milestone(s)** configured for job '
+                    f'**{self.room_data.get("job_title", "")}**.'
                 )
 
-                # --- Notify client ---
+                # --- Record + notify client ---
                 client_discord_id = self.room_data.get('client_discord_id', '')
-                if client_discord_id and msg_id:
-                    notify_data = {
-                        'discord_id': client_discord_id,
-                        'room_id': self.room_data.get('room_id', ''),
-                        'job_title': self.room_data.get('job_title', ''),
-                        'command_name': 'interview_milestone',
-                        'executor_name': self.room_data.get('freelancer_name', 'Freelancer'),
-                        'msg_data': success_msg,
-                    }
-                    delivery_ok = await handle_system_message(
-                        message_type='room_interview_message',
-                        data=notify_data,
-                        bot=interaction.client,
-                    )
-                    if not delivery_ok:
-                        await log_failed_delivery(
-                            room_id=self.room_data.get('room_id', ''),
-                            message_type='notification',
-                            target_discord_id=client_discord_id,
-                            msg_id=msg_id,
-                            session=session,
-                            headers=headers,
-                        )
+                await record_and_notify(
+                    room_id=self.room_data.get('room_id', ''),
+                    sender_role='freelancer',
+                    msg_data=success_msg,
+                    command_name='interview_milestone',
+                    target_discord_id=client_discord_id,
+                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                    job_title=self.room_data.get('job_title', ''),
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
+                )
 
                 await interaction.response.edit_message(
                     embed=success_embed(message=success_msg),
@@ -341,10 +339,21 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
 
         except Exception:
             logger.exception('Failed to save milestones to backend')
+            error_msg = 'The service is temporarily unavailable.'
+            await record_and_notify(
+                room_id=self.room_data.get('room_id', ''),
+                sender_role='freelancer',
+                msg_data=error_msg,
+                command_name='interview_milestone',
+                target_discord_id='',
+                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                job_title=self.room_data.get('job_title', ''),
+                bot=interaction.client,
+                session=session,
+                headers=headers,
+            )
             await interaction.response.edit_message(
-                embed=error_embed(
-                    message='The service is temporarily unavailable.',
-                ),
+                embed=error_embed(message=error_msg),
                 view=None,
             )
 
@@ -494,15 +503,24 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
             async with session.post(url, json=payload, headers=headers) as resp:
                 body = await resp.json()
                 if resp.status != 200:
+                    error_msg = body.get('error', 'The service is temporarily unavailable.')
+                    await record_and_notify(
+                        room_id=self.room_data.get('room_id', ''),
+                        sender_role='freelancer',
+                        msg_data=error_msg,
+                        command_name='interview_milestone',
+                        target_discord_id='',
+                        executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                        job_title=self.room_data.get('job_title', ''),
+                        bot=interaction.client,
+                        session=session,
+                        headers=headers,
+                    )
                     await interaction.response.edit_message(
-                        embed=error_embed(
-                            message=body.get('error', 'The service is temporarily unavailable.'),
-                        ),
+                        embed=error_embed(message=error_msg),
                         view=None,
                     )
                     return
-
-                msg_id = body.get('msg_id', '')
 
                 # Build the single final response text (used for both
                 # the executor embed and the DM notification).
@@ -510,31 +528,20 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                     f'Milestone `{self.milestone_id}` updated successfully.'
                 )
 
-                # --- Notify client ---
+                # --- Record + notify client ---
                 client_discord_id = self.room_data.get('client_discord_id', '')
-                if client_discord_id and msg_id:
-                    notify_data = {
-                        'discord_id': client_discord_id,
-                        'room_id': self.room_data.get('room_id', ''),
-                        'job_title': self.room_data.get('job_title', ''),
-                        'command_name': 'interview_milestone',
-                        'executor_name': self.room_data.get('freelancer_name', 'Freelancer'),
-                        'msg_data': success_msg,
-                    }
-                    delivery_ok = await handle_system_message(
-                        message_type='room_interview_message',
-                        data=notify_data,
-                        bot=interaction.client,
-                    )
-                    if not delivery_ok:
-                        await log_failed_delivery(
-                            room_id=self.room_data.get('room_id', ''),
-                            message_type='notification',
-                            target_discord_id=client_discord_id,
-                            msg_id=msg_id,
-                            session=session,
-                            headers=headers,
-                        )
+                await record_and_notify(
+                    room_id=self.room_data.get('room_id', ''),
+                    sender_role='freelancer',
+                    msg_data=success_msg,
+                    command_name='interview_milestone',
+                    target_discord_id=client_discord_id,
+                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                    job_title=self.room_data.get('job_title', ''),
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
+                )
 
                 await interaction.response.edit_message(
                     embed=success_embed(message=success_msg),
@@ -542,10 +549,21 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                 )
         except Exception:
             logger.exception('Failed to update milestone')
+            error_msg = 'The service is temporarily unavailable.'
+            await record_and_notify(
+                room_id=self.room_data.get('room_id', ''),
+                sender_role='freelancer',
+                msg_data=error_msg,
+                command_name='interview_milestone',
+                target_discord_id='',
+                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                job_title=self.room_data.get('job_title', ''),
+                bot=interaction.client,
+                session=session,
+                headers=headers,
+            )
             await interaction.response.edit_message(
-                embed=error_embed(
-                    message='The service is temporarily unavailable.',
-                ),
+                embed=error_embed(message=error_msg),
                 view=None,
             )
 
@@ -624,15 +642,24 @@ class InterviewMilestoneDeleteView(discord.ui.View):
             async with session.post(url, json=payload, headers=headers) as resp:
                 body = await resp.json()
                 if resp.status != 200:
+                    error_msg = body.get('error', 'The service is temporarily unavailable.')
+                    await record_and_notify(
+                        room_id=self.room_data.get('room_id', ''),
+                        sender_role='freelancer',
+                        msg_data=error_msg,
+                        command_name='interview_milestone',
+                        target_discord_id='',
+                        executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                        job_title=self.room_data.get('job_title', ''),
+                        bot=btn_interaction.client,
+                        session=session,
+                        headers=headers,
+                    )
                     await btn_interaction.response.edit_message(
-                        embed=error_embed(
-                            message=body.get('error', 'The service is temporarily unavailable.'),
-                        ),
+                        embed=error_embed(message=error_msg),
                         view=None,
                     )
                     return
-
-                msg_id = body.get('msg_id', '')
 
                 # Build the single final response text (used for both
                 # the executor embed and the DM notification).
@@ -641,31 +668,20 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                     f'Remaining milestones re-ordered.'
                 )
 
-                # --- Notify client ---
+                # --- Record + notify client ---
                 client_discord_id = self.room_data.get('client_discord_id', '')
-                if client_discord_id and msg_id:
-                    notify_data = {
-                        'discord_id': client_discord_id,
-                        'room_id': self.room_data.get('room_id', ''),
-                        'job_title': self.room_data.get('job_title', ''),
-                        'command_name': 'interview_milestone',
-                        'executor_name': self.room_data.get('freelancer_name', 'Freelancer'),
-                        'msg_data': success_msg,
-                    }
-                    delivery_ok = await handle_system_message(
-                        message_type='room_interview_message',
-                        data=notify_data,
-                        bot=btn_interaction.client,
-                    )
-                    if not delivery_ok:
-                        await log_failed_delivery(
-                            room_id=self.room_data.get('room_id', ''),
-                            message_type='notification',
-                            target_discord_id=client_discord_id,
-                            msg_id=msg_id,
-                            session=session,
-                            headers=headers,
-                        )
+                await record_and_notify(
+                    room_id=self.room_data.get('room_id', ''),
+                    sender_role='freelancer',
+                    msg_data=success_msg,
+                    command_name='interview_milestone',
+                    target_discord_id=client_discord_id,
+                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                    job_title=self.room_data.get('job_title', ''),
+                    bot=btn_interaction.client,
+                    session=session,
+                    headers=headers,
+                )
 
                 await btn_interaction.response.edit_message(
                     embed=success_embed(message=success_msg),
@@ -673,10 +689,21 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                 )
         except Exception:
             logger.exception('Failed to delete milestone')
+            error_msg = 'The service is temporarily unavailable.'
+            await record_and_notify(
+                room_id=self.room_data.get('room_id', ''),
+                sender_role='freelancer',
+                msg_data=error_msg,
+                command_name='interview_milestone',
+                target_discord_id='',
+                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                job_title=self.room_data.get('job_title', ''),
+                bot=btn_interaction.client,
+                session=session,
+                headers=headers,
+            )
             await btn_interaction.response.edit_message(
-                embed=error_embed(
-                    message='The service is temporarily unavailable.',
-                ),
+                embed=error_embed(message=error_msg),
                 view=None,
             )
 
@@ -786,8 +813,23 @@ class InterviewMilestoneSelectView(discord.ui.View):
             None,
         )
         if not milestone_data:
+            error_msg = 'Could not find the milestone.'
+            session = get_http_session()
+            headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+            await record_and_notify(
+                room_id=self.room_data.get('room_id', ''),
+                sender_role='freelancer',
+                msg_data=error_msg,
+                command_name='interview_milestone',
+                target_discord_id='',
+                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                job_title=self.room_data.get('job_title', ''),
+                bot=interaction.client,
+                session=session,
+                headers=headers,
+            )
             await interaction.response.edit_message(
-                embed=error_embed(message='Could not find the milestone.'),
+                embed=error_embed(message=error_msg),
                 view=None,
             )
             return
@@ -876,8 +918,23 @@ class InterviewMilestoneActionView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
+        cancel_msg = 'Milestone management cancelled.'
+        session = get_http_session()
+        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+        await record_and_notify(
+            room_id=self.room_data.get('room_id', ''),
+            sender_role='freelancer',
+            msg_data=cancel_msg,
+            command_name='interview_milestone',
+            target_discord_id='',
+            executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+            job_title=self.room_data.get('job_title', ''),
+            bot=interaction.client,
+            session=session,
+            headers=headers,
+        )
         await interaction.response.edit_message(
-            embed=info_embed(message='Milestone management cancelled.'),
+            embed=info_embed(message=cancel_msg),
             view=None,
         )
 
@@ -909,10 +966,23 @@ class InterviewMilestoneActionView(discord.ui.View):
         if value == 'add':
             # Check max before opening form
             if len(self.milestones) >= 10:
+                error_msg = 'Could not add milestone. Maximum of 10 milestones reached.'
+                session = get_http_session()
+                headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+                await record_and_notify(
+                    room_id=self.room_data.get('room_id', ''),
+                    sender_role='freelancer',
+                    msg_data=error_msg,
+                    command_name='interview_milestone',
+                    target_discord_id='',
+                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
+                    job_title=self.room_data.get('job_title', ''),
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
+                )
                 await interaction.response.edit_message(
-                    embed=error_embed(
-                        message='Could not add milestone. Maximum of 10 milestones reached.',
-                    ),
+                    embed=error_embed(message=error_msg),
                     view=None,
                 )
                 return
@@ -978,6 +1048,12 @@ class InterviewMilestone(commands.Cog):
 
             room_id = room_data.get('room_id', '')
 
+            # ── Determine sender display name ────────────────────────────
+            if active_role == 'client':
+                sender_name = room_data.get('client_name', 'Client')
+            else:
+                sender_name = room_data.get('freelancer_name', 'Freelancer')
+
             # ── 2. Check agreement budget with backend ──────────────────────
             session = get_http_session()
             check_url = f'{BACKEND_URL}rooms/bot/check-agreement-budget/'
@@ -990,21 +1066,54 @@ class InterviewMilestone(commands.Cog):
                 async with session.get(check_url, params=params, headers=headers) as resp:
                     body = await resp.json()
                     if resp.status != 200:
-                        return error_embed(
-                            message=body.get('error', 'Could not check agreement.'),
+                        error_msg = body.get('error', 'Could not check agreement.')
+                        await record_and_notify(
+                            room_id=room_id,
+                            sender_role=active_role,
+                            msg_data=error_msg,
+                            command_name='interview_milestone',
+                            target_discord_id='',
+                            executor_name=sender_name,
+                            job_title=room_data.get('job_title', ''),
+                            bot=interaction.client,
+                            session=session,
+                            headers=headers,
                         )
+                        return error_embed(message=error_msg)
 
                     if not body.get('has_budget'):
-                        return error_embed(
-                            message='Could not configure milestones. The job has no final budget.',
+                        error_msg = 'Could not configure milestones. The job has no final budget.'
+                        await record_and_notify(
+                            room_id=room_id,
+                            sender_role=active_role,
+                            msg_data=error_msg,
+                            command_name='interview_milestone',
+                            target_discord_id='',
+                            executor_name=sender_name,
+                            job_title=room_data.get('job_title', ''),
+                            bot=interaction.client,
+                            session=session,
+                            headers=headers,
                         )
+                        return error_embed(message=error_msg)
 
                     milestones = body.get('milestones', [])
             except Exception:
                 logger.exception('Failed to check agreement budget')
-                return error_embed(
-                    message='The service is temporarily unavailable.',
+                error_msg = 'The service is temporarily unavailable.'
+                await record_and_notify(
+                    room_id=room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_milestone',
+                    target_discord_id='',
+                    executor_name=sender_name,
+                    job_title=room_data.get('job_title', ''),
+                    bot=interaction.client,
+                    session=session,
+                    headers=headers,
                 )
+                return error_embed(message=error_msg)
 
             # ── 3a. CASE B, Milestones exist → show action view ────────────
             if milestones:

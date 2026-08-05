@@ -290,22 +290,20 @@ class WebhookServer:
     # ── PDF Generator Callback ───────────────────────────────────────────
 
     async def handle_pdf_result(self, request: web.Request) -> web.Response:
-        """Receive PDF generation results from the PDF Generator.
+        """Receive the PDF-ready notification from the PDF Generator.
 
         POST /webhook/pdf-result
-        Body: { task_id, results: [{ part_id, pdf_bytes }] }
+        Body: { task_id }
 
         1. Verify HMAC signature from PDF_SERVICE_SECRET.
-        2. Fetch task detail from backend (parts + recipient info).
-        3. For each result, match part_id → recipient, send DM with PDF.
-        4. PATCH backend status → ``completed``.
+        2. Delegate delivery to ``pdf_delivery.deliver_pdf_result``, which
+           fetches the task detail (task_type, room_id, parts, results),
+           delivers each part via DM in parallel, logs the system-message
+           record + transcript entry per recipient, and marks the task
+           ``completed`` on success — on failure the task is returned to
+           ``generated`` (results kept) for later re-delivery.
         """
-        import base64
-        import io
-
-        from config import BACKEND_URL, PDF_SERVICE_SECRET
-        from utils.http import get_http_session
-        from utils.embeds import create_embed, BrandColor, info_embed
+        from config import PDF_SERVICE_SECRET
 
         # ── 1. Verify signature ───────────────────────────────────────
         timestamp = request.headers.get('X-Timestamp', '')
@@ -339,108 +337,25 @@ class WebhookServer:
             return web.json_response({'error': 'Invalid JSON'}, status=400)
 
         task_id = data.get('task_id', '')
-        results = data.get('results', [])
 
-        if not task_id or not results:
+        if not task_id:
             return web.json_response(
-                {'error': 'task_id and results are required'},
+                {'error': 'task_id is required'},
                 status=400,
             )
 
-        # ── 3. Fetch task detail from backend ──────────────────────────
-        session = get_http_session()
-        detail_url = f'{BACKEND_URL}pdf-tasks/bot/{task_id}/'
-
-        task_detail = None
-        try:
-            import aiohttp
-            async with session.get(
-                detail_url,
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as resp:
-                if resp.status != 200:
-                    logger.error('Failed to fetch task %s: %s', task_id, resp.status)
-                    return web.json_response(
-                        {'error': 'Task not found'},
-                        status=404,
-                    )
-                task_detail = await resp.json()
-        except Exception:
-            logger.exception('Failed to reach backend for task %s', task_id)
-            return web.json_response(
-                {'error': 'Backend unreachable'},
-                status=502,
-            )
-
-        parts = task_detail.get('parts', [])
-        part_map = {p['part_id']: p for p in parts}
-
-        # ── 4. Mark task as delivering ─────────────────────────────────
+        # ── 3. Mark task as delivering ─────────────────────────────────
         await self._patch_task_status(task_id, 'delivering')
 
-        # ── 5. Deliver PDFs via DM ────────────────────────────────────
-        all_succeeded = True
-        for result in results:
-            part_id = result.get('part_id', '')
-            pdf_b64 = result.get('pdf_bytes', '')
+        # ── 4. Deliver PDFs per part via the shared utility ───────────
+        # The utility fetches the task detail (task_type, room_id, parts,
+        # results) from the backend itself, delivers each part in parallel
+        # (non-DB work parallel, DB writes serialised), marks the task
+        # ``completed`` on success, or returns it to ``generated`` on
+        # failure (results kept, no retry_count increment).
+        from utils.pdf_delivery import deliver_pdf_result
 
-            part_info = part_map.get(part_id)
-            if not part_info:
-                logger.warning('Unknown part_id %s in task %s', part_id, task_id)
-                all_succeeded = False
-                continue
-
-            recipient_id = part_info.get('recipient_discord_id', '')
-            recipient_name = part_info.get('recipient_name', '')
-            embed_title = part_info.get('embed_title', 'Document')
-            embed_description = part_info.get('embed_description', '')
-            filename = part_info.get('filename', 'Document.pdf')
-
-            try:
-                pdf_bytes = base64.b64decode(pdf_b64)
-            except Exception:
-                logger.error('Invalid base64 PDF for part %s in task %s', part_id, task_id)
-                all_succeeded = False
-                continue
-
-            try:
-                user = self.bot.get_user(int(recipient_id))
-                if not user:
-                    user = await self.bot.fetch_user(int(recipient_id))
-
-                embed = create_embed(
-                    title=embed_title,
-                    description=embed_description,
-                    color=BrandColor.PRIMARY,
-                )
-                await user.send(
-                    embed=embed,
-                    file=discord.File(io.BytesIO(pdf_bytes), filename=filename),
-                )
-                logger.info(
-                    'PDF delivered to %s (%s) for task %s part %s',
-                    recipient_name, recipient_id, task_id, part_id,
-                )
-            except discord.Forbidden:
-                logger.warning(
-                    'Cannot DM %s (%s) for task %s, DMs may be disabled.',
-                    recipient_name, recipient_id, task_id,
-                )
-                all_succeeded = False
-            except Exception:
-                logger.exception(
-                    'Failed to send PDF to %s (%s) for task %s',
-                    recipient_name, recipient_id, task_id,
-                )
-                all_succeeded = False
-
-        # ── 6. Update final status ─────────────────────────────────────
-        if all_succeeded:
-            await self._patch_task_status(task_id, 'completed')
-        else:
-            await self._patch_task_status(
-                task_id, 'failed', error_message='One or more deliveries failed',
-            )
+        await deliver_pdf_result(task_id, self.bot)
 
         return web.json_response({'status': 'ok'})
 

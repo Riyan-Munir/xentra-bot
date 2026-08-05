@@ -118,9 +118,11 @@ async def fetch_selected_room(
     The backend derives the user's role from ``user.active_role``, so the
     bot does not need to pass it.
 
-    Returns the room data dict if found, or None if not found or an error
-    occurred.  Logs failures internally so callers don't need to duplicate
-    logging.
+    Returns:
+        - Room data dict on success (HTTP 200).
+        - Error dict with ``error`` and optional ``code`` key on failure
+          (e.g. ``{'error': '...', 'code': 'ROOM_INACTIVE'}``).
+        - ``None`` on network/exception errors.
 
     Shared resolver, use in any command that needs the user's currently
     selected interview or job room.
@@ -142,7 +144,10 @@ async def fetch_selected_room(
                 'fetch_selected_room returned %s for discord_id=%s',
                 resp.status, discord_id,
             )
-            return None
+            try:
+                return await resp.json()
+            except Exception:
+                return None
     except Exception:
         logger.exception(
             'Failed to fetch selected room for discord_id=%s',
@@ -481,7 +486,6 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     active_role = user_data.get('active_role', 'non_bot_user')
     assigned_channel_id = user_data.get('assigned_channel_id')
     has_active_job_chat = user_data.get('has_active_job_chat', False)
-    has_active_interview_chat = user_data.get('has_active_interview_chat', False)
 
     # ── Hacking alert enforcement ─────────────────────────────────────────
     # Mirror SecurityEnforcementMiddleware: if the user has an unseen hacking
@@ -523,11 +527,33 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
         await interaction.followup.send(embed=err, ephemeral=True)
         return
 
-    # 1.7. Interview Chat Requirement Enforcement
-    if requires_interview_chat and not has_active_interview_chat:
-        err = error_embed("This command requires an active interview chat session.")
-        await interaction.followup.send(embed=err, ephemeral=True)
-        return
+    # 1.7. Interview Chat / Selected Room Requirement Enforcement
+    # This replaces the old ``has_active_interview_chat`` gate.
+    # The selected room fetch is the single source of truth: it
+    # validates that the user has a selected room AND that the
+    # room is still active (open).
+    if requires_interview_chat:
+        _selected = await fetch_selected_room(
+            discord_id=str(user_id),
+            room_type='interview',
+            headers={'X-Webhook-Token': WEBHOOK_SECRET},
+        )
+        if _selected is None:
+            # Network error — could not reach backend
+            await interaction.followup.send(
+                embed=error_embed('Unable to verify your selected room. Please try again.'),
+                ephemeral=True,
+            )
+            return
+        if 'error' in _selected:
+            # Backend returned an error (no selected room, room inactive, etc.)
+            msg = _selected['error']
+            await interaction.followup.send(
+                embed=error_embed(msg),
+                ephemeral=True,
+            )
+            return
+        user_data['_selected_room'] = _selected
 
     async def send_response(embed):
         """Internal helper to send response with or without admin button."""
@@ -564,21 +590,9 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                     await send_response(err)
                     return
  
-    # ── 3.5 Auto-fetch selected room if required ─────────────────────────
-    if requires_interview_chat:
-        _selected = await fetch_selected_room(
-            discord_id=str(user_id),
-            room_type='interview',
-            headers={'X-Webhook-Token': WEBHOOK_SECRET},
-        )
-        if _selected is None:
-            await interaction.followup.send(
-                embed=error_embed('No selected interview room found. Use `/switch_room` to select one.'),
-                ephemeral=True,
-            )
-            return
-        user_data['_selected_room'] = _selected
-    elif requires_job_chat:
+    # ── 3.5 Auto-fetch selected room if required (job chat) ─────────────
+    # Interview chat is already handled above (section 1.7).
+    if requires_job_chat:
         _selected = await fetch_selected_room(
             discord_id=str(user_id),
             room_type='job',

@@ -43,8 +43,10 @@ from utils.http import get_http_session
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
 from packet_templates.factory import BotPacketFactory
-from system_messages.room_rules import build_embed as build_rules_embed
-from system_messages.room_job_details import build_embed as build_job_details_embed
+from system_messages.interview_room_rules import build_embed as build_rules_embed
+from system_messages.interview_room_job_details import build_embed as build_job_details_embed
+from system_messages.interview_room_guide_freelancer import build_embed as build_guide_freelancer_embed
+from system_messages.interview_room_guide_client import build_embed as build_guide_client_embed
 
 logger = logging.getLogger("bot.rooms.create_rooms")
 
@@ -634,7 +636,7 @@ class CreateRooms(commands.Cog):
             or interaction.user.display_name
         )
         freelancer_dm_ok = await handle_system_message(
-            "room_guide_freelancer",
+            "interview_room_guide_freelancer",
             {
                 "discord_id": app_view.selected_freelancer_id,
                 "client_name": client_display_name,
@@ -653,7 +655,7 @@ class CreateRooms(commands.Cog):
             return
 
         client_dm_ok = await handle_system_message(
-            "room_guide_client",
+            "interview_room_guide_client",
             {
                 "discord_id": str(interaction.user.id),
                 "freelancer_name": app_view.selected_freelancer_name,
@@ -682,9 +684,38 @@ class CreateRooms(commands.Cog):
             await interaction.edit_original_response(embed=result)
             return
 
+        # ── Step 7b, Log guide messages (2 records) ──────────────
+        # Guide DMs were sent BEFORE room creation.  Now that the room
+        # exists, persist one InterviewRoomMsg per receiver.
+        guide_freelancer_data = {
+            "client_name": client_display_name,
+            "job_title": job_view.selected_job_title,
+        }
+        _, guide_fl_body, guide_fl_title = build_guide_freelancer_embed(guide_freelancer_data)
+        await self._log_system_message(
+            room_id=result['room_id'],
+            msg_type="guide_freelancer",
+            flags={"freelancer_guide_sent": True},
+            msg_text=f"{guide_fl_title}\n\n{guide_fl_body}" if guide_fl_body else guide_fl_title,
+            receiver="freelancer",
+        )
+
+        guide_client_data = {
+            "freelancer_name": app_view.selected_freelancer_name,
+            "job_title": job_view.selected_job_title,
+        }
+        _, guide_cl_body, guide_cl_title = build_guide_client_embed(guide_client_data)
+        await self._log_system_message(
+            room_id=result['room_id'],
+            msg_type="guide_client",
+            flags={"client_guide_sent": True},
+            msg_text=f"{guide_cl_title}\n\n{guide_cl_body}" if guide_cl_body else guide_cl_title,
+            receiver="client",
+        )
+
         # ── Step 8, Send rules system message ─────────────────────
         rules_freelancer_ok = await handle_system_message(
-            "room_rules",
+            "interview_room_rules",
             {
                 "discord_id": result['freelancer_discord_id'],
                 "room_id": result['room_id'],
@@ -695,7 +726,7 @@ class CreateRooms(commands.Cog):
         rules_client_ok = False
         if rules_freelancer_ok:
             rules_client_ok = await handle_system_message(
-                "room_rules",
+                "interview_room_rules",
                 {
                     "discord_id": str(interaction.user.id),
                     "room_id": result['room_id'],
@@ -704,19 +735,30 @@ class CreateRooms(commands.Cog):
                 interaction.client,
             )
 
-        if rules_freelancer_ok and rules_client_ok:
-            rules_data = {"room_id": result['room_id']}
-            _, rules_body_text = build_rules_embed(rules_data)
+        rules_data = {"room_id": result['room_id']}
+        _, rules_body_text, rules_title = build_rules_embed(rules_data)
+
+        rules_msg_text = (
+            f"{rules_title}\n\n{rules_body_text}" if rules_body_text else rules_title
+        )
+        if rules_freelancer_ok:
             await self._log_system_message(
                 room_id=result['room_id'],
                 msg_type="rules",
-                flags={
-                    "freelancer_rules_sent": True,
-                    "client_rules_sent": True,
-                },
-                msg_text=rules_body_text,
+                flags={"freelancer_rules_sent": True},
+                msg_text=rules_msg_text,
+                receiver="freelancer",
             )
-        else:
+        if rules_client_ok:
+            await self._log_system_message(
+                room_id=result['room_id'],
+                msg_type="rules",
+                flags={"client_rules_sent": True},
+                msg_text=rules_msg_text,
+                receiver="client",
+            )
+
+        if not (rules_freelancer_ok and rules_client_ok):
             # Log failed deliveries for retry
             if not rules_freelancer_ok:
                 await log_failed_delivery(
@@ -735,7 +777,7 @@ class CreateRooms(commands.Cog):
 
         # ── Step 9, Send job details system message ───────────────
         jd_freelancer_ok = await handle_system_message(
-            "room_job_details",
+            "interview_room_job_details",
             {
                 "discord_id": result['freelancer_discord_id'],
                 "room_id": result['room_id'],
@@ -750,7 +792,7 @@ class CreateRooms(commands.Cog):
         jd_client_ok = False
         if jd_freelancer_ok:
             jd_client_ok = await handle_system_message(
-                "room_job_details",
+                "interview_room_job_details",
                 {
                     "discord_id": str(interaction.user.id),
                     "room_id": result['room_id'],
@@ -763,26 +805,35 @@ class CreateRooms(commands.Cog):
                 interaction.client,
             )
 
-        if jd_freelancer_ok and jd_client_ok:
-            jd_data = {
-                "room_id": result['room_id'],
-                "job_title": result['job_title'],
-                "job_description": result.get('job_description', ''),
-                "budget_min": result.get('budget_min', '—'),
-                "budget_max": result.get('budget_max', '—'),
-                "deadline": result.get('deadline'),
-            }
-            _, jd_body_text = build_job_details_embed(jd_data)
+        jd_data = {
+            "room_id": result['room_id'],
+            "job_title": result['job_title'],
+            "job_description": result.get('job_description', ''),
+            "budget_min": result.get('budget_min', '—'),
+            "budget_max": result.get('budget_max', '—'),
+            "deadline": result.get('deadline'),
+        }
+        _, jd_body_text, jd_title = build_job_details_embed(jd_data)
+        jd_msg_text = f"{jd_title}\n\n{jd_body_text}" if jd_body_text else jd_title
+
+        if jd_freelancer_ok:
             await self._log_system_message(
                 room_id=result['room_id'],
                 msg_type="job_details",
-                flags={
-                    "freelancer_job_details_sent": True,
-                    "client_job_details_sent": True,
-                },
-                msg_text=jd_body_text,
+                flags={"freelancer_job_details_sent": True},
+                msg_text=jd_msg_text,
+                receiver="freelancer",
             )
-        else:
+        if jd_client_ok:
+            await self._log_system_message(
+                room_id=result['room_id'],
+                msg_type="job_details",
+                flags={"client_job_details_sent": True},
+                msg_text=jd_msg_text,
+                receiver="client",
+            )
+
+        if not (jd_freelancer_ok and jd_client_ok):
             # Log failed deliveries for retry
             if not jd_freelancer_ok:
                 await log_failed_delivery(
@@ -881,7 +932,7 @@ class CreateRooms(commands.Cog):
         msg_type: str,
         flags: dict,
         msg_text: str = '',
-        show_to: str = 'both',
+        receiver: str = '',
     ) -> None:
         """Fire-and-forget log of a system message delivery to the backend.
 
@@ -896,9 +947,9 @@ class CreateRooms(commands.Cog):
         msg_text : str, optional
             The actual body-only message text (no room headers).
             If empty, the backend falls back to a placeholder.
-        show_to : str, optional
-            Transcript visibility: ``"both"`` (default), ``"freelancer"``,
-            or ``"client"``.
+        receiver : str, optional
+            Intended receiver (``"freelancer"`` or ``"client"``).
+            Used to set the transcript ``show_to`` per record.
         """
         log_packet = BotPacketFactory.create_packet(
             packet_type="log_system_message",
@@ -907,7 +958,7 @@ class CreateRooms(commands.Cog):
                 "msg_type": msg_type,
                 "flags": flags,
                 "msg_text": msg_text,
-                "show_to": show_to,
+                "receiver": receiver,
             },
             provider="bot",
         )
