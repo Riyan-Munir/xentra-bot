@@ -27,10 +27,16 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
         style=discord.TextStyle.long,
     )
 
-    def __init__(self, wallet_id: str, challenge_msg: str):
+    def __init__(
+        self,
+        wallet_id: str,
+        challenge_msg: str,
+        start_view: 'WalletVerifyView | None' = None,
+    ):
         super().__init__(timeout=300)
         self.wallet_id = wallet_id
         self.challenge_msg = challenge_msg
+        self.start_view = start_view
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         raw_sig = self.signature.value.strip()
@@ -46,15 +52,11 @@ class VerifySignatureModal(discord.ui.Modal, title="Verify Wallet"):
             return
 
         if not raw_sig:
+            if self.start_view is not None:
+                self.start_view._last_sig = raw_sig
             await validation_fail(
                 interaction,
                 message='Signature cannot be empty.',
-                modal_class=VerifySignatureModal,
-                modal_kwargs={
-                    'wallet_id': self.wallet_id,
-                    'challenge_msg': self.challenge_msg,
-                },
-                ephemeral=True,
             )
             return
 
@@ -137,6 +139,8 @@ class WalletVerifyView(discord.ui.View):
         self.wallets = wallets
         self.wallet_type = wallet_type
         self._selected_wallet_id: str | None = None
+        # Last signature attempt, restored when the modal re-opens from this view.
+        self._last_sig: str = ''
         self.add_item(UnverifiedWalletSelect(wallets))
 
         proceed = discord.ui.Button(label='Proceed', style=discord.ButtonStyle.success, row=1)
@@ -164,22 +168,18 @@ class WalletVerifyView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
         wallet_id = self._selected_wallet_id or (self.children[0].values[0] if isinstance(self.children[0], UnverifiedWalletSelect) and self.children[0].values else None)
         if not wallet_id:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Select a wallet first.'), view=None,
-            )
+            await validation_fail(interaction, message='Select a wallet first.')
             return
 
         # Find the selected wallet in stored list
         selected = next((w for w in self.wallets if w['id'] == wallet_id), None)
         if not selected:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not find the selected wallet.'),
-                view=None,
-            )
+            await validation_fail(interaction, message='Could not find the selected wallet.')
             return
+
+        self._done = True
 
         await interaction.response.defer()
 
@@ -224,6 +224,7 @@ class WalletVerifyView(discord.ui.View):
                         modal = VerifySignatureModal(
                             wallet_id=wallet_id,
                             challenge_msg=token,
+                            start_view=self,
                         )
                         await inter.response.send_modal(modal)
 

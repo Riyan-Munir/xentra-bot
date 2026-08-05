@@ -7,6 +7,7 @@ from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import success_embed, create_embed, BrandColor, error_embed, info_embed, loading_embed
 from utils.analytics_collector import AnalyticsCollector
+from utils.retry import validation_fail
 from packet_templates.factory import BotPacketFactory
 
 logger = logging.getLogger('bot.jobs.apply_job')
@@ -53,9 +54,9 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
             if self.preflight_view:
                 self.preflight_view.last_proposal = proposal_text
                 self.preflight_view.last_bid = self.bid.value
-            await interaction.response.send_message(
-                embed=error_embed(message=f"Edit proposal. 50-300 words (currently {word_count})."),
-                ephemeral=True,
+            await validation_fail(
+                interaction,
+                message=f"Edit proposal. 50-300 words (currently {word_count}).",
             )
             return
 
@@ -68,9 +69,9 @@ class JobApplicationModal(discord.ui.Modal, title='Submit Job Application'):
             if self.preflight_view:
                 self.preflight_view.last_proposal = proposal_text
                 self.preflight_view.last_bid = self.bid.value
-            await interaction.response.send_message(
-                embed=error_embed(message="Enter a valid bid."),
-                ephemeral=True,
+            await validation_fail(
+                interaction,
+                message="Enter a valid bid.",
             )
             return
 

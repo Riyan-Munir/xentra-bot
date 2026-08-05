@@ -109,12 +109,14 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         original_interaction: discord.Interaction,
         message_id: str = '',
         prefill_msg: str = '',
+        start_view: 'MessageStartView | None' = None,
     ) -> None:
         super().__init__(timeout=300)
         self.user_data = user_data
         self.room_data = room_data
         self.original_interaction = original_interaction
         self.message_id = message_id
+        self.start_view = start_view
         if prefill_msg:
             self.msg.default = prefill_msg
 
@@ -133,18 +135,11 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         word_count = len(msg_text.split()) if msg_text else 0
 
         if word_count > 1000:
+            if self.start_view is not None:
+                self.start_view._last_msg = msg_text
             await validation_fail(
                 interaction,
                 message=f'Message exceeds 1000 words ({word_count} words). Please shorten it.',
-                modal_class=InterviewMessageModal,
-                modal_kwargs={
-                    'user_data': self.user_data,
-                    'room_data': self.room_data,
-                    'original_interaction': self.original_interaction,
-                    'message_id': self.message_id,
-                    'prefill_msg': msg_text,
-                },
-                ephemeral=True,
             )
             return
 
@@ -728,6 +723,8 @@ class MessageStartView(discord.ui.View):
         self.room_data = room_data
         self.original_interaction = original_interaction
         self.message_id = message_id
+        # Last message attempt, restored when the modal re-opens from this view.
+        self._last_msg: str = ''
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -744,9 +741,10 @@ class MessageStartView(discord.ui.View):
             room_data=self.room_data,
             original_interaction=self.original_interaction,
             message_id=self.message_id,
+            prefill_msg=self._last_msg,
+            start_view=self,
         )
         await interaction.response.send_modal(modal)
-        self.stop()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(

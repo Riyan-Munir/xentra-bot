@@ -10,6 +10,7 @@ from config import BACKEND_URL, FRONTEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
 from utils.embeds import BrandColor, create_embed, error_embed, info_embed, success_embed, warning_embed
 from utils.http import get_http_session
+from utils.retry import validation_fail
 from utils.role_selector import ProfileRoleView
 from utils.userid_resolver import resolve_user_id
 from packet_templates.factory import BotPacketFactory
@@ -47,9 +48,7 @@ class PlanSelect(discord.ui.Select):
         selected_id = self.values[0]
         plan = next((p for p in self.plans if str(p.get('id', '')) == selected_id), None)
         if not plan:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not find the selected plan.'), view=None,
-            )
+            await validation_fail(interaction, message='Could not find the selected plan.')
             return
         view._selected_plan = plan
         await interaction.response.defer()
@@ -268,9 +267,7 @@ class PlansView(discord.ui.View):
             return
         plan = self._selected_plan
         if not plan:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Select a plan first.'), view=None,
-            )
+            await validation_fail(interaction, message='Select a plan first.')
             return
         await self.show_plan_detail(interaction, plan)
 

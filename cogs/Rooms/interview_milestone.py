@@ -32,6 +32,7 @@ from utils.embeds import (
     info_embed,
 )
 from utils.http import get_http_session
+from utils.retry import validation_fail
 from ._shared import record_and_notify
 
 logger = logging.getLogger('bot.rooms.interview_milestone')
@@ -68,33 +69,46 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
         required=True,
     )
 
-    def __init__(self, room_data: dict, interaction: discord.Interaction) -> None:
+    def __init__(self, room_data: dict, interaction: discord.Interaction, active_role: str) -> None:
         super().__init__(timeout=300)
         self.room_data = room_data
         self.origin_interaction = interaction
+        self.active_role = active_role
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         raw = self.count.value.strip()
 
+        session = get_http_session()
+        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+
         try:
             total = int(raw)
         except (ValueError, TypeError):
-            # Re-open the same modal via retry button
-            view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
-            await interaction.response.send_message(
-                embed=error_embed(message='Enter a valid milestone count.'),
-                view=view,
-                ephemeral=True,
+            error_msg = 'Enter a valid milestone count.'
+            await record_and_notify(
+                room_id=self.room_data.get('room_id', ''),
+                sender_role=self.active_role,
+                msg_data=error_msg,
+                command_name='interview_milestone',
+                bot=interaction.client,
+                session=session,
+                headers=headers,
             )
+            await validation_fail(interaction, message=error_msg)
             return
 
         if total < 1 or total > 10:
-            view = _retry_view(InterviewMilestoneCountModal, {'room_data': self.room_data, 'interaction': self.origin_interaction})
-            await interaction.response.send_message(
-                embed=error_embed(message='Enter a valid milestone count.'),
-                view=view,
-                ephemeral=True,
+            error_msg = 'Enter a valid milestone count.'
+            await record_and_notify(
+                room_id=self.room_data.get('room_id', ''),
+                sender_role=self.active_role,
+                msg_data=error_msg,
+                command_name='interview_milestone',
+                bot=interaction.client,
+                session=session,
+                headers=headers,
             )
+            await validation_fail(interaction, message=error_msg)
             return
 
         # Open the first milestone form modal via continue button
@@ -106,6 +120,8 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
                 'total_count': total,
                 'accumulated': [],
                 'room_data': self.room_data,
+                'active_role': self.active_role,
+                'prefill': {},
             },
             label='Continue',
         )
@@ -130,6 +146,7 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         total_count: int,
         accumulated: list[dict],
         room_data: dict,
+        active_role: str,
         prefill: dict | None = None,
     ) -> None:
         title_str = f'Milestone {milestone_num} of {total_count}' if total_count > 1 else 'Add Milestone'
@@ -138,13 +155,17 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         self.total_count = total_count
         self.accumulated = accumulated
         self.room_data = room_data
+        self.active_role = active_role
+        # Shared mutable prefill state. The 1st-message view holds this dict,
+        # so a failed attempt is restored when the modal is re-opened from it.
+        self.prefill_state = prefill if prefill is not None else {}
 
         self.title_inp = discord.ui.TextInput(
             label='Title',
             placeholder='Max 64 characters',
             max_length=64,
             required=True,
-            default=prefill.get('title', '') if prefill else '',
+            default=self.prefill_state.get('title', ''),
         )
         self.desc_inp = discord.ui.TextInput(
             label='Description',
@@ -152,21 +173,21 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             placeholder='30-600 words describing this milestone',
             max_length=4000,
             required=True,
-            default=prefill.get('description', '') if prefill else '',
+            default=self.prefill_state.get('description', ''),
         )
         self.budget_inp = discord.ui.TextInput(
             label='Budget ($)',
             placeholder='e.g. 500.00',
             max_length=10,
             required=True,
-            default=prefill.get('budget', '') if prefill else '',
+            default=self.prefill_state.get('budget', ''),
         )
         self.deadline_inp = discord.ui.TextInput(
             label='Deadline',
             placeholder='YYYY-MM-DD or ISO format (optional)',
             max_length=30,
             required=False,
-            default=prefill.get('deadline', '') if prefill else '',
+            default=self.prefill_state.get('deadline', ''),
         )
 
         self.add_item(self.title_inp)
@@ -234,6 +255,8 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                     'total_count': self.total_count,
                     'accumulated': self.accumulated,
                     'room_data': self.room_data,
+                    'active_role': self.active_role,
+                    'prefill': {},
                 },
                 label='Next Milestone',
             )
@@ -257,22 +280,25 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
         message: str,
         prefill: dict,
     ) -> None:
-        """Show an error embed with a 'Try Again' button that re-opens the modal."""
-        view = _retry_view(
-            InterviewMilestoneFormModal,
-            {
-                'milestone_num': self.milestone_num,
-                'total_count': self.total_count,
-                'accumulated': self.accumulated,
-                'room_data': self.room_data,
-                'prefill': prefill,
-            },
+        """Save the failed attempt and show an ephemeral error with no buttons.
+
+        The 1st-message view stays alive; re-opening the modal from it restores
+        the entered values via the shared prefill state.
+        """
+        self.prefill_state.clear()
+        self.prefill_state.update(prefill)
+        session = get_http_session()
+        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
+        await record_and_notify(
+            room_id=self.room_data.get('room_id', ''),
+            sender_role=self.active_role,
+            msg_data=message,
+            command_name='interview_milestone',
+            bot=interaction.client,
+            session=session,
+            headers=headers,
         )
-        await interaction.response.send_message(
-            embed=error_embed(message=message),
-            view=view,
-            ephemeral=True,
-        )
+        await validation_fail(interaction, message=message)
 
     async def _save_all(self, interaction: discord.Interaction) -> None:
         """Batch-save all accumulated milestones to the backend."""
@@ -292,12 +318,9 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                     error_msg = 'The service is temporarily unavailable.'
                     await record_and_notify(
                         room_id=self.room_data.get('room_id', ''),
-                        sender_role='freelancer',
+                        sender_role=self.active_role,
                         msg_data=error_msg,
                         command_name='interview_milestone',
-                        target_discord_id='',
-                        executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                        job_title=self.room_data.get('job_title', ''),
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -318,15 +341,11 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
                 )
 
                 # --- Record + notify client ---
-                client_discord_id = self.room_data.get('client_discord_id', '')
                 await record_and_notify(
                     room_id=self.room_data.get('room_id', ''),
-                    sender_role='freelancer',
+                    sender_role=self.active_role,
                     msg_data=success_msg,
                     command_name='interview_milestone',
-                    target_discord_id=client_discord_id,
-                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                    job_title=self.room_data.get('job_title', ''),
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -342,12 +361,9 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             error_msg = 'The service is temporarily unavailable.'
             await record_and_notify(
                 room_id=self.room_data.get('room_id', ''),
-                sender_role='freelancer',
+                sender_role=self.active_role,
                 msg_data=error_msg,
                 command_name='interview_milestone',
-                target_discord_id='',
-                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                job_title=self.room_data.get('job_title', ''),
                 bot=interaction.client,
                 session=session,
                 headers=headers,
@@ -369,11 +385,13 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
         milestone_id: str,
         existing_data: dict,
         room_data: dict,
+        active_role: str,
     ) -> None:
         super().__init__(title='Edit Milestone', timeout=300)
         self.milestone_id = milestone_id
         self.existing_data = existing_data
         self.room_data = room_data
+        self.active_role = active_role
 
         self.title_inp = discord.ui.TextInput(
             label='Title',
@@ -416,68 +434,29 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
 
         # --- validate ---
         if not title:
-            await interaction.response.send_message(
-                embed=error_embed(message='Title must not be empty.'),
-                view=_retry_view(
-                    InterviewMilestoneEditModal,
-                    dict(
-                        milestone_id=self.milestone_id,
-                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
-                        room_data=self.room_data,
-                    ),
-                ),
-                ephemeral=True,
-            )
+            self.existing_data.update(dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline))
+            await validation_fail(interaction, message='Title must not be empty.')
             return
 
         word_count = len(description.split())
         if word_count < 30 or word_count > 600:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    message=f'Description must be 30-600 words (currently {word_count}).',
-                ),
-                view=_retry_view(
-                    InterviewMilestoneEditModal,
-                    dict(
-                        milestone_id=self.milestone_id,
-                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
-                        room_data=self.room_data,
-                    ),
-                ),
-                ephemeral=True,
+            self.existing_data.update(dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline))
+            await validation_fail(
+                interaction,
+                message=f'Description must be 30-600 words (currently {word_count}).',
             )
             return
 
         try:
             budget = float(raw_budget)
         except (ValueError, TypeError):
-            await interaction.response.send_message(
-                embed=error_embed(message='Enter a valid budget.'),
-                view=_retry_view(
-                    InterviewMilestoneEditModal,
-                    dict(
-                        milestone_id=self.milestone_id,
-                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
-                        room_data=self.room_data,
-                    ),
-                ),
-                ephemeral=True,
-            )
+            self.existing_data.update(dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline))
+            await validation_fail(interaction, message='Enter a valid budget.')
             return
 
         if budget <= 0:
-            await interaction.response.send_message(
-                embed=error_embed(message='Enter a valid budget.'),
-                view=_retry_view(
-                    InterviewMilestoneEditModal,
-                    dict(
-                        milestone_id=self.milestone_id,
-                        existing_data=dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline),
-                        room_data=self.room_data,
-                    ),
-                ),
-                ephemeral=True,
-            )
+            self.existing_data.update(dict(title=title, description=description, budget=raw_budget, deadline=raw_deadline))
+            await validation_fail(interaction, message='Enter a valid budget.')
             return
 
         deadline = _parse_deadline(raw_deadline) if raw_deadline else None
@@ -506,12 +485,9 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                     error_msg = body.get('error', 'The service is temporarily unavailable.')
                     await record_and_notify(
                         room_id=self.room_data.get('room_id', ''),
-                        sender_role='freelancer',
+                        sender_role=self.active_role,
                         msg_data=error_msg,
                         command_name='interview_milestone',
-                        target_discord_id='',
-                        executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                        job_title=self.room_data.get('job_title', ''),
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -529,15 +505,11 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
                 )
 
                 # --- Record + notify client ---
-                client_discord_id = self.room_data.get('client_discord_id', '')
                 await record_and_notify(
                     room_id=self.room_data.get('room_id', ''),
-                    sender_role='freelancer',
+                    sender_role=self.active_role,
                     msg_data=success_msg,
                     command_name='interview_milestone',
-                    target_discord_id=client_discord_id,
-                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                    job_title=self.room_data.get('job_title', ''),
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -552,12 +524,9 @@ class InterviewMilestoneEditModal(discord.ui.Modal):
             error_msg = 'The service is temporarily unavailable.'
             await record_and_notify(
                 room_id=self.room_data.get('room_id', ''),
-                sender_role='freelancer',
+                sender_role=self.active_role,
                 msg_data=error_msg,
                 command_name='interview_milestone',
-                target_discord_id='',
-                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                job_title=self.room_data.get('job_title', ''),
                 bot=interaction.client,
                 session=session,
                 headers=headers,
@@ -610,12 +579,14 @@ class InterviewMilestoneDeleteView(discord.ui.View):
         milestone_id: str,
         milestones: list[dict],
         action: str,
+        active_role: str,
     ) -> None:
         super().__init__(timeout=300)
         self.room_data = room_data
         self.milestone_id = milestone_id
         self.milestones = milestones
         self.action = action
+        self.active_role = active_role
         self.author_id: int | None = None
         self._done = False
 
@@ -645,12 +616,9 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                     error_msg = body.get('error', 'The service is temporarily unavailable.')
                     await record_and_notify(
                         room_id=self.room_data.get('room_id', ''),
-                        sender_role='freelancer',
+                        sender_role=self.active_role,
                         msg_data=error_msg,
                         command_name='interview_milestone',
-                        target_discord_id='',
-                        executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                        job_title=self.room_data.get('job_title', ''),
                         bot=btn_interaction.client,
                         session=session,
                         headers=headers,
@@ -669,15 +637,11 @@ class InterviewMilestoneDeleteView(discord.ui.View):
                 )
 
                 # --- Record + notify client ---
-                client_discord_id = self.room_data.get('client_discord_id', '')
                 await record_and_notify(
                     room_id=self.room_data.get('room_id', ''),
-                    sender_role='freelancer',
+                    sender_role=self.active_role,
                     msg_data=success_msg,
                     command_name='interview_milestone',
-                    target_discord_id=client_discord_id,
-                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                    job_title=self.room_data.get('job_title', ''),
                     bot=btn_interaction.client,
                     session=session,
                     headers=headers,
@@ -692,12 +656,9 @@ class InterviewMilestoneDeleteView(discord.ui.View):
             error_msg = 'The service is temporarily unavailable.'
             await record_and_notify(
                 room_id=self.room_data.get('room_id', ''),
-                sender_role='freelancer',
+                sender_role=self.active_role,
                 msg_data=error_msg,
                 command_name='interview_milestone',
-                target_discord_id='',
-                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                job_title=self.room_data.get('job_title', ''),
                 bot=btn_interaction.client,
                 session=session,
                 headers=headers,
@@ -716,6 +677,7 @@ class InterviewMilestoneDeleteView(discord.ui.View):
             room_data=self.room_data,
             milestones=self.milestones,
             action=self.action,
+            active_role=self.active_role,
         )
         select_view.author_id = self.author_id
         await btn_interaction.response.edit_message(view=select_view)
@@ -732,14 +694,17 @@ class InterviewMilestoneSelectView(discord.ui.View):
         room_data: dict,
         milestones: list[dict],
         action: str,  # 'edit' or 'delete'
+        active_role: str,
     ) -> None:
         super().__init__(timeout=300)
         self.room_data = room_data
         self.milestones = milestones
         self.action = action
+        self.active_role = active_role
         self.author_id: int | None = None
         self._done = False
         self._selected_milestone_id: str | None = None
+        self._edit_existing: dict | None = None
 
         self._all_options = []
         for m in milestones:
@@ -778,6 +743,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
         back_view = InterviewMilestoneActionView(
             room_data=self.room_data,
             milestones=self.milestones,
+            active_role=self.active_role,
         )
         back_view.author_id = self.author_id
         # Preserve the existing embed (the milestone list) but swap the view
@@ -801,12 +767,8 @@ class InterviewMilestoneSelectView(discord.ui.View):
             return
         milestone_id = self._selected_milestone_id or (self.milestone_select.values[0] if self.milestone_select.values else None)
         if not milestone_id:
-            await interaction.response.send_message(
-                embed=error_embed(message='Select a milestone first.'),
-                ephemeral=True,
-            )
+            await validation_fail(interaction, message='Select a milestone first.')
             return
-        self._done = True
 
         milestone_data = next(
             (m for m in self.milestones if m['milestone_id'] == milestone_id),
@@ -818,30 +780,30 @@ class InterviewMilestoneSelectView(discord.ui.View):
             headers = {'X-Webhook-Token': WEBHOOK_SECRET}
             await record_and_notify(
                 room_id=self.room_data.get('room_id', ''),
-                sender_role='freelancer',
+                sender_role=self.active_role,
                 msg_data=error_msg,
                 command_name='interview_milestone',
-                target_discord_id='',
-                executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                job_title=self.room_data.get('job_title', ''),
                 bot=interaction.client,
                 session=session,
                 headers=headers,
             )
-            await interaction.response.edit_message(
-                embed=error_embed(message=error_msg),
-                view=None,
-            )
+            await validation_fail(interaction, message=error_msg)
             return
 
         if self.action == 'edit':
+            # Keep a private copy so failed edits can restore the user's
+            # attempted values when the modal is re-opened from this view.
+            if self._edit_existing is None:
+                self._edit_existing = dict(milestone_data)
             modal = InterviewMilestoneEditModal(
                 milestone_id=milestone_id,
-                existing_data=milestone_data,
+                existing_data=self._edit_existing,
                 room_data=self.room_data,
+                active_role=self.active_role,
             )
             await interaction.response.send_modal(modal)
         else:
+            self._done = True
             # Delete, show confirmation
             embed = create_embed(
                 title='Confirm Delete',
@@ -857,6 +819,7 @@ class InterviewMilestoneSelectView(discord.ui.View):
                 milestone_id=milestone_id,
                 milestones=self.milestones,
                 action=self.action,
+                active_role=self.active_role,
             )
             view.author_id = self.author_id
             await interaction.response.edit_message(embed=embed, view=view)
@@ -865,13 +828,15 @@ class InterviewMilestoneSelectView(discord.ui.View):
 class InterviewMilestoneActionView(discord.ui.View):
     """First step (CASE B): Action dropdown with Proceed / Cancel."""
 
-    def __init__(self, room_data: dict, milestones: list[dict]) -> None:
+    def __init__(self, room_data: dict, milestones: list[dict], active_role: str) -> None:
         super().__init__(timeout=300)
         self.room_data = room_data
         self.milestones = milestones
+        self.active_role = active_role
         self.author_id: int | None = None
         self._done = False
         self._selected_action: str | None = None
+        self._add_prefill: dict = {}
 
         self._all_options = [
             discord.SelectOption(
@@ -923,12 +888,9 @@ class InterviewMilestoneActionView(discord.ui.View):
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         await record_and_notify(
             room_id=self.room_data.get('room_id', ''),
-            sender_role='freelancer',
+            sender_role=self.active_role,
             msg_data=cancel_msg,
             command_name='interview_milestone',
-            target_discord_id='',
-            executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-            job_title=self.room_data.get('job_title', ''),
             bot=interaction.client,
             session=session,
             headers=headers,
@@ -956,12 +918,8 @@ class InterviewMilestoneActionView(discord.ui.View):
             return
         value = self._selected_action or (self.action_select.values[0] if self.action_select.values else None)
         if not value:
-            await interaction.response.send_message(
-                embed=error_embed(message='Select an action first.'),
-                ephemeral=True,
-            )
+            await validation_fail(interaction, message='Select an action first.')
             return
-        self._done = True
 
         if value == 'add':
             # Check max before opening form
@@ -971,28 +929,24 @@ class InterviewMilestoneActionView(discord.ui.View):
                 headers = {'X-Webhook-Token': WEBHOOK_SECRET}
                 await record_and_notify(
                     room_id=self.room_data.get('room_id', ''),
-                    sender_role='freelancer',
+                    sender_role=self.active_role,
                     msg_data=error_msg,
                     command_name='interview_milestone',
-                    target_discord_id='',
-                    executor_name=self.room_data.get('freelancer_name', 'Freelancer'),
-                    job_title=self.room_data.get('job_title', ''),
                     bot=interaction.client,
                     session=session,
                     headers=headers,
                 )
-                await interaction.response.edit_message(
-                    embed=error_embed(message=error_msg),
-                    view=None,
-                )
+                await validation_fail(interaction, message=error_msg)
                 return
 
-            # Open a single-milestone form
+            # Open a single-milestone form (prefill restores a failed attempt)
             modal = InterviewMilestoneFormModal(
                 milestone_num=1,
                 total_count=1,
                 accumulated=[],
                 room_data=self.room_data,
+                active_role=self.active_role,
+                prefill=self._add_prefill,
             )
             await interaction.response.send_modal(modal)
 
@@ -1002,6 +956,7 @@ class InterviewMilestoneActionView(discord.ui.View):
                 room_data=self.room_data,
                 milestones=self.milestones,
                 action='edit',
+                active_role=self.active_role,
             )
             select_view.author_id = self.author_id
             await interaction.response.edit_message(view=select_view)
@@ -1012,6 +967,7 @@ class InterviewMilestoneActionView(discord.ui.View):
                 room_data=self.room_data,
                 milestones=self.milestones,
                 action='delete',
+                active_role=self.active_role,
             )
             select_view.author_id = self.author_id
             await interaction.response.edit_message(view=select_view)
@@ -1048,12 +1004,6 @@ class InterviewMilestone(commands.Cog):
 
             room_id = room_data.get('room_id', '')
 
-            # ── Determine sender display name ────────────────────────────
-            if active_role == 'client':
-                sender_name = room_data.get('client_name', 'Client')
-            else:
-                sender_name = room_data.get('freelancer_name', 'Freelancer')
-
             # ── 2. Check agreement budget with backend ──────────────────────
             session = get_http_session()
             check_url = f'{BACKEND_URL}rooms/bot/check-agreement-budget/'
@@ -1072,9 +1022,6 @@ class InterviewMilestone(commands.Cog):
                             sender_role=active_role,
                             msg_data=error_msg,
                             command_name='interview_milestone',
-                            target_discord_id='',
-                            executor_name=sender_name,
-                            job_title=room_data.get('job_title', ''),
                             bot=interaction.client,
                             session=session,
                             headers=headers,
@@ -1088,9 +1035,6 @@ class InterviewMilestone(commands.Cog):
                             sender_role=active_role,
                             msg_data=error_msg,
                             command_name='interview_milestone',
-                            target_discord_id='',
-                            executor_name=sender_name,
-                            job_title=room_data.get('job_title', ''),
                             bot=interaction.client,
                             session=session,
                             headers=headers,
@@ -1106,9 +1050,6 @@ class InterviewMilestone(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_milestone',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=room_data.get('job_title', ''),
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -1134,7 +1075,7 @@ class InterviewMilestone(commands.Cog):
                     color=BrandColor.PRIMARY,
                 )
 
-                view = InterviewMilestoneActionView(room_data, milestones)
+                view = InterviewMilestoneActionView(room_data, milestones, active_role)
                 view.author_id = interaction.user.id
                 return embed, view
 
@@ -1144,6 +1085,7 @@ class InterviewMilestone(commands.Cog):
                 {
                     'room_data': room_data,
                     'interaction': interaction,
+                    'active_role': active_role,
                 },
                 label='Set Milestones',
             )

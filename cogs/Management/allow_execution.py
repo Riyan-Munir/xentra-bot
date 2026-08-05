@@ -5,6 +5,7 @@ from utils.http import get_http_session
 import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
+from utils.retry import validation_fail
 from utils.embeds import success_embed, create_embed, BrandColor, error_embed, info_embed, throttled_embed, loading_embed
 from utils.userid_resolver import resolve_user_id
 from utils.analytics_collector import AnalyticsCollector
@@ -52,9 +53,8 @@ class AllowExecutionView(discord.ui.View):
         if self._done:
             return
         if not self.selected_role:
-            return await interaction.response.send_message(
-                embed=error_embed(message="Select a role first."), ephemeral=True,
-            )
+            await validation_fail(interaction, message="Select a role first.")
+            return
         self._done = True
         await self.callback_func(interaction, self.selected_role, self.identifier, self)
 

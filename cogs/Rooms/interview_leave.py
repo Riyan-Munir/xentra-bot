@@ -58,6 +58,8 @@ class LeaveConfirmView(discord.ui.View):
         self.headers = headers
         self.author_id: int | None = None
         self.interaction: discord.Interaction | None = None
+        # Last reason attempt, restored when the modal re-opens from this view.
+        self._last_reason: str = ''
 
     async def _remove_view(self) -> None:
         if self.interaction:
@@ -76,8 +78,22 @@ class LeaveConfirmView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
+        cancel_msg = 'Room leave cancelled.'
+
+        active_role = self.user_data.get('active_role', '')
+
+        session = get_http_session()
+        await record_and_notify(
+            room_id=self.room_id,
+            sender_role=active_role,
+            msg_data=cancel_msg,
+            command_name='interview_leave',
+            bot=interaction.client,
+            session=session,
+            headers=self.headers,
+        )
         await interaction.response.edit_message(
-            embed=info_embed(message='Room leave cancelled.'),
+            embed=info_embed(message=cancel_msg),
             view=None,
         )
 
@@ -87,7 +103,8 @@ class LeaveConfirmView(discord.ui.View):
             return
         self.interaction = interaction
 
-        # Send modal FIRST as the initial response, then remove buttons
+        # Send the modal. The 1st-message view stays alive until a genuine
+        # end (success/cancel), so a failed attempt can be retried with prefill.
         modal = LeaveReasonModal(
             room_id=self.room_id,
             job_title=self.job_title,
@@ -95,11 +112,10 @@ class LeaveConfirmView(discord.ui.View):
             room_data=self.room_data,
             headers=self.headers,
             original_interaction=interaction,
+            prefill_text=self._last_reason,
+            confirm_view=self,
         )
         await interaction.response.send_modal(modal)
-
-        # Remove buttons on the original message after modal response
-        await self._remove_view()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -126,6 +142,8 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         room_data: dict,
         headers: dict,
         original_interaction: discord.Interaction,
+        prefill_text: str = '',
+        confirm_view: 'LeaveConfirmView | None' = None,
     ) -> None:
         super().__init__(timeout=300)
         self.room_id = room_id
@@ -134,13 +152,35 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         self.room_data = room_data
         self.headers = headers
         self.original_interaction = original_interaction
+        self.confirm_view = confirm_view
+        if prefill_text:
+            self.reason.default = prefill_text
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         reason_text = self.reason.value.strip()
         if not reason_text:
+            error_msg = 'Reason must not be empty.'
+            if self.confirm_view is not None:
+                self.confirm_view._last_reason = reason_text
+
+            active_role = self.user_data.get('active_role', '')
+
+            session = get_http_session()
+            try:
+                await record_and_notify(
+                    room_id=self.room_id,
+                    sender_role=active_role,
+                    msg_data=error_msg,
+                    command_name='interview_leave',
+                    bot=interaction.client,
+                    session=session,
+                    headers=self.headers,
+                )
+            except Exception:
+                logger.exception('Failed to record empty-leave-reason error')
             try:
                 await interaction.response.send_message(
-                    embed=error_embed(message='Reason must not be empty.'),
+                    embed=error_embed(message=error_msg),
                     ephemeral=True,
                 )
             except (discord.errors.InteractionResponded, discord.errors.NotFound):
@@ -154,12 +194,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
         session = get_http_session()
 
         active_role = self.user_data.get('active_role', '')
-
-        # ── Determine sender display name ────────────────────────────
-        if active_role == 'client':
-            sender_name = self.room_data.get('client_name', 'Client')
-        else:
-            sender_name = self.room_data.get('freelancer_name', 'Freelancer')
 
         # ── Call backend to persist leave + close room ──────────────
         payload = {
@@ -182,9 +216,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                         sender_role=active_role,
                         msg_data=err_msg,
                         command_name='interview_leave',
-                        target_discord_id='',
-                        executor_name=sender_name,
-                        job_title=self.job_title,
                         bot=interaction.client,
                         session=session,
                         headers=self.headers,
@@ -204,9 +235,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
                 sender_role=active_role,
                 msg_data=err_msg,
                 command_name='interview_leave',
-                target_discord_id='',
-                executor_name=sender_name,
-                job_title=self.job_title,
                 bot=interaction.client,
                 session=session,
                 headers=self.headers,
@@ -218,7 +246,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             return
 
         closure_id = leave_data.get('closure_id', '')
-        other_discord_id = leave_data.get('other_discord_id', '')
 
         # ── Build success message (same text used for executor + record)
         success_msg = f'You have left interview room `{self.room_id}`.'
@@ -229,9 +256,6 @@ class LeaveReasonModal(discord.ui.Modal, title='Reason for Leaving'):
             sender_role=active_role,
             msg_data=success_msg,
             command_name='interview_leave',
-            target_discord_id=other_discord_id,
-            executor_name=sender_name,
-            job_title=self.job_title,
             bot=interaction.client,
             session=session,
             headers=self.headers,

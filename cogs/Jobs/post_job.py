@@ -5,6 +5,7 @@ from utils.embeds import create_embed, BrandColor, error_embed, success_embed, i
 from utils.http import get_http_session
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import sync_cog_commands, validate_and_respond, is_author
+from utils.retry import validation_fail
 from packet_templates.factory import BotPacketFactory
 import logging
 
@@ -118,7 +119,9 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
             self.job_description.default = setup_view.last_description
         if setup_view.last_skills:
             self.skills.default = setup_view.last_skills
-        if setup_view.last_budget_min and setup_view.last_budget_max:
+        if setup_view.last_budget_range:
+            self.budget_range.default = setup_view.last_budget_range
+        elif setup_view.last_budget_min and setup_view.last_budget_max:
             self.budget_range.default = (
                 f"{setup_view.last_budget_min}-{setup_view.last_budget_max}"
             )
@@ -129,6 +132,13 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
         skills_text = str(self.skills.value).strip()
         budget_text = self.budget_range.value.strip()
         deadline_text = self.deadline.value.strip() if self.deadline.value else ""
+
+        # ── Store values upfront so a failed attempt still prefills ──
+        self.setup_view.last_title = title_text
+        self.setup_view.last_description = desc_text
+        self.setup_view.last_skills = skills_text
+        self.setup_view.last_budget_range = budget_text
+        self.setup_view.deadline = deadline_text
 
         # ── Validate description word count ────────────────────────
         word_count = len(desc_text.split())
@@ -213,13 +223,9 @@ class JobPostDetailsModal(discord.ui.Modal, title="Enter Job Details"):
                         pass
                     return
 
-        # ── Store values in setup view ─────────────────────────────
-        self.setup_view.last_title = title_text
-        self.setup_view.last_description = desc_text
-        self.setup_view.last_skills = skills_text
+        # ── Store parsed budget values in setup view ───────────────
         self.setup_view.last_budget_min = budget_min_value
         self.setup_view.last_budget_max = budget_max_value
-        self.setup_view.deadline = deadline_text
 
         # ── Defer and post the job ─────────────────────────────────
         try:
@@ -308,6 +314,7 @@ class JobPostSetupView(discord.ui.View):
         self.last_title = ""
         self.last_description = ""
         self.last_skills = ""
+        self.last_budget_range = ""
         self.last_budget_min = 0.0
         self.last_budget_max = 0.0
         self.deadline: str = ""
@@ -386,16 +393,11 @@ class JobPostSetupView(discord.ui.View):
         if self._done:
             return
         if not self.category_label:
-            embed = error_embed(message="Select a category first.")
-            await interaction.response.edit_message(embed=embed, view=self)
+            await validation_fail(interaction, message="Select a category first.")
             return
         if not self.experience_label:
-            embed = error_embed(
-                message="Select an experience level first."
-            )
-            await interaction.response.edit_message(embed=embed, view=self)
+            await validation_fail(interaction, message="Select an experience level first.")
             return
-        self._done = True
         modal = JobPostDetailsModal(self)
         await interaction.response.send_modal(modal)
 

@@ -5,6 +5,7 @@ from utils.http import get_http_session
 import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
+from utils.retry import validation_fail
 from utils.embeds import (
     BrandColor, create_embed, error_embed, success_embed, info_embed,
 )
@@ -154,9 +155,7 @@ class WalletRemoveView(discord.ui.View):
                     wallet_id = child.values[0]
                     break
         if not wallet_id:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Select a wallet first.'), view=None,
-            )
+            await validation_fail(interaction, message='Select a wallet first.')
             return
         selected = next((w for w in self.wallets if w['id'] == wallet_id), None)
         label = self._selected_label or (selected.get('label', '') or f"{selected['address'][:8]}...{selected['address'][-4:]}" if selected else '')

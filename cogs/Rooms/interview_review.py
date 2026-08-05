@@ -59,13 +59,6 @@ class InterviewReview(commands.Cog):
             room_data = user_data['_selected_room']
 
             room_id = room_data.get('room_id', '')
-            job_title = room_data.get('job_title', '')
-
-            # ── Determine sender display name ────────────────────────────
-            if active_role == 'client':
-                sender_name = room_data.get('client_name', 'Client')
-            else:
-                sender_name = room_data.get('freelancer_name', 'Freelancer')
 
             # ── 2. Call backend review endpoint ─────────────────────────
             session = get_http_session()
@@ -86,9 +79,6 @@ class InterviewReview(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_review',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -107,9 +97,6 @@ class InterviewReview(commands.Cog):
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_review',
-                        target_discord_id='',
-                        executor_name=sender_name,
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -119,15 +106,11 @@ class InterviewReview(commands.Cog):
                 # NO_BUDGET, client must set the budget
                 if code == 'NO_BUDGET':
                     error_msg = 'Could not review the agreement. The job has no final budget.'
-                    notify_discord_id = body.get('notify_discord_id', '')
                     await record_and_notify(
                         room_id=room_id,
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_review',
-                        target_discord_id=notify_discord_id,
-                        executor_name=body.get('notify_executor_name', 'Someone'),
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -137,15 +120,11 @@ class InterviewReview(commands.Cog):
                 # NO_MILESTONES, freelancer must create them
                 if code == 'NO_MILESTONES':
                     error_msg = 'Could not review the agreement. The job has no milestones set.'
-                    notify_discord_id = body.get('notify_discord_id', '')
                     await record_and_notify(
                         room_id=room_id,
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_review',
-                        target_discord_id=notify_discord_id,
-                        executor_name=body.get('notify_executor_name', 'Someone'),
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -157,15 +136,11 @@ class InterviewReview(commands.Cog):
                     total = body.get('total_budget', '?')
                     final_budget = body.get('final_budget', '?')
                     error_msg = f'Could not review the agreement. Milestone total (${total}) does not match the final budget (${final_budget}).'
-                    notify_discord_id = body.get('notify_discord_id', '')
                     await record_and_notify(
                         room_id=room_id,
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_review',
-                        target_discord_id=notify_discord_id,
-                        executor_name=body.get('notify_executor_name', 'Someone'),
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -179,15 +154,11 @@ class InterviewReview(commands.Cog):
                         'Milestone deadlines have ordering conflicts.',
                     )
                     error_msg = f'Could not review the agreement. {detail}'
-                    notify_discord_id = body.get('notify_discord_id', '')
                     await record_and_notify(
                         room_id=room_id,
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_review',
-                        target_discord_id=notify_discord_id,
-                        executor_name=body.get('notify_executor_name', 'Someone'),
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -204,9 +175,6 @@ class InterviewReview(commands.Cog):
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_review',
-                        target_discord_id='',
-                        executor_name=sender_name,
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -220,9 +188,6 @@ class InterviewReview(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_review',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -237,17 +202,11 @@ class InterviewReview(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_review',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
                 )
                 return error_embed(message=error_msg)
-
-            notify_discord_id = body.get('notify_discord_id', '')
-            notify_executor_name = body.get('notify_executor_name', 'Someone')
 
             await record_and_notify(
                 room_id=room_id,
@@ -255,9 +214,6 @@ class InterviewReview(commands.Cog):
                 msg_data='Agreement review request has been received and will be '
                 'processed shortly.',
                 command_name='interview_review',
-                target_discord_id=notify_discord_id,
-                executor_name=notify_executor_name,
-                job_title=job_title,
                 bot=interaction.client,
                 session=session,
                 headers=headers,

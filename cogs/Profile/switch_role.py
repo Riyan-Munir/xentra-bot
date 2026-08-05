@@ -85,11 +85,11 @@ class SwitchRoleView(discord.ui.View):
                     else:
                         error_data = await resp.json()
                         err = error_embed(message=error_data.get('error', 'Failed to update role.'))
-                        await interaction.followup.send(embed=err, ephemeral=True)
+                        await interaction.response.edit_message(embed=err, view=None)
         except Exception as e:
             logger.error(f"Error updating role: {e}")
             err = error_embed(message="The service is temporarily unavailable.")
-            await interaction.followup.send(embed=err, ephemeral=True)
+            await interaction.response.edit_message(embed=err, view=None)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):

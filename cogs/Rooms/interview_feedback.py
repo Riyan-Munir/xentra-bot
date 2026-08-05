@@ -112,6 +112,8 @@ class FeedbackStartView(discord.ui.View):
         self.closed_rooms_data = closed_rooms_data
         self._original_interaction: discord.Interaction | None = None
         self._selected_room_id: str = rooms[0]['room_id'] if rooms else ''
+        # Last feedback attempt, restored when the modal re-opens from this view.
+        self._last_feedback: str = ''
 
         # Add the room dropdown
         self.add_item(FeedbackRoomSelect(rooms))
@@ -135,10 +137,7 @@ class FeedbackStartView(discord.ui.View):
                 break
 
         if not selected_id or selected_id == 'none':
-            await interaction.response.send_message(
-                embed=error_embed(message='Select a room first.'),
-                ephemeral=True,
-            )
+            await validation_fail(interaction, message='Select a room first.')
             return
 
         # Find room_data for the selected room
@@ -149,10 +148,7 @@ class FeedbackStartView(discord.ui.View):
                 break
 
         if not room_data:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Could not find the selected room.'),
-                view=None,
-            )
+            await validation_fail(interaction, message='Could not find the selected room.')
             return
 
         modal = FeedbackModal(
@@ -160,10 +156,11 @@ class FeedbackStartView(discord.ui.View):
             room_data=room_data,
             rooms=self.rooms,
             closed_rooms_data=self.closed_rooms_data,
+            prefill_text=self._last_feedback,
+            start_view=self,
         )
         modal._original_interaction = self._original_interaction
         await interaction.response.send_modal(modal)
-        self.stop()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(
@@ -186,27 +183,33 @@ class FeedbackStartView(discord.ui.View):
 class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
     """Modal that collects feedback text. Room already selected before opening."""
 
-    feedback = discord.ui.TextInput(
-        label='Feedback',
-        style=discord.TextStyle.paragraph,
-        placeholder='Describe your experience (max 100 words)',
-        required=True,
-        max_length=2000,
-    )
-
     def __init__(
         self,
         user_data: dict,
         room_data: dict,
         rooms: list,
         closed_rooms_data: list,
+        *,
+        prefill_text: str = '',
+        start_view: 'FeedbackStartView | None' = None,
     ) -> None:
-        super().__init__(timeout=300)
+        super().__init__(title='Submit Interview Feedback', timeout=300)
         self.user_data = user_data
         self.room_data = room_data
         self.rooms = rooms
         self.closed_rooms_data = closed_rooms_data
         self._original_interaction: discord.Interaction | None = None
+        self.start_view = start_view
+
+        self.feedback = discord.ui.TextInput(
+            label='Feedback',
+            style=discord.TextStyle.paragraph,
+            placeholder='Describe your experience (max 100 words)',
+            required=True,
+            max_length=2000,
+            default=prefill_text,
+        )
+        self.add_item(self.feedback)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         feedback_text = self.feedback.value.strip()
@@ -220,29 +223,21 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
             return
 
         if not feedback_text:
+            if self.start_view is not None:
+                self.start_view._last_feedback = feedback_text
             await validation_fail(
                 interaction,
                 message='Could not submit feedback. The feedback text cannot be empty.',
-                modal_class=FeedbackModal,
-                modal_kwargs={
-                    'user_data': self.user_data,
-                    'room_data': self.room_data,
-                },
-                retry_label='Try Again',
             )
             return
 
         word_count = len(feedback_text.split())
         if word_count > 100:
+            if self.start_view is not None:
+                self.start_view._last_feedback = feedback_text
             await validation_fail(
                 interaction,
                 message=f'Could not submit feedback. Feedback must be at most 100 words (currently {word_count}).',
-                modal_class=FeedbackModal,
-                modal_kwargs={
-                    'user_data': self.user_data,
-                    'room_data': self.room_data,
-                },
-                retry_label='Try Again',
             )
             return
 

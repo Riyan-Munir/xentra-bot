@@ -44,8 +44,6 @@ class InterviewBudget(commands.Cog):
 
         async def callback(user_data: dict):
             active_role = user_data.get('active_role')
-            client_name = user_data.get('discord_username', 'Client')
-
             room_data = user_data['_selected_room']
 
             session = get_http_session()
@@ -56,12 +54,9 @@ class InterviewBudget(commands.Cog):
                 error_msg = 'Could not set the budget. Minimum amount is $50.'
                 await record_and_notify(
                     room_id=room_data['room_id'],
-                    sender_role='client',
+                    sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_budget',
-                    target_discord_id='',
-                    executor_name=client_name,
-                    job_title=room_data.get('job_title', ''),
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -81,8 +76,6 @@ class InterviewBudget(commands.Cog):
                     body = await resp.json()
                     if resp.status == 200:
                         # ── 3. Record message + notify freelancer ──────────
-                        freelancer_discord_id = body.get('freelancer_discord_id', '')
-
                         success_msg = (
                             f'Final budget set to **${budget:,.2f}** for job '
                             f'**{room_data.get("job_title", "")}**.'
@@ -90,12 +83,9 @@ class InterviewBudget(commands.Cog):
 
                         await record_and_notify(
                             room_id=room_data['room_id'],
-                            sender_role='client',
+                            sender_role=active_role,
                             msg_data=success_msg,
                             command_name='interview_budget',
-                            target_discord_id=freelancer_discord_id,
-                            executor_name=client_name,
-                            job_title=room_data.get('job_title', ''),
                             bot=interaction.client,
                             session=session,
                             headers=headers,
@@ -106,12 +96,9 @@ class InterviewBudget(commands.Cog):
                     error_msg = body.get('error', 'Could not set the budget.')
                     await record_and_notify(
                         room_id=room_data['room_id'],
-                        sender_role='client',
+                        sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_budget',
-                        target_discord_id='',
-                        executor_name=client_name,
-                        job_title=room_data.get('job_title', ''),
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -122,12 +109,9 @@ class InterviewBudget(commands.Cog):
                 error_msg = 'The service is temporarily unavailable.'
                 await record_and_notify(
                     room_id=room_data['room_id'],
-                    sender_role='client',
+                    sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_budget',
-                    target_discord_id='',
-                    executor_name=client_name,
-                    job_title=room_data.get('job_title', ''),
                     bot=interaction.client,
                     session=session,
                     headers=headers,

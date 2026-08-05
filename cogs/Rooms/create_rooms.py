@@ -40,6 +40,7 @@ from utils.embeds import (
     dm_blocked_embed,
 )
 from utils.http import get_http_session
+from utils.retry import validation_fail
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
 from packet_templates.factory import BotPacketFactory
@@ -138,10 +139,7 @@ class CreateRoomSetupView(discord.ui.View):
         if self._done:
             return
         if not self.room_type:
-            await interaction.response.edit_message(
-                embed=error_embed(message="Select a room type first."),
-                view=self,
-            )
+            await validation_fail(interaction, message="Select a room type first.")
             return
 
         self._done = True
@@ -296,10 +294,7 @@ class JobSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.selected_job_id:
-            await interaction.response.send_message(
-                embed=error_embed(message="Select a job first."),
-                ephemeral=True,
-            )
+            await validation_fail(interaction, message="Select a job first.")
             return
         self.stop()
         await interaction.response.edit_message(view=None)
@@ -394,10 +389,7 @@ class ApplicationSelectView(discord.ui.View):
         if not is_author(interaction, self):
             return
         if not self.selected_app_id:
-            await interaction.response.send_message(
-                embed=error_embed(message="Select an application first."),
-                ephemeral=True,
-            )
+            await validation_fail(interaction, message="Select an application first.")
             return
         self.stop()
         await interaction.response.edit_message(view=None)

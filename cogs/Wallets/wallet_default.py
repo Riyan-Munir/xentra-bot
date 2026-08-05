@@ -5,6 +5,7 @@ from utils.http import get_http_session
 import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
+from utils.retry import validation_fail
 from utils.embeds import (
     BrandColor, create_embed, error_embed, success_embed, info_embed,
 )
@@ -77,7 +78,6 @@ class WalletDefaultView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
         wallet_id = self._selected_wallet_id
         if not wallet_id:
             for child in self.children:
@@ -85,11 +85,10 @@ class WalletDefaultView(discord.ui.View):
                     wallet_id = child.values[0]
                     break
         if not wallet_id:
-            await interaction.response.edit_message(
-                embed=error_embed(message='Select a wallet first.'), view=None,
-            )
+            await validation_fail(interaction, message='Select a wallet first.')
             return
 
+        self._done = True
         await interaction.response.defer()
 
         url = f"{BACKEND_URL}wallets/bot/set-default/"

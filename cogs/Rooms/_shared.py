@@ -23,9 +23,6 @@ Usage
         sender_role='client',
         msg_data='Final budget set to $500.',
         command_name='interview_budget',
-        target_discord_id=freelancer_discord_id,
-        executor_name=client_name,
-        job_title='Web App Redesign',
         bot=interaction.client,
     )
 """
@@ -98,37 +95,66 @@ class RoomTypeSelect(discord.ui.Select):
 # ---------------------------------------------------------------------------
 
 
+async def _fetch_room_details(room_id: str, session, headers: dict) -> dict:
+    """GET ``/rooms/bot/room-details/`` by ``room_id``.
+
+    Returns the room-details payload dict, or ``{}`` on any failure
+    (logged, never raised).
+    """
+    url = f'{BACKEND_URL}rooms/bot/room-details/'
+    params = {'room_id': room_id}
+    try:
+        async with session.get(url, params=params, headers=headers) as resp:
+            if resp.status == 200:
+                body = await resp.json()
+                return body if isinstance(body, dict) else {}
+            logger.warning(
+                'room-details fetch returned %s for room=%s',
+                resp.status, room_id,
+            )
+            return {}
+    except Exception:
+        logger.exception('room-details fetch failed for room=%s', room_id)
+        return {}
+
+
 async def record_and_notify(
     *,
     room_id: str,
     sender_role: str,
     msg_data: str,
     command_name: str,
-    target_discord_id: str,
-    executor_name: str,
-    job_title: str,
     bot: discord.Client,
     session=None,
     headers: dict | None = None,
 ) -> str:
     """Record a command message and DM-notify the other party.
 
-    This is the single entry-point that replaces the old pattern of:
+    Single entry-point for every interview command.  The command only
+    supplies the four core values:
 
-    1. Backend returning ``msg_id`` in the command response.
-    2. Each command file building ``notify_data``, calling
-       ``handle_system_message``, and calling ``log_failed_delivery``.
+        1. ``room_id``     — the active interview room id.
+        2. ``sender_role`` — ``'client'`` or ``'freelancer'`` (the
+           active role of the person who ran the command).
+        3. ``msg_data``    — the exact message text shown to the executor
+           (final success/error/info).
+        4. ``command_name``— the command identifier, e.g. ``'interview_budget'``.
 
-    Now the **backend command views only do business logic**.  After
-    showing the response to the executor, the bot calls this helper
-    which:
+    Everything else is resolved from the backend:
 
-    1. POSTs to ``/bot/log-command-msg/`` to persist the transcript
-       record and receives a ``msg_id``.
-    2. Sends a DM notification to ``target_discord_id`` via
-       ``handle_system_message('interview_room_message', ...)``.
-    3. If the DM fails, logs a failed-delivery record with the
-       ``msg_id`` so it can be retried via ``/interview delivery``.
+        1. Fetches ``GET /rooms/bot/room-details/?room_id=...``.
+        2. Derives the DM recipient (the **other** party) and the
+           executor display name from ``sender_role``:
+
+               freelancer ran → target=client_discord_id, executor=freelancer_name
+               client ran     → target=freelancer_discord_id, executor=client_name
+
+        3. POSTs to ``/bot/log-command-msg/`` to persist the transcript
+           record and receives a ``msg_id``.
+        4. Sends a DM notification to the target via
+           ``handle_system_message('interview_room_message', ...)``.
+        5. If the DM fails, logs a failed-delivery record with the
+           ``msg_id`` so it can be retried via ``/interview delivery``.
 
     Parameters
     ----------
@@ -140,12 +166,6 @@ async def record_and_notify(
         Human-readable message (same text shown to the executor).
     command_name : str
         Command identifier, e.g. ``'interview_budget'``.
-    target_discord_id : str
-        Discord user ID of the **other** party (the one to DM-notify).
-    executor_name : str
-        Display name of the executor (shown in the DM notification).
-    job_title : str
-        The job title for this room.
     bot : discord.Client
         The running bot instance (for ``handle_system_message``).
     session : optional
@@ -171,7 +191,22 @@ async def record_and_notify(
         headers=http_headers,
     )
 
-    # ── 2. Send DM notification to the other party ─────────────────────
+    # ── 2. Resolve room details for the DM notification ────────────────
+    room_details = await _fetch_room_details(room_id, http_session, http_headers)
+    if not room_details:
+        # Cannot build the DM payload without room details.
+        return msg_id
+
+    if sender_role == 'client':
+        target_discord_id = room_details.get('freelancer_discord_id', '')
+        executor_name = room_details.get('client_name', 'Client')
+    else:
+        target_discord_id = room_details.get('client_discord_id', '')
+        executor_name = room_details.get('freelancer_name', 'Freelancer')
+
+    job_title = room_details.get('job_title', '')
+
+    # ── 3. Send DM notification to the other party ─────────────────────
     if not target_discord_id:
         # No one to notify (e.g. system message to self).
         return msg_id
@@ -191,7 +226,7 @@ async def record_and_notify(
         bot=bot,
     )
 
-    # ── 3. Log failed delivery if DM didn't go through ─────────────────
+    # ── 4. Log failed delivery if DM didn't go through ─────────────────
     if not delivery_ok:
         if msg_id:
             await log_failed_delivery(

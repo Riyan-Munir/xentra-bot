@@ -23,7 +23,7 @@ from discord import app_commands
 
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
-from utils.embeds import success_embed, error_embed, info_embed, create_embed, BrandColor
+from utils.embeds import success_embed, error_embed, create_embed, BrandColor
 from utils.http import get_http_session
 from utils.room_closure import send_room_closure_and_transcript
 from ._shared import record_and_notify, request_pdf
@@ -163,9 +163,6 @@ class AgreementConfirmView(discord.ui.View):
             sender_role=self.active_role,
             msg_data=success_msg,
             command_name='interview_agreement',
-            target_discord_id=self.other_discord_id,
-            executor_name=self.executor_name,
-            job_title=self.job_title,
             bot=interaction.client,
             session=session,
             headers=self.headers,
@@ -251,25 +248,21 @@ class AgreementConfirmView(discord.ui.View):
             return
         await interaction.response.defer()
         self.stop()
-        await interaction.edit_original_response(
-            embed=info_embed(message='Agreement signing cancelled.'),
-            view=None,
-        )
 
-        # ── Record the decline (save-only) ─────────────────────────────
+        # ── Record the decline + notify the other party ────────────────
         session = get_http_session()
         await record_and_notify(
             room_id=self.room_id,
             sender_role=self.active_role,
             msg_data='Agreement signing cancelled.',
             command_name='interview_agreement',
-            target_discord_id='',
-            executor_name=self.executor_name,
-            job_title=self.job_title,
             bot=interaction.client,
             session=session,
             headers=self.headers,
         )
+
+        # Clear the view (buttons) on the original message
+        await interaction.edit_original_response(view=None)
 
 
 # ---------------------------------------------------------------------------
@@ -310,12 +303,6 @@ class InterviewAgreement(commands.Cog):
             room_id = room_data.get('room_id', '')
             job_title = room_data.get('job_title', '')
 
-            # ── Determine sender display name ────────────────────────────
-            if active_role == 'client':
-                sender_name = room_data.get('client_name', 'Client')
-            else:
-                sender_name = room_data.get('freelancer_name', 'Freelancer')
-
             # ── 2. Call backend process-agreement endpoint ──────────────
             session = get_http_session()
             url = f'{BACKEND_URL}rooms/bot/process-agreement/'
@@ -335,9 +322,6 @@ class InterviewAgreement(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_agreement',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -360,15 +344,11 @@ class InterviewAgreement(commands.Cog):
                         error_msg = 'Could not sign the agreement. The agreement has not been reviewed by one or more participants.'
 
                     # Record + notify the other party (the one who needs to act)
-                    notify_discord_id = body.get('notify_discord_id', '')
                     await record_and_notify(
                         room_id=room_id,
                         sender_role=active_role,
                         msg_data=error_msg,
                         command_name='interview_agreement',
-                        target_discord_id=notify_discord_id,
-                        executor_name=body.get('notify_executor_name', body.get('notify_receiver_name', 'Someone')),
-                        job_title=job_title,
                         bot=interaction.client,
                         session=session,
                         headers=headers,
@@ -382,9 +362,6 @@ class InterviewAgreement(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_agreement',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -399,9 +376,6 @@ class InterviewAgreement(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_agreement',
-                    target_discord_id='',
-                    executor_name=sender_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,

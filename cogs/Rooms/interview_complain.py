@@ -30,6 +30,7 @@ from utils.embeds import (
     info_embed,
 )
 from utils.http import get_http_session
+from utils.retry import validation_fail
 
 logger = logging.getLogger('bot.rooms.interview_complain')
 
@@ -56,6 +57,8 @@ class ComplainStartView(discord.ui.View):
         self.message_id = message_id
         self.complain_id = complain_id
         self._original_interaction: discord.Interaction | None = None
+        # Last complaint attempt, restored when the modal re-opens from this view.
+        self._last_complaint: str = ''
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -72,10 +75,11 @@ class ComplainStartView(discord.ui.View):
             room_data=self.room_data,
             message_id=self.message_id,
             complain_id=self.complain_id,
+            prefill_text=self._last_complaint,
+            start_view=self,
         )
         modal._original_interaction = self._original_interaction
         await interaction.response.send_modal(modal)
-        self.stop()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger)
     async def cancel(
@@ -112,6 +116,8 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         room_data: dict,
         message_id: str = '',
         complain_id: str = '',
+        prefill_text: str = '',
+        start_view: 'ComplainStartView | None' = None,
     ) -> None:
         super().__init__(timeout=300)
         self.user_data = user_data
@@ -119,13 +125,18 @@ class InterviewComplainModal(discord.ui.Modal, title='Submit Complaint'):
         self.message_id = message_id
         self.complain_id = complain_id
         self._original_interaction: discord.Interaction | None = None
+        self.start_view = start_view
+        if prefill_text:
+            self.complaint.default = prefill_text
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         complaint_text = self.complaint.value.strip()
         if not complaint_text:
-            await interaction.response.defer()
-            await self._edit_done(
-                error_embed(message='Complaint must not be empty.'),
+            if self.start_view is not None:
+                self.start_view._last_complaint = complaint_text
+            await validation_fail(
+                interaction,
+                message='Complaint must not be empty.',
             )
             return
 

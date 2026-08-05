@@ -60,15 +60,6 @@ class InterviewTranscript(commands.Cog):
             room_data = user_data['_selected_room']
 
             room_id = room_data.get('room_id', '')
-            job_title = room_data.get('job_title', '')
-            client_discord_id = room_data.get('client_discord_id', '')
-            freelancer_discord_id = room_data.get('freelancer_discord_id', '')
-            client_name = room_data.get('client_name', 'Client')
-            freelancer_name = room_data.get('freelancer_name', 'Freelancer')
-
-            executor_name = (
-                client_name if active_role == 'client' else freelancer_name
-            )
 
             session = get_http_session()
 
@@ -88,9 +79,6 @@ class InterviewTranscript(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_transcript',
-                    target_discord_id='',
-                    executor_name=executor_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -120,9 +108,6 @@ class InterviewTranscript(commands.Cog):
                             sender_role=active_role,
                             msg_data=error_msg,
                             command_name='interview_transcript',
-                            target_discord_id='',
-                            executor_name=executor_name,
-                            job_title=job_title,
                             bot=interaction.client,
                             session=session,
                             headers=headers,
@@ -136,9 +121,6 @@ class InterviewTranscript(commands.Cog):
                     sender_role=active_role,
                     msg_data=error_msg,
                     command_name='interview_transcript',
-                    target_discord_id='',
-                    executor_name=executor_name,
-                    job_title=job_title,
                     bot=interaction.client,
                     session=session,
                     headers=headers,
@@ -146,10 +128,6 @@ class InterviewTranscript(commands.Cog):
                 return error_embed(error_msg)
 
             # ── 3. Record command message + notify other party ────────────
-            other_discord_id = (
-                freelancer_discord_id if active_role == 'client'
-                else client_discord_id
-            )
             msg_data = (
                 'Transcript request has been received and will be '
                 'processed shortly.'
@@ -160,9 +138,6 @@ class InterviewTranscript(commands.Cog):
                 sender_role=active_role,
                 msg_data=msg_data,
                 command_name='interview_transcript',
-                target_discord_id=other_discord_id,
-                executor_name=executor_name,
-                job_title=job_title,
                 bot=interaction.client,
                 session=session,
                 headers=headers,

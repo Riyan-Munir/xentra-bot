@@ -29,8 +29,15 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
         max_length=64,
     )
 
-    def __init__(self, *, prefill_address: str = '', prefill_label: str = ''):
+    def __init__(
+        self,
+        *,
+        prefill_address: str = '',
+        prefill_label: str = '',
+        start_view: 'WalletRegisterView | None' = None,
+    ):
         super().__init__(timeout=300)
+        self.start_view = start_view
         if prefill_address:
             self.address.default = prefill_address
         if prefill_label:
@@ -52,15 +59,12 @@ class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
 
         # Validation (before deferring)
         if not raw_addr or not raw_addr.startswith('0x') or len(raw_addr) != 42:
+            if self.start_view is not None:
+                self.start_view._last_address = raw_addr
+                self.start_view._last_label = raw_label
             await validation_fail(
                 interaction,
                 message='Address must be a 42-character hex string starting with `0x`.',
-                modal_class=WalletRegisterModal,
-                modal_kwargs={
-                    'prefill_address': raw_addr,
-                    'prefill_label': raw_label,
-                },
-                ephemeral=True,
             )
             return
 
@@ -112,6 +116,9 @@ class WalletRegisterView(discord.ui.View):
         super().__init__(timeout=120)
         self.author_id: int | None = None
         self._done = False
+        # Last failed attempt, restored when the modal re-opens from this view.
+        self._last_address: str = ''
+        self._last_label: str = ''
 
     async def on_timeout(self) -> None:
         self.stop()
@@ -122,10 +129,12 @@ class WalletRegisterView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
-        modal = WalletRegisterModal()
+        modal = WalletRegisterModal(
+            prefill_address=self._last_address,
+            prefill_label=self._last_label,
+            start_view=self,
+        )
         await interaction.response.send_modal(modal)
-        self.stop()
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_btn(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:

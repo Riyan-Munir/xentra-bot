@@ -15,6 +15,7 @@ from utils.http import get_http_session
 import logging
 from config import BACKEND_URL, WEBHOOK_SECRET
 from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
+from utils.retry import validation_fail
 from utils.embeds import create_embed, BrandColor, error_embed, info_embed, success_embed
 
 logger = logging.getLogger('bot.rooms.switch_room')
@@ -284,15 +285,13 @@ class RoomPickerView(discord.ui.View):
             return
         if self._done:
             return
-        self._done = True
         is_dm = interaction.guild is None
 
         if not self.selected_room_id or self.selected_room_id == "none":
-            await interaction.response.edit_message(
-                embed=error_embed(message="Select a valid room first."),
-            )
+            await validation_fail(interaction, message="Select a valid room first.")
             return
 
+        self._done = True
         await interaction.response.defer()
 
         # POST to backend to switch room
