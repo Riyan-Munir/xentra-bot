@@ -363,7 +363,7 @@ class WebhookServer:
         self, task_id: str, status: str, error_message: str = '',
     ) -> None:
         """PATCH the task status on the backend (fire-and-forget)."""
-        from config import BACKEND_URL
+        from config import BACKEND_URL, WEBHOOK_SECRET
         from utils.http import get_http_session
 
         session = get_http_session()
@@ -377,13 +377,14 @@ class WebhookServer:
             async with session.patch(
                 url,
                 json=payload,
+                headers={'X-Webhook-Token': WEBHOOK_SECRET},
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status != 200:
-                    body = await resp.json()
+                    body = await resp.text()
                     logger.warning(
                         'PATCH status %s for task %s returned %s: %s',
-                        status, task_id, resp.status, body,
+                        status, task_id, resp.status, body[:500],
                     )
         except Exception:
             logger.exception(

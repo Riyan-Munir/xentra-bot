@@ -193,13 +193,30 @@ def build_single_agreement_parts(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def _dispatch_to_generator(task_id: str) -> None:
-    """Send task_id to the PDF Generator's /generate endpoint (fire-and-forget)."""
+    """Send task_id to the PDF Generator's /generate endpoint (fire-and-forget).
+
+    The PDF_SERVICE_URL must be the service root (e.g. https://host.hf.space),
+    NOT a sub-path — /generate is appended automatically.
+    """
     if not PDF_SERVICE_URL:
         logger.warning('PDF_SERVICE_URL not configured, skipping generator dispatch')
         return
 
+    base = PDF_SERVICE_URL.rstrip('/')
+    # Sanity-check: warn if the base URL already ends with a path component
+    # that would make the final URL wrong (e.g. ".../api" → ".../api/generate").
+    from urllib.parse import urlparse as _urlparse
+    _parsed = _urlparse(base)
+    if _parsed.path not in ('', '/'):
+        logger.warning(
+            'PDF_SERVICE_URL appears to have a path component (%r). '
+            'The /generate endpoint will be appended to the full URL: %s/generate. '
+            'If requests fail with 404, clear the path from PDF_SERVICE_URL.',
+            _parsed.path, base,
+        )
+
     session = get_http_session()
-    generate_url = f'{PDF_SERVICE_URL.rstrip("/")}/generate'
+    generate_url = f'{base}/generate'
 
     try:
         import aiohttp
@@ -211,12 +228,18 @@ async def _dispatch_to_generator(task_id: str) -> None:
             if resp.status == 202:
                 logger.info('PDF Generator accepted task %s', task_id)
             else:
-                body = await resp.json()
+                try:
+                    body = await resp.json()
+                except Exception:
+                    body = await resp.text()
                 logger.warning(
-                    'PDF Generator returned %s for task %s: %s',
-                    resp.status, task_id, body,
+                    'PDF Generator returned %s for task %s: %s '
+                    '(URL: %s — verify PDF_SERVICE_URL points to the service root)',
+                    resp.status, task_id, body, generate_url,
                 )
     except Exception:
         logger.exception(
-            'Failed to reach PDF Generator for task %s', task_id,
+            'Failed to reach PDF Generator for task %s (URL: %s)',
+            task_id, generate_url,
         )
+
