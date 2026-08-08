@@ -367,7 +367,11 @@ async def _log_pdf_delivery(
     msg_type = _PDF_MSG_TYPES.get(task_type, task_type)
     title = prepared.get('title', '')
     body = prepared.get('body', '')
-    msg_text = f'{title}\n\n{body}'.strip() if body else title
+    # Discord embed titles are plain text, so the title only reaches the
+    # transcript record here.  Bold it so the PDF parser renders it as a
+    # styled title line (the DM embed was already built separately).
+    styled_title = f'**{title}**' if title else ''
+    msg_text = f'{styled_title}\n\n{body}'.strip() if body else styled_title
 
     payload = {
         'room_id': room_id,

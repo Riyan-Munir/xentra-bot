@@ -688,7 +688,9 @@ class CreateRooms(commands.Cog):
             room_id=result['room_id'],
             msg_type="guide_freelancer",
             flags={"freelancer_guide_sent": True},
-            msg_text=f"{guide_fl_title}\n\n{guide_fl_body}" if guide_fl_body else guide_fl_title,
+            # Bold the title so the transcript PDF renders it as a title line
+            # (the DM embed already uses the plain title).
+            msg_text=f"**{guide_fl_title}**\n\n{guide_fl_body}" if guide_fl_body else f"**{guide_fl_title}**",
             receiver="freelancer",
         )
 
@@ -701,7 +703,9 @@ class CreateRooms(commands.Cog):
             room_id=result['room_id'],
             msg_type="guide_client",
             flags={"client_guide_sent": True},
-            msg_text=f"{guide_cl_title}\n\n{guide_cl_body}" if guide_cl_body else guide_cl_title,
+            # Bold the title so the transcript PDF renders it as a title line
+            # (the DM embed already uses the plain title).
+            msg_text=f"**{guide_cl_title}**\n\n{guide_cl_body}" if guide_cl_body else f"**{guide_cl_title}**",
             receiver="client",
         )
 
@@ -731,7 +735,9 @@ class CreateRooms(commands.Cog):
         _, rules_body_text, rules_title = build_rules_embed(rules_data)
 
         rules_msg_text = (
-            f"{rules_title}\n\n{rules_body_text}" if rules_body_text else rules_title
+            f"**{rules_title}**\n\n{rules_body_text}"
+            if rules_body_text
+            else f"**{rules_title}**"
         )
         if rules_freelancer_ok:
             await self._log_system_message(
@@ -806,7 +812,9 @@ class CreateRooms(commands.Cog):
             "deadline": result.get('deadline'),
         }
         _, jd_body_text, jd_title = build_job_details_embed(jd_data)
-        jd_msg_text = f"{jd_title}\n\n{jd_body_text}" if jd_body_text else jd_title
+        jd_msg_text = (
+            f"**{jd_title}**\n\n{jd_body_text}" if jd_body_text else f"**{jd_title}**"
+        )
 
         if jd_freelancer_ok:
             await self._log_system_message(

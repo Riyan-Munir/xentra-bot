@@ -152,8 +152,13 @@ async def _process_single_closure(
             build_embed as build_closure_embed,
         )
         _, body_text, closure_title = build_closure_embed(payload)
+        # Bold the title so the persisted transcript record renders it as a
+        # styled title line in the PDF (the DM embed was already sent with
+        # the plain title).
         closure_msg_text = (
-            f"{closure_title}\n\n{body_text}" if body_text else closure_title
+            f"**{closure_title}**\n\n{body_text}"
+            if body_text
+            else f"**{closure_title}**"
         )
 
         # 2a. Send the closure DM (built + delivered via the handler).
