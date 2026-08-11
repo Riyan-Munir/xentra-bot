@@ -189,7 +189,6 @@ class SelectedRoom(commands.Cog):
                 title="Selected Room",
                 description=(
                     "> ***Select the type of room to view.***\n"
-                    "**Step:** `1 of 2`\n"
                     "`1.` Interview Room — show your selected interview room.\n"
                     "`2.` Job Room — show your selected job room.\n"
                     "\n"

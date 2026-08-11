@@ -221,7 +221,6 @@ class ExtraRoomConfirmView(discord.ui.View):
             title="Create a Room",
             description=(
                 "> ***Select the type of room to create.***\n"
-                "**Step:** `1 of 4`\n"
                 "`1.` Interview Room — interview a freelancer for a job application.\n"
                 "`2.` Job Room — complete a job with an agreed freelancer.\n"
                 "\n"
@@ -532,7 +531,6 @@ class CreateRooms(commands.Cog):
                 title="Create a Room",
                 description=(
                     "> ***Select the type of room to create.***\n"
-                    "**Step:** `1 of 4`\n"
                     "`1.` Interview Room — interview a freelancer for a job application.\n"
                     "`2.` Job Room — complete a job with an agreed freelancer.\n"
                     "\n"
@@ -573,7 +571,6 @@ class CreateRooms(commands.Cog):
             title="Create a Room",
             description=(
                 "> ***Select the type of room to create.***\n"
-                "**Step:** `1 of 4`\n"
                 "`1.` Interview Room — interview a freelancer for a job application.\n"
                 "`2.` Job Room — complete a job with an agreed freelancer.\n"
                 "\n"
@@ -661,7 +658,6 @@ class CreateRooms(commands.Cog):
                     title="Select a Job",
                     description=(
                         "> ***Choose the job you want to open an interview room for.***\n"
-                        "**Step:** `2 of 4`\n"
                         "\n"
                         "> __Use the dropdown to pick a job, then click Proceed.__"
                     ),
@@ -716,7 +712,6 @@ class CreateRooms(commands.Cog):
                     title="Select an Application",
                     description=(
                         "> ***Choose which applicant to interview.***\n"
-                        "**Step:** `4 of 4`\n"
                         "\n"
                         "> __Use the dropdown to pick an application, then click Proceed.__"
                     ),
@@ -1069,7 +1064,6 @@ class CreateRooms(commands.Cog):
             title="Create a Room",
             description=(
                 "> ***Select the type of room to create.***\n"
-                "**Step:** `1 of 4`\n"
                 "`1.` Interview Room — interview a freelancer for a job application.\n"
                 "`2.` Job Room — complete a job with an agreed freelancer.\n"
                 "\n"
@@ -1083,7 +1077,6 @@ class CreateRooms(commands.Cog):
             title="Select a Job",
             description=(
                 "> ***Choose the job you want to open a job room for.***\n"
-                "**Step:** `2 of 4`\n"
                 "\n"
                 "> __Use the dropdown to pick a job, then click Create Job Room.__"
             ),

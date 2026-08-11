@@ -26,7 +26,6 @@ class Help(commands.Cog):
         
         async def build_help_embed(user_data):
             active_role = user_data.get('active_role', 'non_bot_user')
-            has_active_job_chat = user_data.get('has_active_job_chat', False)
             is_dm = interaction.guild is None
             context = "dm" if is_dm else "server"
             
@@ -54,7 +53,6 @@ class Help(commands.Cog):
                 role_allowed = active_role in target_roles
                 
                 if not role_allowed: continue
-                if cmd['requiresJobChat'] and not has_active_job_chat: continue
 
                 cat = cmd['category']
                 if cat not in filtered_commands: filtered_commands[cat] = []

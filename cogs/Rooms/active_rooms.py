@@ -291,7 +291,6 @@ class ActiveRooms(commands.Cog):
                 title="Active Rooms",
                 description=(
                     "> ***Select the type of room to view.***\n"
-                    "**Step:** `1 of 2`\n"
                     "`1.` Interview Room — show all your open interview rooms.\n"
                     "`2.` Job Room — show your active job rooms (open / freezed / disputed).\n"
                     "\n"

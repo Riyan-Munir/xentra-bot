@@ -34,7 +34,6 @@ class SwitchRole(commands.Cog):
                 title="Identity Switcher",
                 description=(
                     "> ***Choose which identity to use.***\n"
-                    "**Step:** `1 of 1`\n"
                     "\n"
                     "> __Use the dropdown to pick a role, then click Proceed.__"
                 ),

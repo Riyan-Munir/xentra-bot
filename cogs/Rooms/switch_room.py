@@ -143,7 +143,6 @@ class SwitchRoomSetupView(discord.ui.View):
                         title="Switch Selected Room",
                         description=(
                             "> ***Choose your new active room.***\n"
-                            "**Step:** `2 of 2`\n"
                             "\n"
                             "> __Use the dropdown to pick a room, then click Proceed.__"
                         ),
@@ -353,7 +352,6 @@ class SwitchRoom(commands.Cog):
                 title="Switch Room",
                 description=(
                     "> ***Select the type of room to switch to.***\n"
-                    "**Step:** `1 of 2`\n"
                     "`1.` Interview Room — pick from your active interview rooms.\n"
                     "`2.` Job Room — pick from your active job rooms.\n"
                     "\n"
