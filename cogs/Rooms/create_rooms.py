@@ -4,13 +4,16 @@ Cog for the ``/create room`` command.
 Flow
 ----
 1. Room type selection (Interview Room / Job Room) via dropdown + Submit/Cancel.
-2. **Job Room** → "Not available yet" success embed.
+2. **Job Room** → fetch jobs with a signed agreement (GET /rooms/bot/client-agreements/).
+   If none found → "Could not find any job with an agreement."
+   Otherwise → job selection dropdown → Create Job Room button →
+   atomically create a JobRoomSession (POST /rooms/bot/create-job-room/).
 3. **Interview Room** multi-step flow:
 
    a. Quota check (GET /rooms/bot/quota-check/).
    b. If system quota exhausted & extra rooms available → confirmation prompt.
    c. If both exhausted → error.
-   d. Fetch client's open jobs with ≥1 pending application.
+   d. Fetch client's open jobs (GET /rooms/bot/client-jobs/).
    e. Job selection dropdown.
    f. Fetch pending applications for selected job.
    g. Application selection dropdown.
@@ -48,6 +51,10 @@ from system_messages.interview_room_rules import build_embed as build_rules_embe
 from system_messages.interview_room_job_details import build_embed as build_job_details_embed
 from system_messages.interview_room_guide_freelancer import build_embed as build_guide_freelancer_embed
 from system_messages.interview_room_guide_client import build_embed as build_guide_client_embed
+from system_messages.job_room_rules import build_embed as build_job_room_rules_embed
+from system_messages.job_room_job_details import build_embed as build_job_room_details_embed
+from system_messages.job_room_guide_freelancer import build_embed as build_job_room_guide_freelancer_embed
+from system_messages.job_room_guide_client import build_embed as build_job_room_guide_client_embed
 
 logger = logging.getLogger("bot.rooms.create_rooms")
 
@@ -129,7 +136,12 @@ class CreateRoomSetupView(discord.ui.View):
         self._done = True
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="Room creation cancelled."),
+            embed=info_embed(
+                message=(
+                    "> ***Room creation has been cancelled.***\n"
+                    "> __Nothing was changed. You can run /create room again anytime.__"
+                )
+            ),
             view=None,
         )
 
@@ -151,13 +163,8 @@ class CreateRoomSetupView(discord.ui.View):
         await interaction.edit_original_response(view=None)
 
         if self.room_type == "job":
-            await interaction.edit_original_response(
-                embed=success_embed(
-                    message="Job room creation is not available yet. "
-                    "This feature will be released in a future update.",
-                ),
-                view=None,
-            )
+            cog: "CreateRooms" = interaction.client.get_cog("CreateRooms")  # type: ignore
+            await cog.start_job_flow(interaction)
             return
 
         # Interview Room, hand off to the flow coordinator
@@ -213,9 +220,12 @@ class ExtraRoomConfirmView(discord.ui.View):
         embed = create_embed(
             title="Create a Room",
             description=(
-                "> **Interview Room**, Interview a freelancer for a job "
-                "application.\n"
-                "> **Job Room**, Complete a job with agreed freelancer."
+                "> ***Select the type of room to create.***\n"
+                "**Step:** `1 of 4`\n"
+                "`1.` Interview Room — interview a freelancer for a job application.\n"
+                "`2.` Job Room — complete a job with an agreed freelancer.\n"
+                "\n"
+                "> __Choose a room type from the dropdown, then click Proceed.__"
             ),
             color=BrandColor.PRIMARY,
         )
@@ -247,6 +257,8 @@ class JobSelectView(discord.ui.View):
                 description=(
                     f"{j['application_count']} applicant"
                     f"{'s' if j['application_count'] != 1 else ''}"
+                    if j.get('application_count', 0) > 0
+                    else "No applicants yet"
                 ),
             )
             for j in jobs
@@ -403,6 +415,94 @@ class ApplicationSelectView(discord.ui.View):
         await interaction.response.defer()
 
 
+# =====================================================================
+#  Job Agreement Selection (Job Room flow)
+# =====================================================================
+
+
+class JobAgreementSelectView(discord.ui.View):
+    """Let the client pick one of their jobs that has a signed agreement."""
+
+    def __init__(self, jobs: List[dict]) -> None:
+        super().__init__(timeout=120)
+        self.author_id: int | None = None
+        self.jobs = jobs
+        self.selected_job_id: Optional[str] = None
+        self.selected_job_title: Optional[str] = None
+        self.selected_freelancer_name: Optional[str] = None
+        self.selected_freelancer_id: Optional[str] = None
+        self.went_back: bool = False
+
+        self._all_options = [
+            discord.SelectOption(
+                label=j["title"][:100],
+                value=j["job_id"],
+                description=(
+                    f"Agreement: {j.get('agreement_id', '')}"[:100]
+                    if j.get('agreement_id')
+                    else f"Freelancer: {j.get('freelancer_name', 'Unknown')}"[:100]
+                ),
+            )
+            for j in jobs
+        ]
+
+        self._job_select = discord.ui.Select(
+            placeholder="Select a job",
+            min_values=1,
+            max_values=1,
+            options=self._all_options,
+        )
+        self._job_select.callback = self._on_select
+        self.add_item(self._job_select)
+
+        create_btn = discord.ui.Button(
+            label="Create Job Room", style=discord.ButtonStyle.success, row=1
+        )
+        create_btn.callback = self._on_create
+        self.add_item(create_btn)
+
+        back = discord.ui.Button(
+            label="\u2190 Back", style=discord.ButtonStyle.secondary, row=1
+        )
+        back.callback = self._on_back
+        self.add_item(back)
+
+    # ------------------------------------------------------------------
+
+    async def on_timeout(self) -> None:
+        self.stop()
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        self.selected_job_id = self._job_select.values[0]
+        match = next(
+            (j for j in self.jobs if j["job_id"] == self.selected_job_id), None
+        )
+        if match:
+            self.selected_job_title = match["title"]
+            self.selected_freelancer_name = match.get("freelancer_name", "Unknown")
+            self.selected_freelancer_id = match.get("freelancer_discord_id", "")
+        # Mirror selection in dropdown placeholder
+        self._job_select.placeholder = f"\u2713 {self.selected_job_title or self.selected_job_id}"
+        await interaction.response.edit_message(view=self)
+
+    async def _on_create(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        if not self.selected_job_id:
+            await validation_fail(interaction, message="Select a job first.")
+            return
+        self.stop()
+        await interaction.response.edit_message(view=None)
+
+    async def _on_back(self, interaction: discord.Interaction) -> None:
+        if not is_author(interaction, self):
+            return
+        self.went_back = True
+        self.selected_job_id = None
+        self.stop()
+        await interaction.response.defer()
 
 
 # =====================================================================
@@ -431,9 +531,12 @@ class CreateRooms(commands.Cog):
             embed = create_embed(
                 title="Create a Room",
                 description=(
-                    "> **Interview Room**, Interview a freelancer for a job "
-                    "application.\n"
-                    "> **Job Room**, Complete a job with agreed freelancer."
+                    "> ***Select the type of room to create.***\n"
+                    "**Step:** `1 of 4`\n"
+                    "`1.` Interview Room — interview a freelancer for a job application.\n"
+                    "`2.` Job Room — complete a job with an agreed freelancer.\n"
+                    "\n"
+                    "> __Choose a room type from the dropdown, then click Proceed.__"
                 ),
                 color=BrandColor.PRIMARY,
             )
@@ -469,9 +572,12 @@ class CreateRooms(commands.Cog):
         initial_embed = create_embed(
             title="Create a Room",
             description=(
-                "> **Interview Room**, Interview a freelancer for a job "
-                "application.\n"
-                "> **Job Room**, Complete a job with agreed freelancer."
+                "> ***Select the type of room to create.***\n"
+                "**Step:** `1 of 4`\n"
+                "`1.` Interview Room — interview a freelancer for a job application.\n"
+                "`2.` Job Room — complete a job with an agreed freelancer.\n"
+                "\n"
+                "> __Choose a room type from the dropdown, then click Proceed.__"
             ),
             color=BrandColor.PRIMARY,
         )
@@ -503,12 +609,13 @@ class CreateRooms(commands.Cog):
                 confirm_embed = create_embed(
                     title="Monthly Limit Reached",
                     description=(
-                        "> You have used all your room tokens for this month.\n"
-                        f"> You have **{extra_count}** room token"
-                        f"{'s' if extra_count != 1 else ''} remaining.\n\n"
-                        "> Would you like to use a purchased room token for this room?"
+                        "> ***You have used all your room tokens for this month.***\n"
+                        f"**Tokens remaining:** `{extra_count}`\n"
+                        "\n"
+                        "> __Would you like to use a purchased room token for this room?__"
                     ),
                     color=BrandColor.WARNING,
+                    footer="Xentra • Rooms",
                 )
                 confirm_view = ExtraRoomConfirmView(extra_count)
                 confirm_view.author_id = interaction.user.id
@@ -541,7 +648,7 @@ class CreateRooms(commands.Cog):
                 if not jobs:
                     await interaction.edit_original_response(
                         embed=error_embed(
-                            message="Could not find any open jobs with pending applications.",
+                            message="Could not find any open jobs.",
                         ),
                     )
                     return
@@ -552,8 +659,14 @@ class CreateRooms(commands.Cog):
             if step == 2:
                 job_embed = create_embed(
                     title="Select a Job",
-                    description="Choose a job to create an interview room for.",
+                    description=(
+                        "> ***Choose the job you want to open an interview room for.***\n"
+                        "**Step:** `2 of 4`\n"
+                        "\n"
+                        "> __Use the dropdown to pick a job, then click Proceed.__"
+                    ),
                     color=BrandColor.PRIMARY,
+                    footer="Xentra • Rooms",
                 )
                 job_view = JobSelectView(jobs, use_extra)
                 job_view.author_id = interaction.user.id
@@ -601,8 +714,14 @@ class CreateRooms(commands.Cog):
             if step == 4:
                 app_embed = create_embed(
                     title="Select an Application",
-                    description="Choose an applicant to interview.",
+                    description=(
+                        "> ***Choose which applicant to interview.***\n"
+                        "**Step:** `4 of 4`\n"
+                        "\n"
+                        "> __Use the dropdown to pick an application, then click Proceed.__"
+                    ),
                     color=BrandColor.PRIMARY,
+                    footer="Xentra • Rooms",
                 )
                 app_view = ApplicationSelectView(applications, use_extra)
                 app_view.author_id = interaction.user.id
@@ -923,6 +1042,341 @@ class CreateRooms(commands.Cog):
         })
 
     # ------------------------------------------------------------------
+    #  Job flow coordinator
+    # ------------------------------------------------------------------
+
+    async def start_job_flow(
+        self, interaction: discord.Interaction
+    ) -> None:
+        """Run the job room creation flow (select a job with an agreement)."""
+
+        # ── Step 1, Fetch client jobs with a signed agreement ──────
+        jobs = await self._fetch_client_agreements(interaction)
+        if isinstance(jobs, discord.Embed):
+            await interaction.edit_original_response(embed=jobs)
+            return
+
+        if not jobs:
+            await interaction.edit_original_response(
+                embed=error_embed(
+                    message="Could not find any job with an agreement.",
+                ),
+            )
+            return
+
+        # ── Step 2, Job selection ──────────────────────────────────
+        initial_embed = create_embed(
+            title="Create a Room",
+            description=(
+                "> ***Select the type of room to create.***\n"
+                "**Step:** `1 of 4`\n"
+                "`1.` Interview Room — interview a freelancer for a job application.\n"
+                "`2.` Job Room — complete a job with an agreed freelancer.\n"
+                "\n"
+                "> __Choose a room type from the dropdown, then click Proceed.__"
+            ),
+            color=BrandColor.PRIMARY,
+        )
+        initial_embed.set_footer(text='Xentra • Rooms')
+
+        job_embed = create_embed(
+            title="Select a Job",
+            description=(
+                "> ***Choose the job you want to open a job room for.***\n"
+                "**Step:** `2 of 4`\n"
+                "\n"
+                "> __Use the dropdown to pick a job, then click Create Job Room.__"
+            ),
+            color=BrandColor.PRIMARY,
+            footer="Xentra • Rooms",
+        )
+        job_view = JobAgreementSelectView(jobs)
+        job_view.author_id = interaction.user.id
+        await interaction.edit_original_response(embed=job_embed, view=job_view)
+        await job_view.wait()
+
+        if job_view.went_back:
+            # Go back to initial view (CreateRoomSetupView)
+            setup_view = CreateRoomSetupView()
+            setup_view.author_id = interaction.user.id
+            await interaction.edit_original_response(
+                embed=initial_embed, view=setup_view
+            )
+            return
+
+        if not job_view.selected_job_id:
+            return  # cancelled
+
+        # ── Step 3, DM validation ───────────────────────────────────
+
+        # Try freelancer DM first, if it fails the client gets no
+        # premature notification.
+        client_display_name = interaction.user.display_name
+        freelancer_dm_ok = await handle_system_message(
+            "job_room_guide_freelancer",
+            {
+                "discord_id": job_view.selected_freelancer_id,
+                "client_name": client_display_name,
+                "job_title": job_view.selected_job_title,
+            },
+            interaction.client,
+        )
+
+        if not freelancer_dm_ok:
+            await interaction.edit_original_response(
+                embed=dm_blocked_embed(
+                    attempted_action="Room invitation",
+                    receiver_name=job_view.selected_freelancer_name,
+                ),
+            )
+            return
+
+        client_dm_ok = await handle_system_message(
+            "job_room_guide_client",
+            {
+                "discord_id": str(interaction.user.id),
+                "freelancer_name": job_view.selected_freelancer_name,
+                "job_title": job_view.selected_job_title,
+            },
+            interaction.client,
+        )
+
+        if not client_dm_ok:
+            await interaction.edit_original_response(
+                embed=dm_blocked_embed(
+                    attempted_action="Room invitation",
+                    receiver_name="you",
+                ),
+            )
+            return
+
+        # ── Step 4, Create job room (backend) ───────────────────────
+        result = await self._create_job_room(interaction, job_view.selected_job_id)
+        if isinstance(result, discord.Embed):
+            await interaction.edit_original_response(embed=result)
+            return
+
+        # ── Step 4b, Log guide messages (2 records) ─────────────────
+        # Guide DMs were sent BEFORE room creation.  Now that the room
+        # exists, persist one JobRoomMsg per receiver.
+        guide_freelancer_data = {
+            "client_name": client_display_name,
+            "job_title": job_view.selected_job_title,
+        }
+        _, guide_fl_body, guide_fl_title = build_job_room_guide_freelancer_embed(guide_freelancer_data)
+        await self._log_system_message(
+            room_id=result['room_id'],
+            msg_type="guide_freelancer",
+            flags={"freelancer_guide_sent": True},
+            # Bold the title so the transcript PDF renders it as a title line
+            # (the DM embed already uses the plain title).
+            msg_text=f"**{guide_fl_title}**\n\n{guide_fl_body}" if guide_fl_body else f"**{guide_fl_title}**",
+            receiver="freelancer",
+            room_type='job',
+        )
+
+        guide_client_data = {
+            "freelancer_name": job_view.selected_freelancer_name,
+            "job_title": job_view.selected_job_title,
+        }
+        _, guide_cl_body, guide_cl_title = build_job_room_guide_client_embed(guide_client_data)
+        await self._log_system_message(
+            room_id=result['room_id'],
+            msg_type="guide_client",
+            flags={"client_guide_sent": True},
+            # Bold the title so the transcript PDF renders it as a title line
+            # (the DM embed already uses the plain title).
+            msg_text=f"**{guide_cl_title}**\n\n{guide_cl_body}" if guide_cl_body else f"**{guide_cl_title}**",
+            receiver="client",
+            room_type='job',
+        )
+
+        # ── Step 5, Send rules system message ───────────────────────
+        rules_freelancer_ok = await handle_system_message(
+            "job_room_rules",
+            {
+                "discord_id": result['freelancer_discord_id'],
+                "room_id": result['room_id'],
+                "job_title": result['job_title'],
+            },
+            interaction.client,
+        )
+        rules_client_ok = False
+        if rules_freelancer_ok:
+            rules_client_ok = await handle_system_message(
+                "job_room_rules",
+                {
+                    "discord_id": str(interaction.user.id),
+                    "room_id": result['room_id'],
+                    "job_title": result['job_title'],
+                },
+                interaction.client,
+            )
+
+        rules_data = {"room_id": result['room_id']}
+        _, rules_body_text, rules_title = build_job_room_rules_embed(rules_data)
+
+        rules_msg_text = (
+            f"**{rules_title}**\n\n{rules_body_text}"
+            if rules_body_text
+            else f"**{rules_title}**"
+        )
+        if rules_freelancer_ok:
+            await self._log_system_message(
+                room_id=result['room_id'],
+                msg_type="rules",
+                flags={"freelancer_rules_sent": True},
+                msg_text=rules_msg_text,
+                receiver="freelancer",
+                room_type='job',
+            )
+        if rules_client_ok:
+            await self._log_system_message(
+                room_id=result['room_id'],
+                msg_type="rules",
+                flags={"client_rules_sent": True},
+                msg_text=rules_msg_text,
+                receiver="client",
+                room_type='job',
+            )
+
+        # ── Step 6, Send job details system message ─────────────────
+        jd_freelancer_ok = await handle_system_message(
+            "job_room_job_details",
+            {
+                "discord_id": result['freelancer_discord_id'],
+                "room_id": result['room_id'],
+                "job_title": result['job_title'],
+                "job_description": result.get('job_description', ''),
+                "budget_min": result.get('budget_min', '—'),
+                "budget_max": result.get('budget_max', '—'),
+                "deadline": result.get('deadline'),
+            },
+            interaction.client,
+        )
+        jd_client_ok = False
+        if jd_freelancer_ok:
+            jd_client_ok = await handle_system_message(
+                "job_room_job_details",
+                {
+                    "discord_id": str(interaction.user.id),
+                    "room_id": result['room_id'],
+                    "job_title": result['job_title'],
+                    "job_description": result.get('job_description', ''),
+                    "budget_min": result.get('budget_min', '—'),
+                    "budget_max": result.get('budget_max', '—'),
+                    "deadline": result.get('deadline'),
+                },
+                interaction.client,
+            )
+
+        jd_data = {
+            "room_id": result['room_id'],
+            "job_title": result['job_title'],
+            "job_description": result.get('job_description', ''),
+            "budget_min": result.get('budget_min', '—'),
+            "budget_max": result.get('budget_max', '—'),
+            "deadline": result.get('deadline'),
+        }
+        _, jd_body_text, jd_title = build_job_room_details_embed(jd_data)
+        jd_msg_text = (
+            f"**{jd_title}**\n\n{jd_body_text}" if jd_body_text else f"**{jd_title}**"
+        )
+
+        if jd_freelancer_ok:
+            await self._log_system_message(
+                room_id=result['room_id'],
+                msg_type="job_details",
+                flags={"freelancer_job_details_sent": True},
+                msg_text=jd_msg_text,
+                receiver="freelancer",
+                room_type='job',
+            )
+        if jd_client_ok:
+            await self._log_system_message(
+                room_id=result['room_id'],
+                msg_type="job_details",
+                flags={"client_job_details_sent": True},
+                msg_text=jd_msg_text,
+                receiver="client",
+                room_type='job',
+            )
+
+        # ── Success & DM-failure notifications ──────────────────────
+        success_embed_obj = success_embed(
+            message="Job room created successfully.\n\n"
+            f"**Room ID:** `{result['room_id']}`\n"
+            f"**Agreement:** `{result.get('agreement_id', '—')}`\n"
+            f"**Freelancer:** **{result['freelancer_name']}**\n"
+            f"**Job:** {result['job_title']}",
+        )
+
+        # Collect individual DM delivery failures
+        failure_embeds = []
+        if not rules_freelancer_ok:
+            failure_embeds.append(
+                dm_blocked_embed(
+                    attempted_action="the room rules",
+                    receiver_name=result['freelancer_name'],
+                ),
+            )
+        elif not rules_client_ok:
+            failure_embeds.append(
+                dm_blocked_embed(
+                    attempted_action="the room rules",
+                    receiver_name="you",
+                ),
+            )
+        if not jd_freelancer_ok:
+            failure_embeds.append(
+                dm_blocked_embed(
+                    attempted_action="the job details",
+                    receiver_name=result['freelancer_name'],
+                ),
+            )
+        elif not jd_client_ok:
+            failure_embeds.append(
+                dm_blocked_embed(
+                    attempted_action="the job details",
+                    receiver_name="you",
+                ),
+            )
+
+        if failure_embeds:
+            # Show success + all delivery-failure notifications together
+            await interaction.edit_original_response(
+                embeds=[success_embed_obj] + failure_embeds,
+                view=None,
+            )
+        else:
+            await interaction.edit_original_response(
+                embed=success_embed_obj,
+                view=None,
+            )
+
+        # Fire-and-forget analytics, use a guild-less event since this
+        # command runs in DMs, so interaction.guild_id is None.
+        AnalyticsCollector.log_custom_event({
+            'event_type': 'job_room_created',
+            'target_type': 'job_room',
+            'target_id': result['room_id'],
+            'actor': {
+                'discord_id': str(interaction.user.id),
+                'display_name': interaction.user.display_name,
+                'profile_id': '',
+                'role': '',
+                'role_display_name': '',
+            },
+            'context': {
+                'room_id': result['room_id'],
+                'agreement_id': result.get('agreement_id', ''),
+                'job_title': result['job_title'],
+                'freelancer_name': result['freelancer_name'],
+            },
+            'metadata': {},
+        })
+
+    # ------------------------------------------------------------------
     #  Helpers
     # ------------------------------------------------------------------
 
@@ -933,6 +1387,7 @@ class CreateRooms(commands.Cog):
         flags: dict,
         msg_text: str = '',
         receiver: str = '',
+        room_type: str = 'interview',
     ) -> None:
         """Fire-and-forget log of a system message delivery to the backend.
 
@@ -959,6 +1414,7 @@ class CreateRooms(commands.Cog):
                 "flags": flags,
                 "msg_text": msg_text,
                 "receiver": receiver,
+                "room_type": room_type,
             },
             provider="bot",
         )
@@ -1013,7 +1469,7 @@ class CreateRooms(commands.Cog):
     async def _fetch_client_jobs(
         self, interaction: discord.Interaction
     ) -> Union[List[dict], discord.Embed]:
-        """Fetch open jobs with ≥1 pending application for this client."""
+        """Fetch open, non-archived jobs for this client."""
         url = f"{BACKEND_URL}rooms/bot/client-jobs/"
         params = {"discord_id": str(interaction.user.id)}
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -1100,6 +1556,67 @@ class CreateRooms(commands.Cog):
             logger.exception("Create room failed")
             return error_embed(
                 message="Could not create interview room.",
+            )
+
+    async def _fetch_client_agreements(
+        self, interaction: discord.Interaction
+    ) -> Union[List[dict], discord.Embed]:
+        """Fetch jobs with a signed agreement for this client."""
+        url = f"{BACKEND_URL}rooms/bot/client-agreements/"
+        params = {"discord_id": str(interaction.user.id)}
+        headers = {"X-Webhook-Token": WEBHOOK_SECRET}
+
+        session = get_http_session()
+        timeout = aiohttp.ClientTimeout(total=30)
+        try:
+            async with session.get(
+                url, params=params, headers=headers, timeout=timeout
+            ) as resp:
+                data = await resp.json()
+                if resp.status == 200:
+                    return data
+                return error_embed(
+                    message=data.get("error", "Could not load the jobs with an agreement."),
+                )
+        except Exception:
+            logger.exception("Fetch client agreements failed")
+            return error_embed(
+                message="Could not load the jobs with an agreement.",
+            )
+
+    async def _create_job_room(
+        self,
+        interaction: discord.Interaction,
+        job_id: str,
+    ) -> Union[dict, discord.Embed]:
+        """Atomically create the job room session via the backend."""
+        url = f"{BACKEND_URL}rooms/bot/create-job-room/"
+        packet = BotPacketFactory.create_packet(
+            packet_type="create_job_room",
+            data={
+                "discord_id": str(interaction.user.id),
+                "job_id": job_id,
+            },
+            provider="bot",
+        )
+        headers = {"X-Webhook-Token": WEBHOOK_SECRET}
+
+        session = get_http_session()
+        timeout = aiohttp.ClientTimeout(total=30)
+        try:
+            async with session.post(
+                url, json=packet.to_dict(), headers=headers, timeout=timeout
+            ) as resp:
+                data = await resp.json()
+                if resp.status == 200:
+                    return data
+                return error_embed(
+                    message=data.get("error", "Could not create job room."),
+                )
+        except Exception:
+            logger.exception("Create job room failed")
+            return error_embed(
+                message="Could not create job room.",
             )
 
 

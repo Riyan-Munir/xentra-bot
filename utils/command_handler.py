@@ -409,34 +409,32 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                                 err = error_embed(
                                     "**Access Denied**\n\n"
                                     "Your request could not be processed. Please try again "
-                                    f"or [contact support]({FRONTEND_URL}/support) if the issue persists."
+                                    "or contact support if the issue persists."
                                 )
                             elif error_code == 'account_suspended':
                                 err = error_embed(
                                     "**Account Suspended**\n\n"
                                     "Your account has been suspended. If you believe this "
-                                    f"is a mistake, please [contact support]({FRONTEND_URL}/support) "
-                                    f"or visit [Xentra Dashboard]({FRONTEND_URL}) for help."
+                                    "is a mistake, please contact support or open the "
+                                    "Xentra dashboard for help."
                                 )
                             elif error_code == 'profile_suspended':
                                 err = error_embed(
                                     "**Profile Suspended**\n\n"
                                     "This profile is currently unavailable.\n\n"
-                                    f"Visit [Xentra Dashboard]({FRONTEND_URL}) "
-                                    f"or [contact support]({FRONTEND_URL}/support) for more details."
+                                    "Open the Xentra dashboard or contact support for more details."
                                 )
                             elif err_data.get('require_dismiss'):
                                 err = error_embed(
                                     "**Alert Active**\n\n"
                                     "You have an unread notification on the Xentra Dashboard. "
-                                    f"Please visit [{FRONTEND_URL}]({FRONTEND_URL}) to review it "
-                                    "before using bot commands."
+                                    "Please open the dashboard to review it before using bot commands."
                                 )
                             else:
                                 err = error_embed(
                                     "**Request Forbidden**\n\n"
                                     "This request could not be completed. "
-                                    f"If you believe this is an error, please [contact support]({FRONTEND_URL}/support)."
+                                    "If you believe this is an error, please contact support."
                                 )
                             await interaction.followup.send(embed=err, ephemeral=True)
                             return
@@ -451,7 +449,7 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
                                 err = error_embed(
                                     "**Account Required**\n\n"
                                     "You don't have an account yet. "
-                                    f"Register on [Xentra Dashboard]({FRONTEND_URL}) to get started."
+                                    "Register on the Xentra dashboard to get started."
                                 )
                             else:
                                 err_text = await resp.text()
@@ -491,11 +489,10 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
     # Mirror SecurityEnforcementMiddleware: if the user has an unseen hacking
     # notification, block ALL bot commands until they dismiss it on the dashboard.
     if user_data.get('has_pending_hacking'):
-        from config import FRONTEND_URL
         err = error_embed(
             "**Security Alert, Commands Locked**\n\n"
             "A security notification requires your attention on the Xentra Dashboard.\n"
-            f"Visit **{FRONTEND_URL}** and acknowledge the alert "
+            "Open the Xentra dashboard and acknowledge the alert "
             "to restore access to all bot commands."
         )
         await interaction.followup.send(embed=err, ephemeral=True)
@@ -624,11 +621,10 @@ async def validate_and_respond(interaction, embed_builder_callback, required_rol
 
     if not role_match:
         if active_role == 'non_bot_user' and not user_data.get('registered', True):
-            from config import FRONTEND_URL
             err = error_embed(
                 "**Account Required**\n\n"
                 "You need to register an account before using this command.\n"
-                f"Visit [Xentra Dashboard]({FRONTEND_URL}) to get started."
+                "Run `/register` to get started."
             )
         else:
             err = error_embed(

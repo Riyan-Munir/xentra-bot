@@ -59,6 +59,6 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         title="Job Cancelled",
         description=description,
         color=BrandColor.PRIMARY,
-        footer="Xentra • Job system",
+        footer="Xentra • Jobs",
     )
     return embed, body

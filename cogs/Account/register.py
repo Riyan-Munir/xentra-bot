@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from config import FRONTEND_URL
 from utils.command_handler import validate_and_respond, sync_cog_commands
-from utils.embeds import create_embed, BrandColor, loading_embed
+from utils.embeds import create_embed, BrandColor
 
 class Register(commands.Cog):
     """``/register``, Register a new Xentra account."""
@@ -18,18 +19,28 @@ class Register(commands.Cog):
     async def register(self, interaction: discord.Interaction):
         
         async def build_register_embed(user_data):
-            from config import FRONTEND_URL
             embed = create_embed(
-                title="Account Registration Gateway",
+                title="Account Registration",
                 description=(
-                    "> **Gateway**, Initialize your digital identity via the link below.\n"
-                    "> **Authorization**, Authenticate with your Discord identity to register.\n"
-                    f"> **Link**, [**Initialize Xentra Account**]({FRONTEND_URL})"
+                    "> ***Xentra welcomes you — let's get you set up.***\n"
+                    "`1.` Click the **Login** button below to open the login page.\n"
+                    "`2.` Select a **Role**.\n"
+                    "`3.` Enter a **Display Name** to access the dashboard.\n"
+                    "\n"
+                    "> __Click the button below to start.__"
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Account"
             )
-            return embed
+            view = discord.ui.View(timeout=None)
+            view.add_item(
+                discord.ui.Button(
+                    label="Login now",
+                    style=discord.ButtonStyle.link,
+                    url=FRONTEND_URL,
+                )
+            )
+            return embed, view
 
         await validate_and_respond(interaction, build_register_embed)
 

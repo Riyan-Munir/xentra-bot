@@ -4,7 +4,7 @@
 Flow:
   1. Dropdown to select Interview Room or Job Room.
   2. Interview → fetch selected room ID from backend model → show room details.
-  3. Job → placeholder "not implemented yet" message.
+  3. Job → fetch selected job room ID → show room details (open/freezed/disputed only).
 """
 
 import discord
@@ -85,7 +85,12 @@ class SelectedRoomSetupView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="Room selection cancelled."),
+            embed=info_embed(
+                message=(
+                    "> ***Room selection has been cancelled.***\n"
+                    "> __Your active room remains unchanged.__"
+                )
+            ),
             view=None,
         )
 
@@ -99,24 +104,15 @@ class SelectedRoomSetupView(discord.ui.View):
 
         await interaction.response.edit_message(view=None)
 
-        if self.room_type == "job":
-            embed = create_embed(
-                title="Job Rooms, Coming Soon",
-                description="Job rooms are not implemented yet. "
-                "This feature will be available in a future update.",
-                color=BrandColor.PRIMARY,
-                footer="Xentra • Information",
-            )
-            await interaction.edit_original_response(embed=embed, view=None)
-            return
+        room_label = "job" if self.room_type == "job" else "interview"
 
-        # Interview flow, use shared resolver
+        # Use shared resolver
         from utils.command_handler import fetch_selected_room
 
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
         room = await fetch_selected_room(
             discord_id=interaction.user.id,
-            room_type="interview",
+            room_type=room_label,
             headers=headers,
         )
 
@@ -124,8 +120,9 @@ class SelectedRoomSetupView(discord.ui.View):
             embed = create_embed(
                 title="Selected Room for Messages",
                 description=(
-                    "> This is the interview room currently selected "
-                    "as active room for messages."
+                    "> ***This is your active room for messages.***\n"
+                    "\n"
+                    "> __Use /switch room to change your active room anytime.__"
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Rooms",
@@ -166,7 +163,7 @@ class SelectedRoomSetupView(discord.ui.View):
         else:
             await interaction.edit_original_response(
                 embed=error_embed(
-                    message="Could not find selected interview room.",
+                    message=f"Could not find selected {room_label} room.",
                 ),
                 view=None,
             )
@@ -191,9 +188,12 @@ class SelectedRoom(commands.Cog):
             embed = create_embed(
                 title="Selected Room",
                 description=(
-                    "> **Select Room Type**, View selected room.\n"
-                    "> **Interview Room**, Show selected interview room.\n"
-                    "> **Job Room**, Not yet implemented.\n\n"
+                    "> ***Select the type of room to view.***\n"
+                    "**Step:** `1 of 2`\n"
+                    "`1.` Interview Room — show your selected interview room.\n"
+                    "`2.` Job Room — show your selected job room.\n"
+                    "\n"
+                    "> __Choose a room type from the dropdown, then click Proceed.__"
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Rooms",

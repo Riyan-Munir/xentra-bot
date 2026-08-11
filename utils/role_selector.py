@@ -90,5 +90,10 @@ class ProfileRoleView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        err = info_embed(message="Profile identity cancelled.")
+        err = info_embed(
+            message=(
+                "> ***Profile identity selection has been cancelled.***\n"
+                "> __Your identity remains unchanged.__"
+            )
+        )
         await interaction.response.edit_message(content=None, embed=err, view=None)

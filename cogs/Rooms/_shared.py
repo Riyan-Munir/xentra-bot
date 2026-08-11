@@ -66,7 +66,7 @@ class RoomTypeSelect(discord.ui.Select):
     """
 
     def __init__(self, placeholder: str = "Select room type") -> None:
-        options = [
+        self._all_options = [
             discord.SelectOption(
                 label="Interview Room",
                 value="interview",
@@ -82,12 +82,18 @@ class RoomTypeSelect(discord.ui.Select):
             placeholder=placeholder,
             min_values=1,
             max_values=1,
-            options=options,
+            options=self._all_options,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
         self.view.room_type = self.values[0]
-        await interaction.response.defer()
+        # Mirror selection in dropdown placeholder
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
+        await interaction.response.edit_message(view=self.view)
 
 
 # ---------------------------------------------------------------------------

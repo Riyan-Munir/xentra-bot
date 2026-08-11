@@ -127,7 +127,15 @@ class InterviewMilestoneCountModal(discord.ui.Modal, title='Milestone Count'):
         )
         await interaction.response.edit_message(
             embed=info_embed(
-                message=f'Creating **{total}** milestone(s). Click **Continue** to start.',
+                message=(
+                    f'> ***Creating {total} milestone(s).***\n'
+                    '`1.` A form will open for each milestone.\n'
+                    '`2.` Fill in the title, budget and deadline.\n'
+                    '`3.` Confirm to save all milestones at once.\n'
+                    '\n'
+                    f'> __Click Continue to start with milestone 1 of {total}.__'
+                ),
+                footer='Xentra • Rooms',
             ),
             view=view,
         )
@@ -264,9 +272,13 @@ class InterviewMilestoneFormModal(discord.ui.Modal):
             await interaction.response.edit_message(
                 embed=info_embed(
                     message=(
-                        f'Milestone **{self.milestone_num}** saved. Click **Continue** '
-                        f'for milestone **{next_num}** of **{self.total_count}**.'
+                        f'> ***Milestone {self.milestone_num} saved.***\n'
+                        f'`1.` Milestone {next_num} of {self.total_count} is next.\n'
+                        '`2.` Fill in the title, budget and deadline.\n'
+                        '\n'
+                        f'> __Click Continue to proceed to milestone {next_num} of {self.total_count}.__'
                     ),
+                    footer='Xentra • Rooms',
                 ),
                 view=view,
             )
@@ -808,11 +820,15 @@ class InterviewMilestoneSelectView(discord.ui.View):
             embed = create_embed(
                 title='Confirm Delete',
                 description=(
-                    f'Are you sure you want to delete milestone '
-                    f'`{milestone_id}` (**{milestone_data.get("title", "?")}**)?\n\n'
-                    f'Remaining milestones will be re-ordered automatically.'
+                    f'> ***Are you sure you want to delete this milestone?***\n'
+                    f'**Milestone:** `{milestone_id}`\n'
+                    f'**Title:** `{milestone_data.get("title", "?")}`\n'
+                    '**Note:** Remaining milestones will be re-ordered automatically.\n'
+                    '\n'
+                    '> __This action cannot be undone. Click Confirm Delete to proceed, or Back to return.__'
                 ),
                 color=BrandColor.ERROR,
+                footer='Xentra • Rooms',
             )
             view = InterviewMilestoneDeleteView(
                 room_data=self.room_data,
@@ -883,7 +899,10 @@ class InterviewMilestoneActionView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        cancel_msg = 'Milestone management cancelled.'
+        cancel_msg = (
+            '> ***Milestone management has been cancelled.***\n'
+            '> __Nothing was changed. Your milestones remain as they were.__'
+        )
         session = get_http_session()
         headers = {'X-Webhook-Token': WEBHOOK_SECRET}
         await record_and_notify(
@@ -1059,20 +1078,25 @@ class InterviewMilestone(commands.Cog):
             # ── 3a. CASE B, Milestones exist → show action view ────────────
             if milestones:
                 embed_desc = [
+                    f'> ***Milestone Management** — page `1` of `1`*\n'
                     f'**Room:** `{room_id}`',
-                    f'**Job:** {room_data.get("job_title", "")}',
+                    f'**Job:** `{room_data.get("job_title", "")}`',
+                    f'**Total:** `{len(milestones)}`',
                     '',
-                    f'**Existing Milestones ({len(milestones)}):**',
                 ]
-                for m in milestones:
+                for i, m in enumerate(milestones, 1):
                     embed_desc.append(
-                        f'• `{m["milestone_id"]}`, {m["title"]} (${m["budget"]})'
+                        f'`{i}.` `{m["milestone_id"]}` • **{m["title"]}** — `${m["budget"]}`'
                     )
+                embed_desc.append(
+                    '\n> __Use the dropdown to pick an action, then click Proceed.__'
+                )
 
                 embed = create_embed(
                     title='Milestone Management',
                     description='\n'.join(embed_desc),
                     color=BrandColor.PRIMARY,
+                    footer='Xentra • Rooms',
                 )
 
                 view = InterviewMilestoneActionView(room_data, milestones, active_role)
@@ -1091,9 +1115,12 @@ class InterviewMilestone(commands.Cog):
             )
             return info_embed(
                 message=(
-                    f'No milestones configured yet for room `{room_id}`.\n'
-                    f'Click **Set Milestones** to create them.'
+                    '> ***No milestones configured yet.***\n'
+                    f'> Room `{room_id}` does not have any milestones set up.\n'
+                    '\n'
+                    '> __Click Set Milestones to start creating them.__'
                 ),
+                footer='Xentra • Rooms',
             ), view
 
         await validate_and_respond(interaction, callback)

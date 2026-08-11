@@ -33,40 +33,35 @@ class ShowUserID(commands.Cog):
                 return error_embed(message="Could not load profiles. No profiles found.")
 
             target_user = username if username else interaction.user.name
-            embed = create_embed(
-                title="Identity Registry",
-                description=f"Registered roles for **{target_user}**:",
-                color=BrandColor.PRIMARY,
-                footer="Xentra • Profile"
-            )
-            
+            lines = [
+                f"> ***Identity Registry** — {target_user}*",
+                f"**Total Roles:** `{len(role_ids)}`",
+            ]
+
             role_map = {
                 'freelancer': 'Freelancer ID',
                 'client': 'Client ID',
                 'server_admin': 'Admin ID'
             }
-            
+            idx = 1
             for role, label in role_map.items():
                 if role in role_ids:
                     data = role_ids[role]
                     # Handle both structured and legacy data formats
                     rid = data.get('id') if isinstance(data, dict) else data
                     is_premium = data.get('is_premium', False) if isinstance(data, dict) else False
+                    badge = " • **Premium**" if is_premium else ""
+                    lines.append(f"\n`{idx}.` **{label}** — `{rid}`{badge}")
+                    idx += 1
 
-                    if is_premium:
-                        embed.add_field(
-                            name=label,
-                            value=f"> **`{rid}`**",
-                            inline=False
-                        )
-                    else:
-                        embed.add_field(
-                            name=label,
-                            value=f"> `{rid}`",
-                            inline=False
-                        )
-            
-            return embed
+            lines.append("\n> __Use /switch role to change the active identity.__")
+
+            return create_embed(
+                title="Identity Registry",
+                description="\n".join(lines),
+                color=BrandColor.PRIMARY,
+                footer="Xentra • Profile",
+            )
 
         params = {'username': username} if username else None
         await validate_and_respond(interaction, build_userid_embed, additional_params=params)

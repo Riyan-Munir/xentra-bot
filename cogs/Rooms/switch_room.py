@@ -3,9 +3,8 @@
 
 Flow:
   1. Dropdown to select Interview Room or Job Room.
-  2. Interview → fetch active rooms → show a selection dropdown.
+  2. Fetch active rooms (interview: open; job: open/freezed/disputed).
   3. User picks a room → POST to backend to update selected room model.
-  4. Job → placeholder "not implemented yet" message.
 """
 
 import discord
@@ -88,7 +87,12 @@ class SwitchRoomSetupView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="Room switch cancelled."),
+            embed=info_embed(
+                message=(
+                    "> ***Room switch has been cancelled.***\n"
+                    "> __Your active room remains unchanged.__"
+                )
+            ),
             view=None,
         )
 
@@ -102,21 +106,11 @@ class SwitchRoomSetupView(discord.ui.View):
 
         await interaction.response.edit_message(view=None)
 
-        if self.room_type == "job":
-            embed = create_embed(
-                title="Job Rooms, Coming Soon",
-                description="Job rooms are not implemented yet. "
-                "This feature will be available in a future update.",
-                color=BrandColor.PRIMARY,
-                footer="Xentra • Information",
-            )
-            await interaction.edit_original_response(embed=embed, view=None)
-            return
-
-        # Interview flow: fetch active rooms to populate selection dropdown
+        # Fetch active rooms (interview: open; job: open/freezed/disputed)
         url = f"{BACKEND_URL}rooms/bot/active-rooms/"
         params = {
             "discord_id": str(interaction.user.id),
+            "room_type": self.room_type,
             "page_size": 100,  # fetch a large batch for the dropdown
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -131,7 +125,7 @@ class SwitchRoomSetupView(discord.ui.View):
                     if not rooms_list:
                         await interaction.edit_original_response(
                             embed=error_embed(
-                                message="Could not find active interview rooms."
+                                message=f"Could not find any active {self.room_type} room."
                             ),
                             view=None,
                         )
@@ -142,12 +136,16 @@ class SwitchRoomSetupView(discord.ui.View):
                         rooms_list,
                         self.user_data,
                         interaction.user.id,
+                        self.room_type,
                     )
                     picker_view.author_id = interaction.user.id
                     embed = create_embed(
                         title="Switch Selected Room",
                         description=(
-                            "> Select an interview room for messages."
+                            "> ***Choose your new active room.***\n"
+                            "**Step:** `2 of 2`\n"
+                            "\n"
+                            "> __Use the dropdown to pick a room, then click Proceed.__"
                         ),
                         color=BrandColor.PRIMARY,
                         footer="Xentra • Rooms",
@@ -231,6 +229,7 @@ class RoomPickerView(discord.ui.View):
         rooms: list,
         user_data: dict,
         discord_id: int,
+        room_type: str = "interview",
     ) -> None:
         super().__init__(timeout=120)
         self.author_id: int | None = None
@@ -238,6 +237,7 @@ class RoomPickerView(discord.ui.View):
         self.rooms = rooms
         self.user_data = user_data
         self.discord_id = discord_id
+        self.room_type = room_type
         self.selected_room_id: str = ""
 
         # If there are rooms, pre-select the first one
@@ -298,7 +298,7 @@ class RoomPickerView(discord.ui.View):
         url = f"{BACKEND_URL}rooms/bot/switch-room/"
         payload = {
             "discord_id": str(self.discord_id),
-            "room_type": "interview",
+            "room_type": self.room_type,
             "room_id": self.selected_room_id,
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -352,9 +352,12 @@ class SwitchRoom(commands.Cog):
             embed = create_embed(
                 title="Switch Room",
                 description=(
-                    "> **Select Room Type**, Switch active room.\n"
-                    "> **Interview Room**, Pick from active interview rooms.\n"
-                    "> **Job Room**, Not yet implemented.\n\n"
+                    "> ***Select the type of room to switch to.***\n"
+                    "**Step:** `1 of 2`\n"
+                    "`1.` Interview Room — pick from your active interview rooms.\n"
+                    "`2.` Job Room — pick from your active job rooms.\n"
+                    "\n"
+                    "> __Choose a room type from the dropdown, then click Proceed.__"
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Rooms",

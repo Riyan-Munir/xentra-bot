@@ -124,8 +124,14 @@ class UserProfile(commands.Cog):
                 view.author_id = interaction.user.id
                 embed = create_embed(
                     title="Role Selection Required",
-                    description=f"The ID **{result.original}** is a custom Premium ID. Please select the target role perspective:",
-                    color=BrandColor.ACCENT
+                    description=(
+                        f"> ***Select the role perspective for this Premium ID.***\n"
+                        f"**ID:** `{result.original}` — custom Premium ID\n"
+                        "\n"
+                        "> __Use the dropdown to pick a role, then click Proceed.__"
+                    ),
+                    color=BrandColor.ACCENT,
+                    footer='Xentra • Profile',
                 )
                 return embed, view
 
@@ -141,36 +147,28 @@ class UserProfile(commands.Cog):
         role_label = role.replace('_', ' ').title()
         
         premium_status = "Premium Tier Member" if is_premium else "Standard Tier Member"
-        
-        embed = create_embed(
+
+        lines = [
+            f"> ***{role_label} Identity Profile***",
+            f"**Username:** `{name}` (@{discord_name})",
+            f"**Tier:** `{premium_status}`",
+        ]
+
+        if role in ('freelancer', 'client'):
+            lines.append(f"**Availability:** `{data.get('availability', 'Available')}`")
+        elif role == 'server_admin':
+            count = data.get('managed_servers_count', 0)
+            lines.append(f"**Managed Guilds:** `{count} servers`")
+
+        lines.append("\n> __This is the identity used for {0} actions on Xentra.__".format(role.replace('_', ' ')))
+
+        return create_embed(
             title=f"{role_label} Identity Profile",
-            description=f"Identity details for **{name}** (@{discord_name})",
+            description="\n".join(lines),
             color=BrandColor.PREMIUM if is_premium else BrandColor.PRIMARY,
             thumbnail=avatar_url,
             footer='Xentra • Profile',
         )
-        
-        if role == 'freelancer':
-            details = (
-                f"> **Tier**: `{premium_status}`\n"
-                f"> **Availability**: `{data.get('availability', 'Available')}`"
-            )
-        elif role == 'client':
-            details = (
-                f"> **Tier**: `{premium_status}`\n"
-                f"> **Availability**: `{data.get('availability', 'Available')}`"
-            )
-        elif role == 'server_admin':
-            count = data.get('managed_servers_count', 0)
-            details = (
-                f"> **Tier**: `{premium_status}`\n"
-                f"> **Managed Guilds**: `{count} servers`"
-            )
-        else:
-            details = f"> **Tier**: `{premium_status}`"
-        
-        embed.add_field(name="Profile Parameters", value=details, inline=False)
-        return embed
 
 async def setup(bot):
     await bot.add_cog(UserProfile(bot))

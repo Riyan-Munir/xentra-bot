@@ -90,5 +90,5 @@ def build_embed(data: dict) -> discord.Embed:
         title=title,
         description=description,
         color=color,
-        footer="Xentra • Security system",
+        footer="Xentra • Security",
     )

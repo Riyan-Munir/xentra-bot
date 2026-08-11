@@ -89,7 +89,12 @@ class ComplainStartView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message='Complaint cancelled.'),
+            embed=info_embed(
+                message=(
+                    '> ***Complaint submission has been cancelled.***\n'
+                    '> __Nothing was submitted. You can file a complaint again anytime.__'
+                )
+            ),
             view=None,
         )
 
@@ -282,16 +287,16 @@ class InterviewComplain(commands.Cog):
 
             # ── 2. Show start view with Write Complaint button ──────────
             desc_parts = [
-                'You are about to submit a complaint in the interview chat.\n\n'
+                '> ***You are about to submit a complaint in the interview chat.***\n'
                 f'**Room:** `{room_data.get("room_id", "")}`\n'
-                f'**Job:** {room_data.get("job_title", "")}',
+                f'**Job:** `{room_data.get("job_title", "")}`',
             ]
             if message_id:
                 desc_parts.append(f'**Target Message ID:** `{message_id}`')
             if complain_id:
                 desc_parts.append(f'**Target Complaint ID:** `{complain_id}`')
             desc_parts.append(
-                '\n\nClick **Write Complaint** to compose your complaint.'
+                '\n\n> __Click Write Complaint to compose your complaint.__'
             )
 
             embed = create_embed(

@@ -410,7 +410,12 @@ class JobPostSetupView(discord.ui.View):
             return
         self._done = True
         self.stop()
-        embed = info_embed(message="Job posting cancelled.")
+        embed = info_embed(
+            message=(
+                "> ***Job posting has been cancelled.***\n"
+                "> __Nothing was published. You can post again anytime.__"
+            )
+        )
         await interaction.response.edit_message(embed=embed, view=None)
 
 
@@ -452,8 +457,11 @@ class PostJob(commands.Cog):
                     embed = create_embed(
                         title="Post a Job",
                         description=(
-                            "> **Configure**, Use the dropdown menus below to select your job category and experience level.\n"
-                            "> **Proceed**, Click the proceed button to fill in the title, description, skills, and budget range."
+                            "> ***Set up your job listing.***\n"
+                            "`1.` Use the dropdowns to select the job category and experience level.\n"
+                            "`2.` Click Proceed to fill in the title, description, skills and budget range.\n"
+                            "\n"
+                            "> __Use the dropdowns below, then click Proceed.__"
                         ),
                         color=BrandColor.PRIMARY,
                         footer="Xentra • Jobs",

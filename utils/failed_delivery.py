@@ -35,22 +35,27 @@ async def log_failed_delivery(
     msg_id: str = '',
     msg_name: str = '',
     complain_id: str = '',
+    room_type: str = 'interview',
     session=None,
     headers: dict | None = None,
 ) -> bool:
     """POST a failed-delivery record to the backend.
 
-    Accepts the same fields as ``InterviewFailedDelivery``:
+    Accepts the same fields as ``InterviewFailedDelivery`` /
+    ``JobFailedDelivery``:
 
     +------------------------+----------------------------------------------+
     | Parameter              | Required when                                |
     +------------------------+----------------------------------------------+
     | ``room_id``            | always                                       |
+    | ``room_type``          | ``'interview'`` (default) or ``'job'``       |
     | ``message_type``       | always, one of ``interview_message``,       |
-    |                       | ``notification``, ``system_message``         |
+    |                       | ``job_message``, ``notification``,           |
+    |                       | ``system_message``                           |
     | ``target_discord_id``  | always                                       |
-    | ``msg_id``             | ``interview_message`` or ``notification``    |
-    |                       | (unless ``complain_id`` is used)             |
+    | ``msg_id``             | ``interview_message`` / ``job_message`` or   |
+    |                       | ``notification`` (unless ``complain_id`` is  |
+    |                       | used)                                        |
     | ``msg_name``           | ``system_message`` (e.g. ``"rules"``)        |
     | ``complain_id``        | ``notification`` when ``msg_id`` is empty    |
     +------------------------+----------------------------------------------+
@@ -68,6 +73,7 @@ async def log_failed_delivery(
     url = f'{BACKEND_URL}rooms/bot/log-failed-delivery/'
     body = {
         'room_id': room_id,
+        'room_type': room_type,
         'message_type': message_type,
         'target_discord_id': target_discord_id,
     }

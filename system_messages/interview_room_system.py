@@ -21,17 +21,25 @@ import discord
 from utils.embeds import create_embed, BrandColor
 
 
-def build_headers(data: dict) -> str:
+def build_headers(data: dict, room_type: str = '') -> str:
     """Extract ``room_id`` / ``job_title`` from ``data`` and build the header block.
+
+    When ``room_type`` is provided (``"interview"`` or ``"job"``), a Type
+    header is prepended above the Room / Job headers so the receiver knows
+    what kind of room this message belongs to.
 
     The Room header is only added when ``room_id`` is obtainable — guide
     messages sent before the room session exists have no room id yet, so
-    they get a Job-only header (or no header at all).
+    they get a Type + Job-only header (or no header at all).
     """
+    room_type = room_type or data.get("room_type", "")
     room_id = data.get("room_id", "")
     job_title = data.get("job_title", "")
 
     header_lines = []
+    if room_type:
+        label = "Interview Room" if room_type == "interview" else "Job Room"
+        header_lines.append(f"> ***Type: `{label}`***")
     if room_id:
         header_lines.append(f"> ***Room: `{room_id}`***")
     if job_title:
@@ -41,18 +49,25 @@ def build_headers(data: dict) -> str:
     return ""
 
 
-def create_room_embed(*, title: str, body: str, data: dict) -> discord.Embed:
+def create_room_embed(
+    *,
+    title: str,
+    body: str,
+    data: dict,
+    room_type: str = '',
+) -> discord.Embed:
     """Build a room-system embed from a headerless ``body``.
 
-    The Room / Job headers are read from ``data`` (``room_id`` and
+    The Type / Room / Job headers are read from ``data`` (``room_id`` and
     ``job_title``) and prepended by :func:`build_headers`.  Omit
     ``room_id`` from ``data`` when it is not obtainable so that only the
-    Job header (or none) is added.
+    Type + Job header (or none) is added.  Pass ``room_type`` (``"interview"``
+    or ``"job"``) to include the Type header.
     """
-    description = build_headers(data) + body
+    description = build_headers(data, room_type) + body
     return create_embed(
         title=title,
         description=description,
         color=BrandColor.PRIMARY,
-        footer="Xentra • Room system",
+        footer="Xentra • Rooms",
     )

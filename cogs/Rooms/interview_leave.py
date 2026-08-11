@@ -78,7 +78,10 @@ class LeaveConfirmView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        cancel_msg = 'Room leave cancelled.'
+        cancel_msg = (
+            '> ***Room leave has been cancelled.***\n'
+            '> __Nothing was changed. You can leave the room again anytime.__'
+        )
 
         active_role = self.user_data.get('active_role', '')
 
@@ -336,13 +339,13 @@ class InterviewLeave(commands.Cog):
             confirm_embed = create_embed(
                 title='Leave Interview Room',
                 description=(
-                    f'> Are you sure you want to leave room **`{room_id}`**?\n\n'
-                    '> This action **cannot be undone**. Leaving will:\n'
-                    '> • Close the interview room permanently\n'
-                    '> • Generate and deliver a transcript to both parties\n'
-                    '> • Notify the other party with your reason\n\n'
-                    '> If you\'re unsure, click **Cancel**. '
-                    'Otherwise, click **Proceed** to provide a reason.'
+                    f'> ***Are you sure you want to leave this room?***\n'
+                    f'**Room:** `{room_id}`\n'
+                    '`1.` Closes the interview room permanently.\n'
+                    '`2.` Generates and delivers a transcript to both parties.\n'
+                    '`3.` Notifies the other party with your reason.\n'
+                    '\n'
+                    '> __This action cannot be undone. Click Proceed to continue, or Cancel to return.__'
                 ),
                 color=BrandColor.PRIMARY,
                 footer='Xentra • Rooms',

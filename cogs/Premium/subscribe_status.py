@@ -59,11 +59,15 @@ class SubscribeStatus(commands.Cog):
             if not has_premium or not tier:
                 embed = create_embed(
                     title="Subscription Status",
-                    description="You are currently on the **Free Tier**.",
+                    description=(
+                        "> ***Subscription Status** — free tier*\n"
+                        "**Plan:** `Free`\n"
+                        "\n"
+                        "> __Browse the available plans and subscribe to unlock Premium features.__"
+                    ),
                     color=BrandColor.PRIMARY,
                     footer="Xentra • Premium",
                 )
-                embed.add_field(name="Plan", value="Free", inline=True)
                 return embed
 
             # Premium subscription
@@ -104,16 +108,19 @@ class SubscribeStatus(commands.Cog):
 
             embed = create_embed(
                 title='Premium Subscription',
-                description='You have an active **Premium** subscription!',
+                description=(
+                    '> ***Premium Subscription** — active*\n'
+                    f'**Tier:** `{tier_label}`\n'
+                    f'**Billing:** `{interval_label}`\n'
+                    f'**Remaining:** `{remaining_str}`\n'
+                    f'**Expires:** `{expires_display}`'
+                    + (f'\n**Type:** `Gifted`' if is_gifted else '')
+                    + '\n\n'
+                    '> __Premium features are active across all Xentra services.__'
+                ),
                 color=BrandColor.SUCCESS,
                 footer='Xentra • Premium',
             )
-            embed.add_field(name='Tier', value=tier_label, inline=True)
-            embed.add_field(name='Billing', value=interval_label, inline=True)
-            embed.add_field(name='Remaining', value=remaining_str, inline=True)
-            embed.add_field(name='Expires', value=expires_display, inline=True)
-            if is_gifted:
-                embed.add_field(name='Type', value='Gifted', inline=True)
             return embed
 
         await validate_and_respond(interaction, callback)

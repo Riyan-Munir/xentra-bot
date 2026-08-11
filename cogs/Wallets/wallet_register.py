@@ -1,153 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.http import get_http_session
-import logging
-from config import BACKEND_URL, WEBHOOK_SECRET
-from utils.command_handler import validate_and_respond, sync_cog_commands, is_author
-from utils.embeds import (
-    BrandColor, create_embed, error_embed, success_embed, info_embed,
-)
-from utils.retry import validation_fail, contains_security_threat
-
-logger = logging.getLogger('bot.wallets.register')
-
-
-class WalletRegisterModal(discord.ui.Modal, title="Register Wallet"):
-    """Modal for registering a new wallet address."""
-
-    address = discord.ui.TextInput(
-        label="Wallet Address",
-        placeholder="0x... (42 chars)",
-        min_length=42,
-        max_length=64,
-    )
-    label = discord.ui.TextInput(
-        label="Wallet Label",
-        placeholder="e.g. My Main Wallet (optional, max 64 chars)",
-        required=False,
-        max_length=64,
-    )
-
-    def __init__(
-        self,
-        *,
-        prefill_address: str = '',
-        prefill_label: str = '',
-        start_view: 'WalletRegisterView | None' = None,
-    ):
-        super().__init__(timeout=300)
-        self.start_view = start_view
-        if prefill_address:
-            self.address.default = prefill_address
-        if prefill_label:
-            self.label.default = prefill_label
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        raw_addr = self.address.value.strip()
-        raw_label = self.label.value.strip()
-
-        # Security check first (Rule 27: security before validation)
-        if contains_security_threat(raw_addr) or contains_security_threat(raw_label):
-            from utils.retry import security_fail
-            await security_fail(
-                interaction,
-                message='Input contains prohibited content. Command terminated.',
-                ephemeral=True,
-            )
-            return
-
-        # Validation (before deferring)
-        if not raw_addr or not raw_addr.startswith('0x') or len(raw_addr) != 42:
-            if self.start_view is not None:
-                self.start_view._last_address = raw_addr
-                self.start_view._last_label = raw_label
-            await validation_fail(
-                interaction,
-                message='Address must be a 42-character hex string starting with `0x`.',
-            )
-            return
-
-        # All validation passed → defer
-        await interaction.response.defer()
-
-        # API call
-        url = f"{BACKEND_URL}wallets/bot/register/"
-        headers = {'X-Webhook-Token': WEBHOOK_SECRET}
-        payload = {
-            'discord_id': str(interaction.user.id),
-            'address': raw_addr,
-            'label': raw_label,
-        }
-
-        session = get_http_session()
-        try:
-            async with session.post(url, json=payload, headers=headers) as resp:
-                body = await resp.json()
-                if resp.status == 201:
-                    w = body.get('wallet', body)
-                    wallet_id = w.get('id', '')
-                    msg = (
-                        f"Wallet **{wallet_id}** registered! "
-                        f"Verify it using `/wallet verify` to activate."
-                    )
-                    await interaction.edit_original_response(
-                        embed=success_embed(message=msg),
-                        view=None,
-                    )
-                else:
-                    err_msg = body.get('error', 'Could not register wallet.')
-                    await interaction.edit_original_response(
-                        embed=error_embed(message=err_msg),
-                        view=None,
-                    )
-        except Exception:
-            logger.exception("Wallet register failed")
-            await interaction.edit_original_response(
-                embed=error_embed(message="The service is temporarily unavailable."),
-                view=None,
-            )
-
-
-class WalletRegisterView(discord.ui.View):
-    """View with Register Wallet button and Cancel button."""
-
-    def __init__(self) -> None:
-        super().__init__(timeout=120)
-        self.author_id: int | None = None
-        self._done = False
-        # Last failed attempt, restored when the modal re-opens from this view.
-        self._last_address: str = ''
-        self._last_label: str = ''
-
-    async def on_timeout(self) -> None:
-        self.stop()
-
-    @discord.ui.button(label="Proceed", style=discord.ButtonStyle.success)
-    async def register_btn(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
-        if not is_author(interaction, self):
-            return
-        if self._done:
-            return
-        modal = WalletRegisterModal(
-            prefill_address=self._last_address,
-            prefill_label=self._last_label,
-            start_view=self,
-        )
-        await interaction.response.send_modal(modal)
-
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
-    async def cancel_btn(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
-        if not is_author(interaction, self):
-            return
-        if self._done:
-            return
-        self.stop()
-        await interaction.response.edit_message(
-            embed=info_embed(message='Wallet registration cancelled.'),
-            view=None,
-        )
-
+from config import FRONTEND_URL
+from utils.command_handler import validate_and_respond, sync_cog_commands
+from utils.embeds import create_embed, BrandColor
 
 class WalletRegister(commands.Cog):
     """``/wallet register``, Register a new wallet address."""
@@ -166,15 +22,23 @@ class WalletRegister(commands.Cog):
             embed = create_embed(
                 title="Register a Wallet",
                 description=(
-                    "> Click the button below to register a new wallet address.\n\n"
-                    "> After registration, you'll need to verify the wallet "
-                    "using `/wallet verify` to activate it."
+                    "> ***Wallet registration now happens on the Xentra web dashboard.***\n"
+                    "`1.` Click the button below to open the **Wallets** section.\n"
+                    "`2.` Add and verify your wallet there to enable escrow payments.\n"
+                    "\n"
+                    "> __Wallet management is handled on the Xentra web dashboard.__"
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Wallets",
             )
-            view = WalletRegisterView()
-            view.author_id = interaction.user.id
+            view = discord.ui.View(timeout=None)
+            view.add_item(
+                discord.ui.Button(
+                    label="Open Wallets",
+                    style=discord.ButtonStyle.link,
+                    url=f"{FRONTEND_URL}/dashboard?section=wallets",
+                )
+            )
             return embed, view
 
         await validate_and_respond(interaction, callback)

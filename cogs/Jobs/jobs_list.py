@@ -118,7 +118,12 @@ class JobsListFilterView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="Job search cancelled."),
+            embed=info_embed(
+                message=(
+                    "> ***Job search has been cancelled.***\n"
+                    "> __Nothing was changed. You can search again anytime.__"
+                )
+            ),
             view=None,
         )
     
@@ -158,7 +163,15 @@ class JobsListFilterView(discord.ui.View):
                         
                         if total_count == 0:
                             await interaction.edit_original_response(
-                                embed=info_embed(message="No jobs match the search filters."),
+                                embed=info_embed(
+                                    message=(
+                                        '> ***No jobs match the search filters.***\n'
+                                        '> Try different keywords or relax the budget and category filters.\n'
+                                        '\n'
+                                        '> __Adjust the filters, or check back later.__'
+                                    ),
+                                    footer='Xentra • Jobs',
+                                ),
                                 view=None,
                             )
                             return
@@ -237,40 +250,38 @@ class JobsDiscoverPaginationView(PaginationView):
         # Premium Styling Detection
         has_premium_job = any(job.get('is_featured', False) for job in self.jobs)
         embed_color = BrandColor.PREMIUM if has_premium_job else BrandColor.PRIMARY
-        
-        embed = create_embed(
-            title="Available Opportunities",
-            description=f"Showing active listings (Page {self.current_page}/{self.total_pages})",
-            color=embed_color,
-            footer=f"Xentra • Total Matching Jobs: {self.total_count}"
-        )
-        
+
+        lines = [
+            f"> ***Available Opportunities** — page `{self.current_page}` of `{self.total_pages}`*",
+            f"**Total:** `{self.total_count}` matching job(s)",
+        ]
+
         if not self.jobs:
-            embed.description = "No matching jobs found."
-            return embed
-        
-        for job in self.jobs:
+            lines.append("\n> __No matching jobs found. Try adjusting the filters.__")
+            return create_embed(
+                title="Available Opportunities",
+                description="\n".join(lines),
+                color=embed_color,
+                footer="Xentra • Jobs",
+            )
+
+        for idx, job in enumerate(self.jobs, start=1):
             is_featured = job.get('is_featured', False)
             featured_tag = " ✨" if is_featured else ""
-            
-            job_title = f"{featured_tag}**{job['title']}**"
-            
-            deadline_str = f" • **Deadline**: `{job['deadline']}`" if job.get('deadline') else ""
-            
-            details = (
-                f"> **Job ID**: `{job['job_id']}` • **Client ID**: `{job['client_id']}`\n"
-                f"> **Role**: `{job['experience_level'].title()}`\n"
-                f"> **Category**: `{job['category'].replace('_', ' ').title()}`\n"
-                f"> **Budget Range**: `${job['budget_min']} - ${job['budget_max']}`{deadline_str}"
+            deadline_str = f" • Deadline: `{job['deadline']}`" if job.get('deadline') else ""
+            lines.append(
+                f"\n`{idx}.` `{job['job_id']}` • **{job['title']}**{featured_tag} — `${job['budget_min']} - ${job['budget_max']}`{deadline_str}\n"
+                f"> Role: `{job['experience_level'].title()}` • Category: `{job['category'].replace('_', ' ').title()}` • Client: `{job['client_id']}`"
             )
-            
-            embed.add_field(
-                name=job_title,
-                value=details,
-                inline=False
-            )
-        
-        return embed
+
+        lines.append("\n> __Use the arrows to browse pages and the filters to narrow results.__")
+
+        return create_embed(
+            title="Available Opportunities",
+            description="\n".join(lines),
+            color=embed_color,
+            footer="Xentra • Jobs",
+        )
 
 
 class JobsList(commands.Cog):
@@ -314,7 +325,15 @@ class JobsList(commands.Cog):
                             jobs_list = data['results']
 
                             if total_count == 0:
-                                return info_embed(message="No jobs posted by Clients of this server.")
+                                return info_embed(
+                                    message=(
+                                        '> ***No jobs posted by Clients of this server.***\n'
+                                        '> There are no open listings from this server right now.\n'
+                                        '\n'
+                                        '> __Check back later for new opportunities.__'
+                                    ),
+                                    footer='Xentra • Jobs',
+                                )
 
                             view = JobsDiscoverPaginationView(
                                 jobs_list, 1, total_count, user_data,
@@ -336,11 +355,13 @@ class JobsList(commands.Cog):
             embed = create_embed(
                 title="Discover Jobs",
                 description=(
-                    "> **Configure Filters**, Use the dropdowns below to narrow down your search.\n"
-                    "> **Category**, Filter by job type.\n"
-                    "> **Budget**, Filter by budget tier.\n"
-                    "> **Sort By**, Choose your preferred ordering.\n\n"
-                    + (f"> **Featured Mode**, Showing only featured jobs.\n" if featured else "")
+                    "> ***Configure your job search filters.***\n"
+                    "`1.` **Category** — filter by job type.\n"
+                    "`2.` **Budget** — filter by budget tier.\n"
+                    "`3.` **Sort By** — choose your preferred ordering.\n"
+                    + ("> ***Featured Mode*** — showing only featured jobs.\n" if featured else "")
+                    + "\n"
+                    "> __Use the dropdowns to set filters, then click Proceed.__"
                 ),
                 color=BrandColor.PREMIUM if featured else BrandColor.PRIMARY,
                 footer="Xentra • Jobs"

@@ -69,46 +69,42 @@ class HistoryPaginationView(PaginationView):
         await interaction.edit_original_response(embed=embed, view=self)
 
     def build_embed(self) -> discord.Embed:
-        embed = create_embed(
-            title='Subscription History',
-            description=(
-                f'Page {self.current_page} of {self.total_pages} '
-                f'(\u2022 {self.total_count} total record(s))'
-            ),
-            color=BrandColor.PRIMARY,
-            footer='Xentra • Premium',
-        )
-        if not self._page_data:
-            embed.add_field(
-                name='No Records',
-                value='No subscription purchases found.',
-                inline=False,
-            )
-            return embed
+        lines = [
+            f"> ***Subscription History** — page `{self.current_page}` of `{self.total_pages}`*",
+            f"**Total:** `{self.total_count}` record(s)",
+        ]
 
-        for record in self._page_data:
+        if not self._page_data:
+            lines.append("\n> __No subscription purchases found yet. Browse /subscribe plans to get started.__")
+            return create_embed(
+                title='Subscription History',
+                description="\n".join(lines),
+                color=BrandColor.PRIMARY,
+                footer='Xentra • Premium',
+            )
+
+        for idx, record in enumerate(self._page_data, start=1):
             plan_name = record.get('plan_name') or '\u2014'
             interval = record.get('billing_interval_display') or record.get('billing_interval') or '\u2014'
             payment_type = record.get('payment_type_display') or record.get('payment_type') or '\u2014'
             activated = record.get('activated_at') or '\u2014'
             expires = record.get('expires_at') or '\u2014'
 
-            gift_text = ''
-            if record.get('gift_message'):
-                gift_text = ' (Gifted)'
+            gift_text = ' • **Gifted**' if record.get('gift_message') else ''
 
-            embed.add_field(
-                name=f'{plan_name}{gift_text}',
-                value=(
-                    f'> **Interval**: `{interval}`\n'
-                    f'> **Type**: `{payment_type}`\n'
-                    f'> **Activated**: `{activated}`\n'
-                    f'> **Expires**: `{expires}`'
-                ),
-                inline=False,
+            lines.append(
+                f"\n`{idx}.` **{plan_name}** — `{interval}`{gift_text}\n"
+                f"> Type: `{payment_type}` • Activated: `{activated}` • Expires: `{expires}`"
             )
 
-        return embed
+        lines.append("\n> __Use the arrows to browse older records.__")
+
+        return create_embed(
+            title='Subscription History',
+            description="\n".join(lines),
+            color=BrandColor.PRIMARY,
+            footer='Xentra • Premium',
+        )
 
 
 class SubscribeHistory(commands.Cog):
@@ -169,7 +165,15 @@ class SubscribeHistory(commands.Cog):
 
             if total_pages <= 1 and len(results) == 0:
                 if total_count == 0:
-                    return info_embed('No subscription purchases found.')
+                    return info_embed(
+                        message=(
+                            '> ***No subscription purchases found.***\n'
+                            '> You have not subscribed to any premium plan yet.\n'
+                            '\n'
+                            '> __Use /subscribe plans to explore what Xentra offers.__'
+                        ),
+                        footer='Xentra • Premium',
+                    )
                 return embed
 
             view.update_buttons(embed)

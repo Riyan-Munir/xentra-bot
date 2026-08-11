@@ -70,29 +70,28 @@ class PortfolioPaginationView(PaginationView):
         embed_color = BrandColor.PREMIUM if self.is_premium else BrandColor.PRIMARY
         
         # ── Profile Header (always visible on every page) ────────────
-        page_info = f", Project {self._portfolio_page + 1}/{self.total_pages}" if self.items else ""
-        embed = create_embed(
-            title=self.portfolio.get('title', f"{username}'s Portfolio"),
-            description=self.portfolio.get('description', "Professional freelancer portfolio.") + page_info,
-            color=embed_color,
-            thumbnail=avatar_url,
-            footer='Xentra • Profile',
-        )
-        
+        page_info = f", Project `{self._portfolio_page + 1}` of `{self.total_pages}`" if self.items else ""
+        title = self.portfolio.get('title', f"{username}'s Portfolio")
+        lines = [
+            f"> ***{title}**{page_info}*",
+            f"**User:** `{username}` (@{discord_name})",
+        ]
         if self.is_premium:
-            embed.add_field(name="Premium Status", value="> **Premium Tier Gold Portfolio Design**", inline=False)
-        
+            lines.append("**Premium Status:** `Premium Tier Gold Portfolio Design`")
         pref_field = self.portfolio.get('preferred_field')
         skills = self.portfolio.get('skill_tags', [])
         skills_str = " ".join(f"`{s}`" for s in skills) if skills else "`None`"
-        
-        embed.add_field(
-            name="Freelancer Parameters",
-            value=(
-                f"> **Preferred Field**: `{pref_field or 'Not Specified'}`\n"
-                f"> **Expertise & Skills**: {skills_str}"
-            ),
-            inline=False,
+        lines.append(f"**Preferred Field:** `{pref_field or 'Not Specified'}`")
+        lines.append(f"**Expertise & Skills:** {skills_str}")
+        if self.portfolio.get('description'):
+            lines.append(f"\n> {self.portfolio['description']}")
+
+        embed = create_embed(
+            title=title,
+            description="\n".join(lines),
+            color=embed_color,
+            thumbnail=avatar_url,
+            footer='Xentra • Profile',
         )
         
         # ── Project Section ──────────────────────────────────────────

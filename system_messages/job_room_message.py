@@ -1,18 +1,18 @@
 """
-Embed builder for ``interview_room_message`` system messages.
+Embed builder for ``job_room_message`` system messages.
 
 This builder handles TWO modes:
 
-1. **Regular interview message**, sent when someone sends a message in an
-   interview room (sender → receiver).
+1. **Regular job room message**, sent when someone sends a message in a
+   job room (sender → receiver).
 2. **Command notification**, sent when a user runs a room command
-   (e.g. ``/interview budget`` or ``/interview milestone``), notifies the other party.
+   (e.g. ``/job message``), notifies the other party.
 
 Expected data keys
 ------------------
 **Both modes**
 - discord_id (str)          , Snowflake of the receiver (used by handler).
-- room_id (str)             , The interview room ID.
+- room_id (str)             , The job room ID.
 - job_title (str)           , Title of the job linked to this room.
 
 **Regular message** (``command_name`` absent)
@@ -23,7 +23,7 @@ Expected data keys
 - attachments (str, opt)    , Comma-separated list of filenames.
 
 **Command notification** (``command_name`` present)
-- command_name (str)        , The command that was run (e.g. "interview_budget").
+- command_name (str)        , The command that was run (e.g. "job_message").
 - executor_name (str)       , Display name of the person who ran the command.
 - msg_data (str)            , The exact same text shown to the executor
                              (success or error message).  Callers must build
@@ -36,7 +36,7 @@ from system_messages.interview_room_system import create_room_embed
 
 
 def build_embed(data: dict) -> tuple[discord.Embed, str]:
-    """Construct an interview-room notification for the receiver.
+    """Construct a job-room notification for the receiver.
 
     Returns ``(embed, body_text)`` where ``body_text`` is the
     transcript-safe version without room headers.
@@ -49,7 +49,7 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         msg_data = data.get("msg_data", "")
 
         body = (
-            f"> ***A command was executed in your interview room.***\n"
+            f"> ***A command was executed in your job room.***\n"
             f"\n"
             f"**Executor:** `{executor_name}`\n"
             f"**Command:** `{command_name}`\n"
@@ -60,7 +60,7 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         title = "Command Executed"
 
     else:
-        # ── Regular interview message mode ────────────────────────────────
+        # ── Regular job room message mode ────────────────────────────────
         sender_role = data.get("sender_role", "sender")
         sender_name = data.get("sender_name", "Someone")
         msg_id = data.get("msg_id", "N/A")
@@ -72,7 +72,7 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         role_label = "Client" if sender_role == "client" else "Freelancer"
 
         body_parts = [
-            f"> ***Message received in your interview room.***",
+            f"> ***Message received in your job room.***",
             "",
             f"**From:** `{role_label}` — `{sender_name}`",
             f"**Message ID:** `{msg_id}`",
@@ -97,7 +97,7 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         display_text = msg_text if msg_text else "_Empty_"
         if len(display_text) > max_msg_len and max_msg_len > 50:
             display_text = display_text[: max_msg_len - 40] + (
-                "\n\n_... (message truncated, view in interview room for full text)_"
+                "\n\n_... (message truncated, view in job room for full text)_"
             )
 
         body_parts.append(f"> {display_text}")
@@ -113,6 +113,6 @@ def build_embed(data: dict) -> tuple[discord.Embed, str]:
         title=title,
         body=body,
         data=data,
-        room_type='interview',
+        room_type='job',
     )
     return embed, body

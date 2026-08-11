@@ -61,34 +61,32 @@ class MembersListView(PaginationView):
     def build_embed(self):
         start = self._member_current * self.page_size
         page_items = self.entries[start:start + self.page_size]
-        
-        embed = create_embed(
-            title="Server Members Registry",
-            description=f"Viewing active members (Page {self._member_current + 1}/{self.total_pages})",
-            color=BrandColor.PRIMARY,
-            footer=f"Xentra • Total Members Listed: {len(self.entries)}"
-        )
-        
+
+        lines = [
+            f"> ***Server Members Registry** — page `{self._member_current + 1}` of `{self.total_pages}`*",
+            f"**Total:** `{len(self.entries)}`",
+        ]
+
         current_heading = None
+        idx = 1
         for item in page_items:
             heading = item.get('heading')
             is_new_heading = heading != current_heading
             current_heading = heading
-            
+
             if is_new_heading:
-                embed.add_field(name='\u200b', value=' ', inline=False)
-                name = f"**{heading}**"
-                value = '\n' + item['text'] + '\n'
-            else:
-                name = '\u200b'
-                value = item['text'] + '\n'
-            
-            embed.add_field(
-                name=name,
-                value=value,
-                inline=False
-            )
-        return embed
+                lines.append(f"\n> **{heading}**")
+            lines.append(f"`{idx}.` {item['text']}")
+            idx += 1
+
+        lines.append("\n> __Use the arrows to browse pages, or Close to dismiss.__")
+
+        return create_embed(
+            title="Server Members Registry",
+            description="\n".join(lines),
+            color=BrandColor.PRIMARY,
+            footer="Xentra • Management",
+        )
 
 class MembersList(commands.Cog):
     """``/members_list``, List registered members in the server."""

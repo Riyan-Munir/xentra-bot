@@ -170,7 +170,12 @@ class FeedbackStartView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message='Feedback cancelled.'),
+            embed=info_embed(
+                message=(
+                    '> ***Feedback submission has been cancelled.***\n'
+                    '> __Nothing was submitted. You can rate this room again later.__'
+                )
+            ),
             view=None,
         )
 
@@ -258,10 +263,11 @@ class FeedbackModal(discord.ui.Modal, title='Submit Interview Feedback'):
         embed = create_embed(
             title='Rate Your Experience',
             description=(
-                'Your feedback has been received. Now please rate your '
-                'experience in this interview room.\n\n'
+                '> ***Rate your experience in this interview room.***\n'
                 f'**Room:** `{self.room_data.get("room_id", "")}`\n'
-                f'**Job:** {self.room_data.get("job_title", "")}'
+                f'**Job:** `{self.room_data.get("job_title", "")}`\n'
+                '\n'
+                '> __Use the dropdown to pick a rating, then click Submit Feedback.__'
             ),
             color=BrandColor.PRIMARY,
             footer='Xentra • Rooms',
@@ -417,8 +423,10 @@ class RatingSelectView(discord.ui.View):
         embed = create_embed(
             title='Submit Interview Feedback',
             description=(
-                'Select a closed interview room to leave feedback.\n\n'
-                f'**Job:** {self.room_data.get("job_title", "")}'
+                '> ***Select a closed interview room to leave feedback.***\n'
+                f'**Job:** `{self.room_data.get("job_title", "")}`\n'
+                '\n'
+                '> __Use the dropdown to pick a room, then click Proceed.__'
             ),
             color=BrandColor.PRIMARY,
             footer='Xentra • Rooms',
@@ -488,8 +496,10 @@ class InterviewFeedback(commands.Cog):
             embed = create_embed(
                 title='Interview Feedback',
                 description=(
-                    '> Please select a closed interview room to submit feedback for.\n\n'
-                    f'> You have **{len(rooms)}** room(s) awaiting feedback.'
+                    '> ***Choose a closed interview room to review.***\n'
+                    f'**Awaiting feedback:** `{len(rooms)}`\n'
+                    '\n'
+                    '> __Use the dropdown to pick a room, then click Proceed.__'
                 ),
                 color=BrandColor.PRIMARY,
                 footer='Xentra • Rooms',

@@ -74,7 +74,15 @@ class PostedJobs(commands.Cog):
                         jobs_list = data['results']
                         
                         if total_count == 0:
-                            return info_embed(message="No open jobs found.")
+                            return info_embed(
+                                message=(
+                                    '> ***No open jobs found.***\n'
+                                    '> You have not posted any jobs yet.\n'
+                                    '\n'
+                                    '> __Use /post job to publish your first listing.__'
+                                ),
+                                footer='Xentra • Jobs',
+                            )
                             
                         view = JobsPaginationView(jobs_list, 1, total_count, user_data, target_user_id=normalized_user_id)
                         view.author_id = interaction.user.id
@@ -129,35 +137,36 @@ class JobsPaginationView(PaginationView):
         # Premium Styling Detection (Featured jobs indicate premium client perspective)
         is_premium_client = any(job.get('is_featured', False) for job in self.jobs)
         embed_color = BrandColor.PREMIUM if is_premium_client else BrandColor.PRIMARY
-            
-        embed = create_embed(
-            title=title,
-            description=f"Showing active listings (Page {self.current_page}/{self.total_pages})",
-            color=embed_color,
-            footer=f"Xentra • Total Open Jobs: {self.total_count}"
-        )
+
+        lines = [
+            f"> ***{title}** — page `{self.current_page}` of `{self.total_pages}`*",
+            f"**Total:** `{self.total_count}`",
+        ]
 
         if not self.jobs:
-            embed.description = "No open jobs found for this client."
-            return embed
+            lines.append("\n> __No open jobs found for this client. Use /post job to publish a listing.__")
+            return create_embed(
+                title=title,
+                description="\n".join(lines),
+                color=embed_color,
+                footer="Xentra • Jobs",
+            )
 
-        for job in self.jobs:
-            job_title = f"**{job['title']}**"
+        for idx, job in enumerate(self.jobs, start=1):
             budget = f"${job['budget_min']} - ${job['budget_max']}"
-            
-            details = (
-                f"> **Category & Level**: `{job['category']}` • `{job['experience_level']}`\n"
-                f"> **Budget**: `{budget}` • **Job ID**: `{job['job_id']}`\n"
-                f"> **Applications**: `{job['application_count']}` candidates"
-            )
-            
-            embed.add_field(
-                name=job_title,
-                value=details,
-                inline=False
+            lines.append(
+                f"\n`{idx}.` `{job['job_id']}` • **{job['title']}** — `{budget}`\n"
+                f"> Category: `{job['category']}` • Level: `{job['experience_level']}` • Applications: `{job['application_count']}`"
             )
 
-        return embed
+        lines.append("\n> __Use the buttons below to act on a listing.__")
+
+        return create_embed(
+            title=title,
+            description="\n".join(lines),
+            color=embed_color,
+            footer="Xentra • Jobs",
+        )
 
 async def setup(bot):
     await bot.add_cog(PostedJobs(bot))

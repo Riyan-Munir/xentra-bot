@@ -392,10 +392,13 @@ class InterviewAgreement(commands.Cog):
 
             confirm_embed = create_embed(
                 description=(
-                    '> Did you accept the Job Agreement? By accepting it you are also '
-                    '> agreeing to our terms and conditions.'
+                    '> ***Did you accept the Job Agreement?***\n'
+                    '> By accepting it, you are also agreeing to our terms and conditions.\n'
+                    '\n'
+                    '> __Click Accept to sign the agreement, or Decline to return.__'
                 ),
                 color=BrandColor.PRIMARY,
+                footer='Xentra • Rooms',
             )
 
             view = AgreementConfirmView(

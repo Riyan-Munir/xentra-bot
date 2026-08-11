@@ -32,7 +32,12 @@ class SwitchRole(commands.Cog):
             
             embed = create_embed(
                 title="Identity Switcher",
-                description="Select a role to update your dashboard permissions.",
+                description=(
+                    "> ***Choose which identity to use.***\n"
+                    "**Step:** `1 of 1`\n"
+                    "\n"
+                    "> __Use the dropdown to pick a role, then click Proceed.__"
+                ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Profile"
             )
@@ -96,12 +101,17 @@ class SwitchRoleView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        err = info_embed(message="Identity switch cancelled.")
+        err = info_embed(
+            message=(
+                "> ***Identity switch has been cancelled.***\n"
+                "> __Your active role remains unchanged.__"
+            )
+        )
         await interaction.response.edit_message(content=None, embed=err, view=None)
 
 class RoleSelect(discord.ui.Select):
     def __init__(self, roles, current_role):
-        options = []
+        self._all_options = []
         role_data = {
             'freelancer': {'label': 'Freelancer', 'desc': 'Manage your services and projects'},
             'client': {'label': 'Client', 'desc': 'Post jobs and hire professionals'},
@@ -110,7 +120,7 @@ class RoleSelect(discord.ui.Select):
         
         for r in roles:
             data = role_data.get(r, {'label': r.title(), 'desc': f'Switch to {r}'})
-            options.append(discord.SelectOption(
+            self._all_options.append(discord.SelectOption(
                 label=data['label'],
                 value=r,
                 description=data['desc'],
@@ -121,14 +131,20 @@ class RoleSelect(discord.ui.Select):
             placeholder="Select Role",
             min_values=1,
             max_values=1,
-            options=options
+            options=self._all_options
         )
     
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
             return
         self.view.selected_role = self.values[0]
-        await interaction.response.defer()
+        # Mirror selection in dropdown placeholder
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
+        await interaction.response.edit_message(view=self.view)
 
 async def setup(bot):
     await bot.add_cog(SwitchRole(bot))

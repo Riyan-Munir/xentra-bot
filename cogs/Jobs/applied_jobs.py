@@ -74,7 +74,15 @@ class AppliedJobs(commands.Cog):
                         apps_list = data['results']
                         
                         if total_count == 0:
-                            return info_embed(message="No applications found.")
+                            return info_embed(
+                                message=(
+                                    '> ***No applications found.***\n'
+                                    '> You have not applied to any open jobs yet.\n'
+                                    '\n'
+                                    '> __Use /jobs list to discover opportunities and apply.__'
+                                ),
+                                footer='Xentra • Jobs',
+                            )
                             
                         view = ApplicationsPaginationView(apps_list, 1, total_count, user_data, target_user_id=normalized_user_id)
                         view.author_id = interaction.user.id
@@ -127,40 +135,40 @@ class ApplicationsPaginationView(PaginationView):
             
         is_premium = any(app.get('is_premium_freelancer', False) for app in self.apps)
         embed_color = BrandColor.PREMIUM if is_premium else BrandColor.PRIMARY
-            
-        embed = create_embed(
-            title=title,
-            description=f"Showing active applications (Page {self.current_page}/{self.total_pages})",
-            color=embed_color,
-            footer=f"Xentra • Total Applications: {self.total_count}"
-        )
+
+        lines = [
+            f"> ***{title}** — page `{self.current_page}` of `{self.total_pages}`*",
+            f"**Total:** `{self.total_count}`",
+        ]
 
         if not self.apps:
-            embed.description = "No pending applications found."
-            return embed
+            lines.append("\n> __No pending applications found. Use /jobs list to discover opportunities.__")
+            return create_embed(
+                title=title,
+                description="\n".join(lines),
+                color=embed_color,
+                footer="Xentra • Jobs",
+            )
 
-        for app in self.apps:
-            job_title = f"**{app['job_title']}**"
-            
+        for idx, app in enumerate(self.apps, start=1):
             status_text = {
                 'pending': "Pending",
                 'accepted': "Accepted",
                 'rejected': "Rejected"
             }.get(app['status'], "Unknown")
-            
-            details = (
-                f"> **Application ID**: `{app['application_id']}` • **Job ID**: `{app['job_id']}`\n"
-                f"> **Bid Amount**: `${app['bid_amount']}` • **Job Budget**: `${app['job_budget_min']}-${app['job_budget_max']}`\n"
-                f"> **Status**: `{status_text}`"
-            )
-            
-            embed.add_field(
-                name=job_title,
-                value=details,
-                inline=False
+            lines.append(
+                f"\n`{idx}.` `{app['application_id']}` • **{app['job_title']}** — `{status_text}`\n"
+                f"> Bid: `${app['bid_amount']}` • Budget: `${app['job_budget_min']}-${app['job_budget_max']}` • Job: `{app['job_id']}`"
             )
 
-        return embed
+        lines.append("\n> __Use the buttons below to act on an application.__")
+
+        return create_embed(
+            title=title,
+            description="\n".join(lines),
+            color=embed_color,
+            footer="Xentra • Jobs",
+        )
 
 async def setup(bot):
     await bot.add_cog(AppliedJobs(bot))

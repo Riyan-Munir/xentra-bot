@@ -28,7 +28,7 @@ def create_embed(
     description: str = None,
     color: BrandColor = BrandColor.PRIMARY,
     thumbnail: str = None,
-    footer: str = "Xentra • Premium Dashboard Ecosystem",
+    footer: str = "Xentra",
     author_name: str = "Xentra",
     author_icon: str = None,
     image: str = None,
@@ -95,19 +95,20 @@ def success_embed(message: str) -> discord.Embed:
     return embed
 
 
-def info_embed(message: str) -> discord.Embed:
+def info_embed(message: str, footer: str = "Xentra • Information") -> discord.Embed:
     """Standardized information response.
 
     The message is shown as the embed description.  No title is set,
-    the indigo colour and ``Xentra • Information`` footer communicate
-    the informational nature.
+    the indigo colour and a category footer communicate the
+    informational nature.  Callers may override *footer* with a
+    domain-specific category (e.g. ``Xentra • Rooms``).
     """
     embed = discord.Embed(
         description=message,
         color=BrandColor.PRIMARY.value,
     )
     embed.set_author(name="Xentra", icon_url=XENTRA_LOGO_URL)
-    embed.set_footer(text="Xentra • Information")
+    embed.set_footer(text=footer)
     return embed
 
 

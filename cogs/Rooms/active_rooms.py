@@ -1,10 +1,10 @@
 """
-``/active rooms``, Display a paginated list of active (open) interview rooms.
+``/active rooms``, Display a paginated list of active rooms.
 
 Flow:
   1. Dropdown to select Interview Room or Job Room.
-  2. Interview → fetch active rooms from backend → paginated embed.
-  3. Job → placeholder "not implemented yet" message.
+  2. Interview → fetch active (open) interview rooms → paginated embed.
+  3. Job → fetch active job rooms (open / freezed / disputed) → paginated embed.
 """
 
 import discord
@@ -87,7 +87,12 @@ class ActiveRoomsSetupView(discord.ui.View):
             return
         self.stop()
         await interaction.response.edit_message(
-            embed=info_embed(message="Room listing cancelled."),
+            embed=info_embed(
+                message=(
+                    "> ***Room listing has been cancelled.***\n"
+                    "> __Nothing was changed. You can run /active rooms again anytime.__"
+                )
+            ),
             view=None,
         )
 
@@ -101,24 +106,16 @@ class ActiveRoomsSetupView(discord.ui.View):
 
         await interaction.response.edit_message(view=None)
 
-        if self.room_type == "job":
-            embed = create_embed(
-                title="Job Rooms, Coming Soon",
-                description="Job rooms are not implemented yet. "
-                "This feature will be available in a future update.",
-                color=BrandColor.PRIMARY,
-                footer="Xentra • Information",
-            )
-            await interaction.edit_original_response(embed=embed, view=None)
-            return
-
-        # Interview flow: fetch active rooms
+        # Fetch active rooms (interview = open, job = open/freezed/disputed)
         url = f"{BACKEND_URL}rooms/bot/active-rooms/"
         params = {
             "discord_id": str(interaction.user.id),
+            "room_type": self.room_type,
             "page": 1,
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
+
+        label = "interview" if self.room_type == "interview" else "job"
 
         try:
             session = get_http_session()
@@ -130,7 +127,7 @@ class ActiveRoomsSetupView(discord.ui.View):
 
                     if total_count == 0:
                         embed = error_embed(
-                            message="Could not find any active interview."
+                            message=f"Could not find any active {label} room."
                         )
                         await interaction.edit_original_response(embed=embed, view=None)
                         return
@@ -140,6 +137,7 @@ class ActiveRoomsSetupView(discord.ui.View):
                         current_page=1,
                         total_count=total_count,
                         user_data=self.user_data,
+                        room_type=self.room_type,
                     )
                     view.author_id = interaction.user.id
                     embed = view.build_embed()
@@ -171,7 +169,7 @@ class ActiveRoomsSetupView(discord.ui.View):
 # Paginated list view for active rooms
 # ──────────────────────────────────────────────────────────────────────
 class ActiveRoomsPaginationView(PaginationView):
-    """Paginated display of active interview rooms."""
+    """Paginated display of active interview or job rooms."""
 
     def __init__(
         self,
@@ -179,6 +177,7 @@ class ActiveRoomsPaginationView(PaginationView):
         current_page: int,
         total_count: int,
         user_data: dict,
+        room_type: str = "interview",
     ) -> None:
         total_pages = (total_count + 4) // 5  # ceil division
         super().__init__(
@@ -188,6 +187,7 @@ class ActiveRoomsPaginationView(PaginationView):
         )
         self.rooms = rooms_data
         self.total_count = total_count
+        self.room_type = room_type
 
     async def change_page(self, interaction: discord.Interaction, new_page: int) -> None:
         is_dm = interaction.guild is None
@@ -195,6 +195,7 @@ class ActiveRoomsPaginationView(PaginationView):
         url = f"{BACKEND_URL}rooms/bot/active-rooms/"
         params = {
             "discord_id": str(interaction.user.id),
+            "room_type": self.room_type,
             "page": new_page,
         }
         headers = {"X-Webhook-Token": WEBHOOK_SECRET}
@@ -218,18 +219,27 @@ class ActiveRoomsPaginationView(PaginationView):
             )
 
     def build_embed(self) -> discord.Embed:
+        is_job = self.room_type == "job"
+        room_label = "Job" if is_job else "Interview"
+        title = f"Active {room_label} Rooms"
         embed = create_embed(
-            title="Active Interview Rooms",
+            title=title,
             description=(
-                f"Showing open rooms (Page **{self.current_page}**/"
-                f"**{self.total_pages}**)"
+                f"> ***Active {room_label} Rooms** — page `{self.current_page}` of `{self.total_pages}`*\n"
+                f"**Total:** `{self.total_count}`\n"
+                "\n"
+                "> __Use the arrows to browse pages, and the buttons below to act on a room.__"
             ),
             color=BrandColor.PRIMARY,
             footer="Xentra • Rooms",
         )
 
         if not self.rooms:
-            embed.description = "Could not find any active interview rooms."
+            embed.description = (
+                f"> ***Could not find any active {room_label.lower()} rooms.***\n"
+                "\n"
+                f"> __Use /create room to start a new {room_label.lower()}, and it will appear here.__"
+            )
             return embed
 
         for room in self.rooms:
@@ -237,6 +247,7 @@ class ActiveRoomsPaginationView(PaginationView):
             job_title = room["job_title"]
             client_name = room.get("client_name", "Unknown")
             freelancer_name = room.get("freelancer_name", "Unknown")
+            status = room.get("status", "")
             last_activity = room.get("last_activity", "")
 
             # Truncate ISO timestamp to readable format
@@ -247,6 +258,7 @@ class ActiveRoomsPaginationView(PaginationView):
                 f"> **Job**: `{job_title}`\n"
                 f"> **Client**: **{client_name}**\n"
                 f"> **Freelancer**: **{freelancer_name}**\n"
+                f"> **Status**: `{status}`\n"
                 f"> **Last Activity**: `{activity_short}`"
             )
 
@@ -263,7 +275,7 @@ class ActiveRoomsPaginationView(PaginationView):
 # Cog
 # ──────────────────────────────────────────────────────────────────────
 class ActiveRooms(commands.Cog):
-    """``/active rooms``, Browse your active interview rooms."""
+    """``/active rooms``, Browse your active interview or job rooms."""
 
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -278,10 +290,12 @@ class ActiveRooms(commands.Cog):
             embed = create_embed(
                 title="Active Rooms",
                 description=(
-                    "> **Select Room Type**, View your active rooms.\n"
-                    "> **Interview Room**, Show all open interview rooms.\n"
-                    "> **Job Room**, Not yet implemented.\n\n"
-                    "> Press **Submit** to continue or **Cancel** to abort."
+                    "> ***Select the type of room to view.***\n"
+                    "**Step:** `1 of 2`\n"
+                    "`1.` Interview Room — show all your open interview rooms.\n"
+                    "`2.` Job Room — show your active job rooms (open / freezed / disputed).\n"
+                    "\n"
+                    "> __Choose a room type from the dropdown, then click Proceed.__"
                 ),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • Rooms",

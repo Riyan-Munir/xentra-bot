@@ -1,8 +1,8 @@
 """
-``/interview message``, Send a message in the interview chat.
+``/job message``, Send a message in the job chat.
 
 Flow:
-  1. ``validate_and_respond`` validates the user, role, and room context.
+  1. ``validate_and_respond`` validates the user, role, and job room context.
   2. Shows a "Write Message" button after room verification passes.
   3. Button opens the message Modal.
   4. Modal collects text; on submit it edits the original message to show
@@ -39,7 +39,7 @@ from utils.retry import validation_fail, security_fail, contains_security_threat
 from utils.system_message_handler import handle_system_message
 from utils.failed_delivery import log_failed_delivery
 
-logger = logging.getLogger('bot.rooms.interview_message')
+logger = logging.getLogger('bot.rooms.job_message')
 
 MAX_ATTACHMENTS = 10
 MAX_TOTAL_SIZE_MB = 10
@@ -81,7 +81,7 @@ def _build_confirm_embed(
     desc += '\n> __Click Attach to upload files, Proceed to send, or Cancel to abort.__'
 
     return create_embed(
-        title='Interview Message',
+        title='Job Message',
         description=desc,
         color=BrandColor.PRIMARY,
         footer='Xentra • Rooms',
@@ -93,7 +93,7 @@ def _build_confirm_embed(
 # ──────────────────────────────────────────────────────────────────────
 
 
-class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
+class JobMessageModal(discord.ui.Modal, title='Send Job Message'):
     """Modal that collects message text.  Room already verified before opening."""
 
     msg = discord.ui.TextInput(
@@ -149,7 +149,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
         await interaction.response.defer()
 
         # Build confirmation view, it will edit the original interaction message
-        view = InterviewMessageConfirmView(
+        view = JobMessageConfirmView(
             original_interaction=self.original_interaction,
             author_id=interaction.user.id,
             is_dm=interaction.guild is None,
@@ -178,7 +178,7 @@ class InterviewMessageModal(discord.ui.Modal, title='Send Interview Message'):
 # ──────────────────────────────────────────────────────────────────────
 
 
-class InterviewMessageConfirmView(discord.ui.View):
+class JobMessageConfirmView(discord.ui.View):
     """Confirmation view: Attach / per-attachment Remove buttons / Proceed / Cancel.
 
     Row 0: Attach + Proceed + Cancel (3 buttons in one row).
@@ -415,7 +415,7 @@ class InterviewMessageConfirmView(discord.ui.View):
             info_embed(
                 message=(
                     '> ***Message has been cancelled.***\n'
-                    '> __Nothing was sent. The interview room remains open.__'
+                    '> __Nothing was sent. The job room remains open.__'
                 )
             ),
         )
@@ -480,7 +480,7 @@ class InterviewMessageConfirmView(discord.ui.View):
 
         # ── 1. Save to backend FIRST to get msg_id ───────────────────
         session = get_http_session()
-        save_url = f'{BACKEND_URL}rooms/bot/save-message/'
+        save_url = f'{BACKEND_URL}rooms/bot/save-job-message/'
         payload = {
             'discord_id': my_discord_id,
             'room_id': room.get('room_id', ''),
@@ -495,11 +495,9 @@ class InterviewMessageConfirmView(discord.ui.View):
         try:
             async with session.post(save_url, json=payload, headers=headers) as resp:
                 if resp.status != 200:
-                    err_data = await resp.json()
-                    err_msg = err_data.get('error', 'Unknown error')
                     await _edit_msg_done(
                         self,
-                        error_embed(message=f'The service is temporarily unavailable.'),
+                        error_embed(message='The service is temporarily unavailable.'),
                     )
                     self.stop()
                     return
@@ -544,7 +542,7 @@ class InterviewMessageConfirmView(discord.ui.View):
 
         # ── 3. Deliver via system message handler ────────────────────
         delivery_ok = await handle_system_message(
-            message_type='interview_room_message',
+            message_type='job_room_message',
             data=system_data,
             bot=interaction.client,
             files=discord_files or None,
@@ -560,15 +558,18 @@ class InterviewMessageConfirmView(discord.ui.View):
             # Message saved but DM delivery failed, log for retry
             await log_failed_delivery(
                 room_id=room.get('room_id', ''),
-                message_type='interview_message',
+                room_type='job',
+                message_type='job_message',
                 target_discord_id=receiver_discord_id,
                 msg_id=msg_id,
             )
 
+            # The message record is already persisted in the DB + transcript,
+            # so the receiver can still view it on the dashboard.
             await _edit_msg_done(
                 self,
                 dm_blocked_embed(
-                    attempted_action="your interview message",
+                    attempted_action="your job message",
                     receiver_name=receiver_name,
                 ),
             )
@@ -617,8 +618,8 @@ async def _edit_msg_done(
 # ──────────────────────────────────────────────────────────────────────
 
 
-class InterviewMessage(commands.Cog):
-    """``/interview message``, Send a message in the interview chat."""
+class JobMessage(commands.Cog):
+    """``/job message``, Send a message in the job chat."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -627,19 +628,19 @@ class InterviewMessage(commands.Cog):
         sync_cog_commands(self)
 
     @app_commands.command(
-        name='interview_message',
+        name='job_message',
         description='...',
     )
     @app_commands.describe(
         message_id='Optional, link this message to a previous message ID (reply-style).',
     )
     @app_commands.checks.cooldown(1, 15, key=lambda i: i.user.id)
-    async def interview_message(
+    async def job_message(
         self,
         interaction: discord.Interaction,
         message_id: str | None = None,
     ) -> None:
-        """Send a message to the other party in the selected interview room.
+        """Send a message to the other party in the selected job room.
 
         Parameters:
             message_id: Optional, link this message to a previous message ID.
@@ -658,6 +659,7 @@ class InterviewMessage(commands.Cog):
                 verify_url = f'{BACKEND_URL}rooms/bot/verify-room-reference/'
                 verify_payload = {
                     'room_id': room_data.get('room_id', ''),
+                    'room_type': 'job',
                     'msg_id': message_id,
                 }
                 try:
@@ -686,7 +688,7 @@ class InterviewMessage(commands.Cog):
 
             # ── 2. Show embed with Write Message + Cancel buttons ────────
             desc_parts = [
-                '> ***Send a message in the interview chat.***\n'
+                '> ***Send a message in the job chat.***\n'
                 f'**Room:** `{room_data.get("room_id", "")}`\n'
                 f'**Job:** `{room_data.get("job_title", "")}`',
             ]
@@ -697,7 +699,7 @@ class InterviewMessage(commands.Cog):
             )
 
             embed = create_embed(
-                title='Interview Message',
+                title='Job Message',
                 description='\n'.join(desc_parts),
                 color=BrandColor.PRIMARY,
                 footer='Xentra • Rooms',
@@ -748,7 +750,7 @@ class MessageStartView(discord.ui.View):
         if not is_author(interaction, self):
             return
 
-        modal = InterviewMessageModal(
+        modal = JobMessageModal(
             user_data=self.user_data,
             room_data=self.room_data,
             original_interaction=self.original_interaction,
@@ -769,7 +771,7 @@ class MessageStartView(discord.ui.View):
             embed=info_embed(
                 message=(
                     '> ***Message has been cancelled.***\n'
-                    '> __Nothing was sent. The interview room remains open.__'
+                    '> __Nothing was sent. The job room remains open.__'
                 )
             ),
             view=None,
@@ -779,5 +781,5 @@ class MessageStartView(discord.ui.View):
 # ── setup ──────────────────────────────────────────────────────────────
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(InterviewMessage(bot))
-    logger.info('InterviewMessage cog loaded')
+    await bot.add_cog(JobMessage(bot))
+    logger.info('JobMessage cog loaded')

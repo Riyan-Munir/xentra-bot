@@ -628,6 +628,29 @@
     ]
   },
   {
+    "name": "job message",
+    "description": "Send a message in job chat.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": true,
+    "requiresInterviewChat": false,
+    "parameters": [
+      {
+        "name": "message_id",
+        "description": "Link this message to a previous message ID for replying.",
+        "mandatory": false
+      }
+    ]
+  },
+  {
     "name": "interview budget",
     "description": "Select the final budget for this job.",
     "context": [
@@ -692,6 +715,23 @@
     "category": "Rooms",
     "requiresJobChat": false,
     "requiresInterviewChat": true,
+    "parameters": []
+  },
+  {
+    "name": "job delivery",
+    "description": "Retry any failed system message deliveries in job room.",
+    "context": [
+      "dm"
+    ],
+    "roles": {
+      "dm": [
+        "client",
+        "freelancer"
+      ]
+    },
+    "category": "Rooms",
+    "requiresJobChat": true,
+    "requiresInterviewChat": false,
     "parameters": []
   },
   {
@@ -831,42 +871,8 @@
     "parameters": []
   },
   {
-    "name": "wallet verify",
-    "description": "Verify a registered wallet.",
-    "context": [
-      "dm"
-    ],
-    "roles": {
-      "dm": [
-        "freelancer",
-        "client"
-      ]
-    },
-    "category": "Wallet",
-    "requiresJobChat": false,
-    "requiresInterviewChat": false,
-    "parameters": []
-  },
-  {
     "name": "wallet default",
-    "description": "Set default wallet.",
-    "context": [
-      "dm"
-    ],
-    "roles": {
-      "dm": [
-        "freelancer",
-        "client"
-      ]
-    },
-    "category": "Wallet",
-    "requiresJobChat": false,
-    "requiresInterviewChat": false,
-    "parameters": []
-  },
-  {
-    "name": "wallet remove",
-    "description": "Remove a registered wallet.",
+    "description": "View your default wallet.",
     "context": [
       "dm"
     ],

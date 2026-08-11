@@ -17,11 +17,11 @@ logger = logging.getLogger('bot.block_execution')
 class BlockExecutionSelect(discord.ui.Select):
     def __init__(self, identifier):
         self.identifier = identifier
-        options = [
+        self._all_options = [
             discord.SelectOption(label="Freelancer", value="freelancer", description="Block as Freelancer"),
             discord.SelectOption(label="Client", value="client", description="Block as Client")
         ]
-        super().__init__(placeholder="Select the target role.", options=options)
+        super().__init__(placeholder="Select the target role.", options=self._all_options)
 
     async def callback(self, interaction: discord.Interaction):
         if not is_author(interaction, self.view):
@@ -29,6 +29,12 @@ class BlockExecutionSelect(discord.ui.Select):
         self.view.selected_role = self.values[0]
         for option in self.options:
             option.default = (option.value == self.values[0])
+        # Mirror selection in dropdown placeholder
+        selected_label = next(
+            (opt.label for opt in self._all_options if opt.value == self.values[0]),
+            self.values[0],
+        )
+        self.placeholder = f"✓ {selected_label}"
         await interaction.response.edit_message(view=self.view)
 
 
@@ -63,7 +69,12 @@ class BlockExecutionView(discord.ui.View):
         if not is_author(interaction, self):
             return
         self.stop()
-        err = info_embed(message="Block execution cancelled.")
+        err = info_embed(
+            message=(
+                "> ***Block execution has been cancelled.***\n"
+                "> __Nothing was changed. No one was blocked.__"
+            )
+        )
         await interaction.response.edit_message(content=None, embed=err, view=None)
 
 
@@ -169,7 +180,12 @@ class BlockExecution(commands.Cog):
                 view.author_id = interaction.user.id
                 embed = create_embed(
                     title="Role Selection Required",
-                    description=f"The ID **{result.original}** is a custom Premium ID. Please select the target role perspective:",
+                    description=(
+                        f"> ***Select the role perspective for this Premium ID.***\n"
+                        f"**ID:** `{result.original}` — custom Premium ID\n"
+                        "\n"
+                        "> __Use the dropdown to pick a role, then click Proceed.__"
+                    ),
                     color=BrandColor.ACCENT,
                     footer="Xentra • Management"
                 )

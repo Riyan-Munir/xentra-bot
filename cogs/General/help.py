@@ -60,18 +60,22 @@ class Help(commands.Cog):
                 if cat not in filtered_commands: filtered_commands[cat] = []
                 filtered_commands[cat].append(cmd)
 
-            embed = create_embed(
+            lines = [
+                f"> ***Xentra Help Center** — {active_role.replace('_', ' ').title()}*",
+                f"**Commands Available:** `{sum(len(v) for v in filtered_commands.values())}`",
+            ]
+            for category, cmds in filtered_commands.items():
+                cmd_list = ", ".join([f"`/{c['name'].replace('_', ' ')}`" for c in cmds])
+                lines.append(f"\n> **{category}**\n{cmd_list}")
+
+            lines.append("\n> __Use /help in DMs or a server to see commands for that context.__")
+
+            return create_embed(
                 title="Xentra Help Center",
-                description=f"Authorized slash commands for your active perspective: **{active_role.replace('_', ' ').title()}**",
+                description="\n".join(lines),
                 color=BrandColor.PRIMARY,
                 footer="Xentra • General"
             )
-            
-            for category, cmds in filtered_commands.items():
-                cmd_list = ", ".join([f"`/{c['name'].replace('_', ' ')}`" for c in cmds])
-                embed.add_field(name=category, value=f"> {cmd_list}", inline=False)
-
-            return embed
 
         await validate_and_respond(interaction, build_help_embed)
 

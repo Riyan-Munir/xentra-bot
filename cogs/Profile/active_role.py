@@ -25,18 +25,18 @@ class ActiveRole(commands.Cog):
         async def build_active_embed(user_data):
             active = user_data.get('active_role', 'Not set')
             role_label = active.replace('_', ' ').title()
-            
+
             embed = create_embed(
                 title="Active Identity",
+                description=(
+                    f"> ***Active Identity***\n"
+                    f"**Role:** `{role_label}`\n"
+                    "\n"
+                    "> __All Xentra actions currently run under this identity. Use /switch role to change it.__"
+                ),
                 color=BrandColor.PRIMARY,
                 thumbnail=interaction.user.display_avatar.url,
                 footer="Xentra • Profile"
-            )
-            
-            embed.add_field(
-                name="Status",
-                value=f"> **{role_label}**",
-                inline=True
             )
             
             return embed

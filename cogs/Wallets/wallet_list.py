@@ -42,7 +42,12 @@ class WalletList(commands.Cog):
 
                         embed = create_embed(
                             title=f"Registered Wallets",
-                            description=f"**{len(wallets)}** wallet(s) found.",
+                            description=(
+                                f"> ***Registered Wallets** — page `1` of `1`*\n"
+                                f"**Total:** `{len(wallets)}`\n"
+                                "\n"
+                                "> __Use /wallet register to add a new wallet.__"
+                            ),
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Wallets",
                         )

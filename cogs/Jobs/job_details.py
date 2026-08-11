@@ -41,34 +41,35 @@ class JobDetails(commands.Cog):
                     is_featured = job.get('is_featured', False)
                     featured_icon = "✨ " if is_featured else ""
                     embed_color = BrandColor.PREMIUM if is_featured else BrandColor.PRIMARY
-                    
-                    embed = create_embed(
-                        title=f"Job Details: {job['title']}",
-                        description=job['description'],
-                        color=embed_color,
-                        footer=f"Xentra • Posted by {job['client_id']} • Job ID: {job_id}",
-                    )
-                    
-                    # Skills Tags
-                    skills = ", ".join([f"`{s.strip()}`" for s in job['skills_required']]) if job['skills_required'] else "`None`"
-                    
-                    embed.add_field(name="Skills Required", value=skills, inline=False)
-                    
-                    # Additional details
+
                     budget_text = f"${job['budget_min']} - ${job['budget_max']}" if job.get('budget_min') and job.get('budget_max') else job.get('budget_range', 'Not specified')
-                    embed.add_field(name="Budget", value=f"`{budget_text}`", inline=True)
-                    embed.add_field(name="Deadline", value=job.get('deadline', 'Not specified'), inline=True)
-                    embed.add_field(name="Experience Level", value=f"`{job.get('experience_level', 'Any').title()}`", inline=True)
-                    embed.add_field(name="Category", value=f"`{job.get('category', 'General').title()}`", inline=True)
-                    
-                    # Job Metadata
+                    skills = ", ".join([f"`{s.strip()}`" for s in job['skills_required']]) if job['skills_required'] else "`None`"
+
                     metadata = []
                     if job.get('is_confidential'):
                         metadata.append("Confidential")
                     if job.get('is_strict'):
                         metadata.append("Strict")
-                    if metadata:
-                        embed.add_field(name="Job Attributes", value=" • ".join(metadata), inline=True)
+                    meta_str = " • ".join(metadata) if metadata else "—"
+
+                    embed = create_embed(
+                        title=f"Job Details: {job['title']}",
+                        description=(
+                            f"> ***Job Details** — {job['title']}*\n"
+                            f"**Job ID:** `{job_id}`\n"
+                            f"**Client:** `{job['client_id']}`\n"
+                            f"**Budget:** `{budget_text}`\n"
+                            f"**Deadline:** `{job.get('deadline', 'Not specified')}`\n"
+                            f"**Experience Level:** `{job.get('experience_level', 'Any').title()}`\n"
+                            f"**Category:** `{job.get('category', 'General').title()}`\n"
+                            f"**Attributes:** `{meta_str}`\n"
+                            f"**Skills:** {skills}\n"
+                            "\n"
+                            f"> {job['description']}"
+                        ),
+                        color=embed_color,
+                        footer="Xentra • Jobs",
+                    )
                     
                     # Use centralized tracker for admin button
                     from utils.command_handler import PublicPostView

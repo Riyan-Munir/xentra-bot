@@ -48,27 +48,26 @@ class ApplicationDetails(commands.Cog):
                         embed = create_embed(
                             title="Application Details",
                             description=(
-                                f"> **Job Title:** `{data.get('job_title', 'Unknown')}`\n"
-                                f"> **Status:** `{data.get('status', 'Unknown')}`\n"
-                                f"> **Bid:** `${data.get('bid', 'N/A')}`\n"
+                                f"> ***Application Details** — {data.get('job_title', 'Unknown')}*\n"
+                                f"**Status:** `{data.get('status', 'Unknown')}`\n"
+                                f"**Bid:** `${data.get('bid', 'N/A')}`\n"
+                                f"**Application ID:** `{application_id}`\n"
+                                + (
+                                    f"**Freelancer:** `{data.get('freelancer_name', 'Unknown')}`\n"
+                                    if data.get('freelancer_name')
+                                    else ""
+                                )
+                                + (
+                                    f"**Submitted:** `{data['created_at'][:19].replace('T', ' ')}`\n"
+                                    if data.get('created_at')
+                                    else ""
+                                )
+                                + "\n"
                                 f"> **Proposal:**\n> {data.get('proposal', 'No proposal provided.')[:1000]}"
                             ),
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Jobs",
                         )
-
-                        if data.get('created_at'):
-                            embed.add_field(
-                                name="Submitted",
-                                value=f"`{data['created_at'][:19].replace('T', ' ')}`",
-                                inline=True,
-                            )
-                        if data.get('freelancer_name'):
-                            embed.add_field(
-                                name="Freelancer",
-                                value=f"> **{data['freelancer_name']}**",
-                                inline=True,
-                            )
 
                         return embed, None
                     else:

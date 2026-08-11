@@ -178,7 +178,10 @@ class ApplyJobPreflightView(discord.ui.View):
             return
         self.stop()
         embed = info_embed(
-            message="Application cancelled."
+            message=(
+                "> ***Application has been cancelled.***\n"
+                "> __Nothing was submitted. You can apply again anytime.__"
+            )
         )
         await interaction.response.edit_message(embed=embed, view=None)
 
@@ -213,17 +216,21 @@ class ApplyJob(commands.Cog):
             async with session.post(url, json=packet.to_dict(), headers=headers) as resp:
                     res_data = await resp.json()
                     if resp.status in (200, 201):
+                        budget_min = res_data.get('budget_min')
+                        budget_line = f"\n**Minimum Budget:** `${budget_min}`" if budget_min else ""
                         embed = create_embed(
                             title="Job Application Preflight",
                             description=(
-                                "> Check the job details and click the button below to submit your proposal and bid.\n\n"
-                                f"> **Target Job ID**: `{job_id}`\n"
-                                "> **Constraint**: Proposals must be between 50 and 300 words."
+                                f"> ***Are you ready to apply for this job?***\n"
+                                f"**Job ID:** `{job_id}`\n"
+                                f"**Constraint:** `Proposals must be 50–300 words.`"
+                                f"{budget_line}\n"
+                                "\n"
+                                "> __Click Proceed to open the application form, or Cancel to abort.__"
                             ),
                             color=BrandColor.PRIMARY,
                             footer="Xentra • Jobs"
                         )
-                        budget_min = res_data.get('budget_min')
                         view = ApplyJobPreflightView(job_id, budget_min)
                         view.author_id = interaction.user.id
                         return embed, view
